@@ -229,7 +229,7 @@ st.markdown(
     <section class="home-hero">
         <div class="home-title">idopNetwork 数据分析平台</div>
         <p class="home-subtitle">
-            一个面向复杂系统数据的可视化分析工作台，支持从静态数据出发构建动态推演与全景网络洞察。
+            <span style="display:block; text-align:center;">一个面向复杂系统数据的可视化分析工作台，支持从静态数据出发构建动态推演与全景网络洞察。</span>
         </p>
         <div class="hero-badges">
             <span class="hero-badge">Informative</span>
