@@ -41,7 +41,7 @@ st.markdown(
     <style>
     /* 标签整体圆角、间距 */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
+        gap: 16px;
     }
 
     /* 单个标签样式 */
