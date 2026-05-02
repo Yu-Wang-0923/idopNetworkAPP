@@ -1,4 +1,5 @@
 
+import math
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -8,61 +9,34 @@ import matplotlib.font_manager as fm
 
 
 
-
-
-
-
-
-
 font_path = Path(__file__).parent.parent / "static" / "SimHei.ttf"
 font_prop = fm.FontProperties(fname=font_path)
 
 
 
-def plot_scatter_matrix(df, use_seq, n_cols, max_plots):
-    x = np.arange(1, len(df)+1) if use_seq else df.index
-    cols = st.columns(n_cols)
-    selected_cols = df.columns[:max_plots]
-    for i, col in enumerate(selected_cols):
-        with cols[i % n_cols]:
-            fig, ax = plt.subplots(figsize=(4,3)) # , dpi=300
-            ax.scatter(x, df[col], s=150, alpha=0.7, facecolors='none', edgecolors='#4285F4', linewidth=1)
-            ax.set_title(col, fontproperties=font_prop)
-            ax.set_xlabel("Sequence" if use_seq else "Index", fontproperties=font_prop)
-            ax.set_ylabel(col, fontproperties=font_prop)
-            for label in ax.get_xticklabels() + ax.get_yticklabels():
-                label.set_fontproperties(font_prop)
-            ax.grid(alpha=0.3)
-            ax.margins(x=0.2, y=0.3)
-            ax.xaxis.set_major_locator(plt.MaxNLocator(5))
-            ax.yaxis.set_major_locator(plt.MaxNLocator(5))
-            st.pyplot(fig)
-            plt.close()
+
 
 def plot_curve_fitting(
-    df_quasi_dynamic, 
-    df_curve_sample,
-    use_seq, 
-    n_cols, 
-    max_plots
+    df_scatter, 
+    df_curve,
+    show_scatter=True,
+    nrow=2,
+    ncol=2,
+    nsubfig=4,  # 总子图数量
 ):
-    x = np.arange(1, len(df_quasi_dynamic)+1) if use_seq else df_quasi_dynamic.index
-    a_index = df_curve_sample.index
-    cols = st.columns(n_cols)
-    selected_cols = df_quasi_dynamic.columns[:max_plots]
-    for i, col in enumerate(selected_cols):
-        with cols[i % n_cols]:
-            fig, ax = plt.subplots(figsize=(4,3)) # , dpi=300
-            ax.scatter(a_index, df_quasi_dynamic[col], s=150, alpha=0.7, facecolors='none', edgecolors='#4285F4', linewidth=1)
-            ax.plot(a_index, df_curve_sample[col], alpha=0.7, color='#ff0000', linewidth=4)
-            ax.set_title(col, fontproperties=font_prop)
-            ax.set_xlabel("Sequence" if use_seq else "Index", fontproperties=font_prop)
-            ax.set_ylabel(col, fontproperties=font_prop)
-            for label in ax.get_xticklabels() + ax.get_yticklabels():
-                label.set_fontproperties(font_prop)
-            ax.grid(alpha=0.3)
-            ax.margins(x=0.2, y=0.3)
-            ax.xaxis.set_major_locator(plt.MaxNLocator(5))
-            ax.yaxis.set_major_locator(plt.MaxNLocator(5))
-            st.pyplot(fig)
-            plt.close()
+    selected_cols = df_scatter.columns.tolist()
+    fig, axes = plt.subplots(nrow, ncol, figsize=(ncol*5, nrow*4))
+    axes = axes.flatten()
+    for i, col in enumerate(selected_cols[:nsubfig]):  # 最多画 nsubfig 个
+        x = df_scatter.index
+        if show_scatter:
+            axes[i].scatter(x, df_scatter[col], alpha=0.6, s=25)
+        axes[i].plot(x, df_curve[col], linewidth=2.5)
+        axes[i].set_title(col, fontsize=11)
+        axes[i].margins(x=0.2, y=0.3)
+    # 隐藏多余子图
+    for j in range(i + 1, len(axes)):
+        axes[j].set_visible(False)
+    plt.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
