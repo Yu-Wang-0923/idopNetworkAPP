@@ -344,7 +344,7 @@ with tab2:
 
         curve_sample = get_power_function_sample(df_quasi_dynamic)
         st.dataframe(curve_sample, use_container_width=True)
-        plot_scatter_matrix(plot_curve_fitting, use_seq = None, n_cols=2, max_plots=6)
+        plot_curve_fitting(curve_sample, use_seq = None, n_cols=2, max_plots=6)
 # "Sequence"
 
 
