@@ -30,9 +30,9 @@ st.title("Curve Fitting", text_alignment="center")
 
 
 
-# plt.rcParams["font.family"] = ["WenQuanYi Zen Hei", "SimHei", "DejaVu Sans"]
-# plt.rcParams["axes.unicode_minus"] = False  # 解决负号显示
-
+# import matplotlib.pyplot as plt
+plt.rcParams['font.sans-serif']=['SimHei','Songti SC','STFangsong']
+plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
 
 @st.cache_data
 def load_csv(file):
