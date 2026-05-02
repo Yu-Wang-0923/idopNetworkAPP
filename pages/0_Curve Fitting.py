@@ -96,79 +96,79 @@ st.title("Curve Fitting", text_alignment="center")
 
 
 
-# ========== Sidebar ==========
-# with st.sidebar:
-#     st.write("To Be Updated")
-#     st.info('stpe-1: Uploaded Data')
-#     st.info('stpe-2: Transformation Data')
+========== Sidebar ==========
+with st.sidebar:
+    st.write("To Be Updated")
+    st.info('stpe-1: Uploaded Data')
+    st.info('stpe-2: Transformation Data')
 
 
 
 
-# # ========== Tabs ==========
-# tab1, tab2, tab3 = st.tabs([
-#     "Uploaded Data", 
-#     "Curve Fitting", 
-#     "To Be Updated",
-#     ])
+# ========== Tabs ==========
+tab1, tab2, tab3 = st.tabs([
+    "Uploaded Data", 
+    "Curve Fitting", 
+    "To Be Updated",
+    ])
 
-# with tab1:
-#     uploaded_files = st.file_uploader(
-#         label="Please upload your files",
-#         type=["csv"],
-#         accept_multiple_files=True,
-#         help="Supports CSV, multiple files allowed",
-#         label_visibility="visible",
-#         max_upload_size=500,
-#     )
+with tab1:
+    uploaded_files = st.file_uploader(
+        label="Please upload your files",
+        type=["csv"],
+        accept_multiple_files=True,
+        help="Supports CSV, multiple files allowed",
+        label_visibility="visible",
+        max_upload_size=500,
+    )
 
-#     subtab1_1, subtab1_2, subtab1_3 = st.tabs([
-#         "Data Overview", 
-#         "Data Transformation", 
-#         "To Be Updated",
-#     ])
+    subtab1_1, subtab1_2, subtab1_3 = st.tabs([
+        "Data Overview", 
+        "Data Transformation", 
+        "To Be Updated",
+    ])
 
-#     with subtab1_1:
-#         if uploaded_files:
-#             with st.expander("⚙️ Data Settings", expanded=False):
-#                 use_first_col_as_index = st.checkbox(
-#                     "Use first column as index",
-#                     value=True  # 默认勾选
-#                 )
-#                 st.session_state["use_first_col_as_index"] = use_first_col_as_index
+    with subtab1_1:
+        if uploaded_files:
+            with st.expander("⚙️ Data Settings", expanded=False):
+                use_first_col_as_index = st.checkbox(
+                    "Use first column as index",
+                    value=True  # 默认勾选
+                )
+                st.session_state["use_first_col_as_index"] = use_first_col_as_index
 
-#             st.divider()
+            st.divider()
 
-#             original_data_session = {}
-#             for file in uploaded_files:
-#                 with st.expander(f"📄 Original Data: {file.name}", expanded=False):
-#                     df = load_csv(file)
+            original_data_session = {}
+            for file in uploaded_files:
+                with st.expander(f"📄 Original Data: {file.name}", expanded=False):
+                    df = load_csv(file)
 
-#                     if st.session_state["use_first_col_as_index"]:
-#                         df = df.set_index(df.columns[0])
+                    if st.session_state["use_first_col_as_index"]:
+                        df = df.set_index(df.columns[0])
                     
-#                     # 缓存, key: 文件名, value: df
-#                     original_data_session[file.name] = df
-#                     st.session_state["original_data_session"] = original_data_session
+                    # 缓存, key: 文件名, value: df
+                    original_data_session[file.name] = df
+                    st.session_state["original_data_session"] = original_data_session
 
-#                     with st.expander(f"📄 Original Data Overview: {file.name}", expanded=False):
-#                         st.dataframe(df, use_container_width=True)
-#                         st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
+                    with st.expander(f"📄 Original Data Overview: {file.name}", expanded=False):
+                        st.dataframe(df, use_container_width=True)
+                        st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
 
-#                     with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
-#                         st.dataframe(df.describe(),use_container_width=True)
+                    with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
+                        st.dataframe(df.describe(),use_container_width=True)
 
-#                     # key_id = id(df)
-#                     # with st.expander("📊 Scatter Plot", expanded=False):
-#                     #     with st.expander("⚙️ Plot Settings", expanded=False):
-#                     #         col1,col2,col3 = st.columns(3)
-#                     #         use_seq = col1.checkbox("Use sequential X-axis", key=f"original_data_seq_{key_id}", value=True)
-#                     #         n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"original_data_col_{key_id}")
-#                     #         max_plots = col3.selectbox("Max plots", [3,6,9], index=1, key=f"original_data_plots_{key_id}")
+                    # key_id = id(df)
+                    # with st.expander("📊 Scatter Plot", expanded=False):
+                    #     with st.expander("⚙️ Plot Settings", expanded=False):
+                    #         col1,col2,col3 = st.columns(3)
+                    #         use_seq = col1.checkbox("Use sequential X-axis", key=f"original_data_seq_{key_id}", value=True)
+                    #         n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"original_data_col_{key_id}")
+                    #         max_plots = col3.selectbox("Max plots", [3,6,9], index=1, key=f"original_data_plots_{key_id}")
 
-#                     #     plot_scatter_matrix(df, use_seq, n_cols, max_plots)
-#         else:
-#             st.info("Please upload CSV file(s) to view data overview")
+                    #     plot_scatter_matrix(df, use_seq, n_cols, max_plots)
+        else:
+            st.info("Please upload CSV file(s) to view data overview")
     
 #     with subtab1_2:
 #         if uploaded_files:
