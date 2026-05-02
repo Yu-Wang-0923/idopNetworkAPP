@@ -79,7 +79,7 @@ with tab1:
             st.divider()
 
             for file in uploaded_files:
-                with st.expander(f"📄 Original Data: {file.name}", expanded=True):
+                with st.expander(f"📄 Original Data: {file.name}", expanded=False):
                     df = load_csv(file)
 
                     if use_first_col_as_index:
@@ -87,6 +87,7 @@ with tab1:
 
                     st.dataframe(df, use_container_width=True)
                     st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
+                    st.dataframe(df.describe(),use_container_width=True)
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
