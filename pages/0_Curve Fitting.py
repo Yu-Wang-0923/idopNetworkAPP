@@ -30,10 +30,12 @@ with tab1:
     subtab1_1, subtab1_2, subtab1_3 = st.tabs(["Data Overview", "Data Transformation", "To Be Updated",])
 
     with subtab1_1:
-
         if uploaded_files:     
             for file in uploaded_files:
+
                 df_original = load_csv(file)
+                st.session_state.data_dict[file.name] = df_original
+
                 with st.expander(f"Original Data: {file.name}, Rows: {df_original.shape[0]}, Columns: {df_original.shape[1]}", expanded=False):
                     with st.expander("Original Data Overview", expanded=False):
                         st.dataframe(df_original, use_container_width=True)
@@ -44,43 +46,25 @@ with tab1:
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
-    #                 if st.session_state["use_first_col_as_index"]:
-    #                     df = df.set_index(df.columns[0])
-                    
-    #                 # 缓存, key: 文件名, value: df
-                    # original_data_session[file.name] = df
-    #                 # st.session_state["original_data_session"] = original_data_session
-
-                
-
-                    # key_id = id(df)
-                    # with st.expander("📊 Scatter Plot", expanded=False):
-                    #     with st.expander("⚙️ Plot Settings", expanded=False):
-                    #         col1,col2,col3 = st.columns(3)
-                    #         use_seq = col1.checkbox("Use sequential X-axis", key=f"original_data_seq_{key_id}", value=True)
-                    #         n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"original_data_col_{key_id}")
-                    #         max_plots = col3.selectbox("Max plots", [3,6,9], index=1, key=f"original_data_plots_{key_id}")
-
-        #             #     plot_scatter_matrix(df, use_seq, n_cols, max_plots)
-        
     
-#     with subtab1_2:
-#         if uploaded_files:
-#             with st.expander("⚙️ Transformation Settings", expanded=False):
-#                 scaler_type = st.selectbox(
-#                     "Transformation Type", 
-#                     [
-#                         "none", 
-#                         "rescale_to_0_1", 
-#                         "rescale_to_-1_1", 
-#                         "log1p"
-#                     ]
-#                 )
-            
-#             st.divider()
+    with subtab1_2:
+        if uploaded_files:
+            with st.expander("⚙️ Transform Settings", expanded=False):
+                scaler_type = st.selectbox("Transform Type", ["none", "rescale_to_0_1", "rescale_to_-1_1", "log1p"],key="transform_data")
+            for 
 
-#             original_data_session = st.session_state.get("original_data_session", {})
+                df = st.session_state.data_dict[file.name]
+                df_transform = data_transformation(df, scaler_type)
             
+            with st.expander(f"Transform Data: {file.name}, Rows: {df_transform.shape[0]}, Columns: {df_transform.shape[1]}", expanded=False):
+                    with st.expander("Transform Data Overview", expanded=False):
+                        st.dataframe(df_transform, use_container_width=True)
+                    with st.expander("Descriptive Statistics", expanded=False):
+                        st.dataframe(df_transform.describe(), use_container_width=True)
+                    with st.expander("Scatter Plot", expanded=False):
+                        st.write("To Be Updated")
+        else:
+            st.info("Please upload CSV file(s) to view data overview")
 
 #             transform_data_session = {}
 #             for fname, df in original_data_session.items():
