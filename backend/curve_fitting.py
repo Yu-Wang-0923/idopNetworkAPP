@@ -38,6 +38,7 @@ def data_transformation(
 # y_j(s_i) -> y_j(tau_i).
 # T_i = \sum_{j=1}^p y_j(s_i), i = 1, 2, ..., n.
 # tau_i = sigma(T_i), s.t. tau_1 ≦ ... ≦ tau_n.
+@st.cache_data
 def get_quasi_dynamic_df(
     data: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -86,6 +87,7 @@ def chebyshev_nodes(
 
 
 # 计算幂律拟合曲线采样值
+@st.cache_data
 def get_power_function_sample(
     quasi_dynamic_df: pd.DataFrame,
 ) -> pd.DataFrame:

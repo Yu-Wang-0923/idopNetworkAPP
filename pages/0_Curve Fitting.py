@@ -82,18 +82,17 @@ with tab2:
         else:
             st.info("Please upload CSV file(s)")
 
-        
 
+    with subtab2_2:
+        if uploaded_files:
+            for file in uploaded_files:
+                df_quasi_dynamic = st.session_state.df_quasi_dynamic[file.name]        
+                df_curve_sample = get_power_function_sample(df_quasi_dynamic)
+                st.session_state.df_quasi_dynamic[file.name] = df_quasi_dynamic
+                show_data_expander(f"Quasi Dynamic: {file.name}", df_quasi_dynamic)
+        else:
+            st.info("Please upload CSV file(s)")
 
-# #     with subtab2_2:
-# #         if uploaded_files:
-# #             st.write("To Be Updated")
-
-# #             curve_sample = get_power_function_sample(df_quasi_dynamic)
-# #             st.dataframe(df_quasi_dynamic, use_container_width=True)
-# #             st.dataframe(curve_sample, use_container_width=True)
-# #             plot_curve_fitting(df_quasi_dynamic=df_quasi_dynamic, df_curve_sample=curve_sample, use_seq = None, n_cols=3, max_plots=6)
-# # "Sequence"
 
 
 
