@@ -21,19 +21,19 @@ import streamlit as st
 # font_prop = fm.FontProperties(fname=font_path)
 
 
-# 页面设置
-st.set_page_config(
-    page_title="Curve Fitting", 
-    page_icon=None,
-    layout="wide",
-    initial_sidebar_state="auto",
-    menu_items={
-        # 右上角 ⋮ 三点菜单里，帮助选项保留, 点击后跳转到：https://www.streamlit.io
-        "Get help": "https://www.streamlit.io",
-        "Report a Bug": None,
-        "About": "# 数据看板\n版本 1.0.0" 
-    }
-)
+# # 页面设置
+# st.set_page_config(
+#     page_title="Curve Fitting", 
+#     page_icon=None,
+#     layout="wide",
+#     initial_sidebar_state="auto",
+#     menu_items={
+#         # 右上角 ⋮ 三点菜单里，帮助选项保留, 点击后跳转到：https://www.streamlit.io
+#         "Get help": "https://www.streamlit.io",
+#         "Report a Bug": None,
+#         "About": "# 数据看板\n版本 1.0.0" 
+#     }
+# )
 
 # 页面标题 
 st.title("Curve Fitting", text_alignment="center")
