@@ -78,8 +78,8 @@ def plot_curve_fitting_compare(
     ncol=2,
     nsubfig=4,
 ):
-    scatter_colors = ['#F9B3AD', '#81B1D9', '#76C2AF', '#E5C68F', '#C59FCE', '#A0D8E7']
-    curve_colors = ['#F8A09B', '#5A9BD3', '#52B793', '#DDB866', '#B488C2', '#79C6DF']
+    scatter_colors = ['#F9B3AD', '#C9A1CA', '#76C2AF', '#E5C68F', '#C59FCE', '#A0D8E7']
+    curve_colors = ['#F8A09B', '#BC8FC1', '#52B793', '#DDB866', '#B488C2', '#79C6DF']
     
     selected_cols = df_scatter_list[0].columns.tolist()
     fig, axes = plt.subplots(nrow, ncol, figsize=(6, 3), sharex=True, sharey=True, dpi=300)
@@ -121,7 +121,7 @@ def plot_curve_fitting_compare(
         
         # 样式
         ax.set_title(col, fontsize=11, fontproperties=font_prop)
-        ax.margins(x=0.1, y=0.2)
+        ax.margins(x=0.1, y=0.1)
         ax.xaxis.set_major_locator(plt.MaxNLocator(5))
         ax.yaxis.set_major_locator(plt.MaxNLocator(5))
         for label in ax.get_xticklabels():
