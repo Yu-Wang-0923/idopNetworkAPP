@@ -1,11 +1,10 @@
 import streamlit as st
 
-# 添加自定义CSS
 def local_css(file_name):
     with open(file_name) as f:
         st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
- 
-# 调用函数，加载我们创建的CSS文件
+
+# 只在入口文件加载一次
 local_css("static/css/custom_style.css")
 
 st.set_page_config(
