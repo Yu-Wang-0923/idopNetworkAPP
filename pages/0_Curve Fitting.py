@@ -72,7 +72,7 @@ def plot_scatter_matrix(df, use_seq, n_cols):
     for i, col in enumerate(df.columns):
         with cols[i % n_cols]:
             fig, ax = plt.subplots(figsize=(6,3))
-            ax.scatter(x, df[col], s=20, alpha=0.7, fontproperties=font_prop)
+            ax.scatter(x, df[col], s=20, alpha=0.7)
             ax.set_title(col, fontproperties=font_prop)
             ax.grid(alpha=0.3)
             st.pyplot(fig)
