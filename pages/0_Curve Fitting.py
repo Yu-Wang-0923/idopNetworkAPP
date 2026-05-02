@@ -74,9 +74,9 @@ with tab1:
             for file in uploaded_files:
                 st.subheader(f"📄 Original Data: {file.name}")
 
-                df_original = load_original_csv(file)
-                st.info(f"Rows: {df_original.shape[0]} | Columns: {df_original.shape[1]}")
-                st.dataframe(df_original, use_container_width=True)
+                df = load_csv(file)
+                st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
+                st.dataframe(df, use_container_width=True)
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
