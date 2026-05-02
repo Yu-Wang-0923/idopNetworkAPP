@@ -158,7 +158,7 @@ with tab1:
                     with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
                         st.dataframe(df.describe(),use_container_width=True)
 
-                    key_id = id(df)
+                    # key_id = id(df)
                     # with st.expander("📊 Scatter Plot", expanded=False):
                     #     with st.expander("⚙️ Plot Settings", expanded=False):
                     #         col1,col2,col3 = st.columns(3)
