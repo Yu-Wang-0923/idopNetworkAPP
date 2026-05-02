@@ -100,7 +100,14 @@ def get_power_function_sample(
     return pd.DataFrame(y, index=allometric_index, columns=quasi_dynamic_df.columns)
 
 
-
+def show_data_expander(title, df):
+    with st.expander(title, expanded=False):
+        with st.expander("Data Overview", expanded=False):
+            st.dataframe(df, use_container_width=True)
+        with st.expander("Descriptive Statistics", expanded=False):
+            st.dataframe(df.describe(), use_container_width=True)
+        with st.expander("Scatter Plot", expanded=False):
+            st.write("To Be Updated")
 
 
 
