@@ -96,7 +96,7 @@ with tab1:
                     "Use first column as index",
                     value=True  # 默认勾选
                 )
-                st.session_state["use_index"] = use_index
+                st.session_state["use_first_col_as_index"] = use_first_col_as_index
 
             st.divider()
 
@@ -132,7 +132,7 @@ with tab1:
 
             if st.session_state.get("use_index", True):
                 df = df.set_index(df.columns[0])
-                
+
             df_transform = data_transformation(df, scaler_type)
             st.dataframe(df_transform.describe().round(2), use_container_width=True)
         else:
