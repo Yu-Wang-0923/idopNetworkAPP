@@ -178,10 +178,10 @@ with tab1:
 
                     with st.expander("📊 Scatter Plot", expanded=True):
                         with st.expander("⚙️ 绘图参数", expanded=False):
-                        use_seq = st.checkbox("使用 1,2,3... 序号X轴", key=f"seq_{fname}")
-                        n_cols = st.slider("子图每行数量", 1, 4, 2, key=f"col_{fname}")
+                            use_seq = st.checkbox("使用 1,2,3... 序号X轴", key=f"seq_{fname}")
+                            n_cols = st.slider("子图每行数量", 1, 4, 2, key=f"col_{fname}")
 
-                        plot_scatter_matrix(df_transform, use_seq, n_cols)
+                            plot_scatter_matrix(df_transform, use_seq, n_cols)
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
