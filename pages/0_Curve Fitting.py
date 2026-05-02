@@ -156,9 +156,9 @@ with tab1:
                     with st.expander("📊 Scatter Plot", expanded=False):
                         with st.expander("⚙️ Plot Settings", expanded=False):
                             col1,col2,col3 = st.columns(3)
-                            use_seq = col1.checkbox("Use sequential X-axis", key=f"seq_{key_id}", value=True)
-                            n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"col_{key_id}")
-                            max_plots = col3.selectbox("Max plots", [3,6,9], index=1, key=f"plots_{key_id}")
+                            use_seq = col1.checkbox("Use sequential X-axis", key=f"original_data_seq_{key_id}", value=True)
+                            n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"original_data_col_{key_id}")
+                            max_plots = col3.selectbox("Max plots", [3,6,9], index=1, key=f"original_data_plots_{key_id}")
 
                         plot_scatter_matrix(df, use_seq, n_cols, max_plots)
         else:
@@ -195,9 +195,9 @@ with tab1:
                     with st.expander("📊 Scatter Plot", expanded=False):
                         with st.expander("⚙️ Plot Settings", expanded=False):
                             col1,col2,col3 = st.columns(3)
-                            use_seq = col1.checkbox("Use sequential X-axis", key=f"seq_{fname}", value=True)
-                            n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"col_{fname}")
-                            max_plots = col3.selectbox("Max plots", [3,6,9], index=1, key=f"plots_{fname}")
+                            use_seq = col1.checkbox("Use sequential X-axis", key=f"transform_data_seq_{fname}", value=True)
+                            n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"transform_data_col_{fname}")
+                            max_plots = col3.selectbox("Max plots", [3,6,9], index=1, key=f"transform_data_plots_{fname}")
                         plot_scatter_matrix(df_transform, use_seq, n_cols, max_plots)
         else:
             st.info("Please upload CSV file(s) to view data overview")
@@ -243,11 +243,7 @@ with tab2:
 
     with subtab2_1:
         with st.expander("⚙️ Quasi Dynamic", expanded=False):
-            col1,col2,col3 = st.columns(3)
-            use_seq = col1.checkbox("Use sequential X-axis", key=f"seq_{fname}", value=True)
-            n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"col_{fname}")
-            max_plots = col3.selectbox("Max plots", [3,6,9], index=1, key=f"plots_{fname}")
-        
+            st.write("To Be Updated")
 
 
         
