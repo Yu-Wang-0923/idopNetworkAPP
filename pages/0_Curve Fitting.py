@@ -112,66 +112,95 @@ with tab2:
 
     with subtab2_1:
         if uploaded_files:
-            for file in uploaded_files:
-                df_transform = st.session_state.df_transform[file.name]
-                df_quasi_dynamic = get_quasi_dynamic_df(df_transform)
-                st.session_state.df_quasi_dynamic[file.name] = df_quasi_dynamic
-                with st.expander(f"Quasi Dynamic: {file.name}", expanded=False):
-                    with st.expander("Data Overview", expanded=False):
-                        st.dataframe(df_quasi_dynamic, use_container_width=True)
-                    with st.expander("Descriptive Statistics", expanded=False):
-                        st.dataframe(df_quasi_dynamic.describe(), use_container_width=True)
-                    with st.expander("Scatter Plot", expanded=False):
-                        plot_curve_fitting(
-                                    df_scatter=df_quasi_dynamic,
-                                    df_curve=None,
-                                    show_curve=False,
-                                    nrow=2,
-                                    ncol=3,
-                                    nsubfig=6,
-                                    )
+            with st.form(key="quasi_dynamic_form"):
+                submit_quasi = st.form_submit_button("Run Quasi Dynamic")
+            if submit_quasi:
+                for file in uploaded_files:
+                    if file.name in st.session_state.df_transform:
+                        df_transform = st.session_state.df_transform[file.name]
+                        df_quasi_dynamic = get_quasi_dynamic_df(df_transform)
+                        st.session_state.df_quasi_dynamic[file.name] = df_quasi_dynamic
+                st.success("Success")
+            if st.session_state.df_quasi_dynamic:
+                for file in uploaded_files:
+                    if file.name in st.session_state.df_quasi_dynamic:
+                        df_quasi = st.session_state.df_quasi_dynamic[file.name]
+                        with st.expander(f"Quasi Dynamic: {file.name}", expanded=False):
+                            with st.expander("Data Overview", expanded=False):
+                                st.dataframe(df_quasi_dynamic, use_container_width=True)
+                            with st.expander("Descriptive Statistics", expanded=False):
+                                st.dataframe(df_quasi_dynamic.describe(), use_container_width=True)
+                            with st.expander("Scatter Plot", expanded=False):
+                                plot_curve_fitting(
+                                            df_scatter=df_quasi_dynamic,
+                                            df_curve=None,
+                                            show_curve=False,
+                                            nrow=2,
+                                            ncol=3,
+                                            nsubfig=6,
+                                            )
         else:
             st.info("Please upload CSV file(s)")
 
 
     with subtab2_2:
         if uploaded_files:
-            scatter_list = []
-            curve_list = []
-            name_list = []
-            for file in uploaded_files:
-                df_quasi_dynamic = st.session_state.df_quasi_dynamic[file.name]        
-                df_curve_sample = get_power_function_sample(df_quasi_dynamic)
-                st.session_state.df_curve_sample[file.name] = df_curve_sample
+            with st.form(key="Allometric Scaling Law"):
+                submit_fit = st.form_submit_button("Run Allometric Scaling Law")
+            if submit_fit:
+                scatter_list = []
+                curve_list = []
+                name_list = []
+                
+                for file in uploaded_files:
+                    if file.name in st.session_state.df_quasi_dynamic:
+                        df_quasi_dynamic = st.session_state.df_quasi_dynamic[file.name]        
+                        df_curve_sample = get_power_function_sample(df_quasi_dynamic)
+                        st.session_state.df_curve_sample[file.name] = df_curve_sample
 
-                scatter_list.append(df_quasi_dynamic)
-                curve_list.append(df_curve_sample)
-                name_list.append(file.name)  # 图例用
-
-                with st.expander(f"Allometric Scaling Law: {file.name}", expanded=False):
-                    with st.expander("Data Overview", expanded=False):
-                        st.dataframe(df_quasi_dynamic, use_container_width=True)
-                    with st.expander("Descriptive Statistics", expanded=False):
-                        st.dataframe(df_quasi_dynamic.describe(), use_container_width=True)
-                    with st.expander("Curve Fitting Plot", expanded=False):
-                        plot_curve_fitting(
-                                    df_scatter=df_quasi_dynamic,
-                                    df_curve=df_curve_sample,
-                                    show_curve=True,
-                                    nrow=2,
-                                    ncol=3,
-                                    nsubfig=6,
-                                    )
-            with st.expander("Allometric Scaling Law Compare", expanded=False):                        
-                plot_curve_fitting_compare(
-                                            df_scatter_list=scatter_list,
-                                            df_curve_list=curve_list,
-                                            label_list=name_list,
+                        scatter_list.append(df_quasi_dynamic)
+                        curve_list.append(df_curve_sample)
+                        name_list.append(file.name)
+                st.success("Success")
+            if st.session_state.df_curve_sample:
+                for file in uploaded_files:
+                    if file.name in st.session_state.df_curve_sample:
+                        df_quasi = st.session_state.df_quasi_dynamic[file.name]
+                        df_curve = st.session_state.df_curve_sample[file.name]
+                        with st.expander(f"Allometric Scaling Law: {file.name}", expanded=False):
+                            with st.expander("Data Overview", expanded=False):
+                                st.dataframe(df_quasi_dynamic, use_container_width=True)
+                            with st.expander("Descriptive Statistics", expanded=False):
+                                st.dataframe(df_quasi_dynamic.describe(), use_container_width=True)
+                            with st.expander("Curve Fitting Plot", expanded=False):
+                                plot_curve_fitting(
+                                            df_scatter=df_quasi_dynamic,
+                                            df_curve=df_curve_sample,
                                             show_curve=True,
                                             nrow=2,
                                             ncol=3,
-                                            nsubfig=6
+                                            nsubfig=6,
                                             )
+                with st.expander("Allometric Scaling Law Compare", expanded=False):
+                    scatter_list_compare = []
+                    curve_list_compare = []
+                    name_list_compare = []
+
+                    for file in uploaded_files:
+                        if file.name in st.session_state.df_quasi_dynamic:
+                            scatter_list_compare.append(st.session_state.df_quasi_dynamic[file.name])
+                            curve_list_compare.append(st.session_state.df_curve_sample[file.name])
+                            name_list_compare.append(file.name)
+                    if scatter_list_compare:
+                        plot_curve_fitting_compare(
+                            df_scatter_list=scatter_list,
+                            df_curve_list=curve_list,
+                            label_list=name_list,
+                            show_curve=True,
+                            nrow=2,
+                            ncol=3,
+                            nsubfig=6
+                            )
         else:
             st.info("Please upload CSV file(s)")
 
