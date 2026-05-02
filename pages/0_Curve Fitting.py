@@ -71,10 +71,19 @@ with tab1:
 
     with subtab1_1:
         if uploaded_files:
+            with st.expander("⚙️ Data Settings", expanded=False):
+                use_first_col_as_index = st.checkbox(
+                    "Use first column as index",
+                    value=True  # 默认勾选
+                )
+
             for file in uploaded_files:
                 st.subheader(f"📄 Original Data: {file.name}")
-
                 df = load_csv(file)
+
+                if use_first_col_as_index:
+                    df = df.set_index(df.columns[0])
+                    
                 st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
                 st.dataframe(df, use_container_width=True)
         else:
