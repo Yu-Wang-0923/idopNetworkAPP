@@ -174,8 +174,8 @@ st.title("Curve Fitting", text_alignment="center")
                     #         max_plots = col3.selectbox("Max plots", [3,6,9], index=1, key=f"original_data_plots_{key_id}")
 
                     #     plot_scatter_matrix(df, use_seq, n_cols, max_plots)
-        else:
-            st.info("Please upload CSV file(s) to view data overview")
+        # else:
+        #     st.info("Please upload CSV file(s) to view data overview")
     
 #     with subtab1_2:
 #         if uploaded_files:
