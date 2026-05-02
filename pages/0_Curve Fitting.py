@@ -47,9 +47,9 @@ with tab1:
                 show_data_expander(f"Original Data: {file.name}", df_original)
                 with st.expander(title, expanded=False):
                     with st.expander("Data Overview", expanded=False):
-                        st.dataframe(df, use_container_width=True)
+                        st.dataframe(df_original, use_container_width=True)
                     with st.expander("Descriptive Statistics", expanded=False):
-                        st.dataframe(df.describe(), use_container_width=True)
+                        st.dataframe(df_original.describe(), use_container_width=True)
                     with st.expander("Scatter Plot", expanded=False):
                         plot_curve_fitting(
                                     df_scatter=df_original,
