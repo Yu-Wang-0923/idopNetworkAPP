@@ -29,7 +29,7 @@
 /* 3. 侧边栏整体容器样式 */
 section[data-testid="stSidebar"] {
     /* 侧边栏背景：深紫渐变 */
-    background: linear-gradient(180deg, #4f46e5 0%, #7c3aed 100%) !important;
+    background: linear-gradient(180deg, #6495ed 0%, #4682b4 100%) !important;
     /* 默认文字颜色白色 */
     color: white !important;
     /* 固定最小宽度，防止过窄 */
