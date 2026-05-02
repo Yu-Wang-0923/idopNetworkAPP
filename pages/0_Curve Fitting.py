@@ -30,8 +30,8 @@ st.title("Curve Fitting", text_alignment="center")
 
 
 
-plt.rcParams["font.family"] = ["WenQuanYi Zen Hei", "SimHei", "DejaVu Sans"]
-plt.rcParams["axes.unicode_minus"] = False  # 解决负号显示
+# plt.rcParams["font.family"] = ["WenQuanYi Zen Hei", "SimHei", "DejaVu Sans"]
+# plt.rcParams["axes.unicode_minus"] = False  # 解决负号显示
 
 
 @st.cache_data
