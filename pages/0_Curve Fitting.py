@@ -238,11 +238,60 @@ def get_quasi_dynamic_df(
 
 
 
+def power_equation(
+    x: np.ndarray,
+    a: float,
+    b: float,
+) -> np.ndarray:
+    """y = a * x^{b}."""
+    return a * np.power(x, b)
+
+
+def get_power_function_params(
+    quasi_dynamic_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """拟合幂函数参数 a_j, b_j。"""
+    x = quasi_dynamic_df.index.values.astype(float)
+    results = {}
+    for col in quasi_dynamic_df.columns:
+        y = quasi_dynamic_df[col].values.astype(float)
+        a_hat, b_hat = curve_fit(power_equation, x, y, maxfev=50_000)[0]
+        results[col] = [a_hat, b_hat]
+    return pd.DataFrame(results, index=["a", "b"]).T
+
+
+def chebyshev_nodes(
+    n: int,
+    a: float,
+    b: float,
+) -> np.ndarray:
+    """生成切比雪夫节点。"""
+    nodes = [
+        0.5 * (a + b) + 0.5 * (b - a) * np.cos((2 * i + 1) * np.pi / (2 * n))
+        for i in range(n)
+    ]
+    return np.sort(np.array(nodes))
+
+
+def get_power_function_sample(
+    quasi_dynamic_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """计算幂律拟合曲线采样值。"""
+    power_function_params = get_power_function_params(quasi_dynamic_df)
+    params = power_function_params.reindex(quasi_dynamic_df.columns)
+    tau_lo = float(quasi_dynamic_df.index.min())
+    tau_hi = float(quasi_dynamic_df.index.max())
+    allometric_index = chebyshev_nodes(len(quasi_dynamic_df), tau_lo, tau_hi)
+    a = params["a"].to_numpy(dtype=float)
+    b = params["b"].to_numpy(dtype=float)
+    y = power_equation(allometric_index[:, np.newaxis], a, b)
+    return pd.DataFrame(y, index=allometric_index, columns=quasi_dynamic_df.columns)
+
 
 with tab2:
     subtab2_1, subtab2_2, subtab2_3 = st.tabs([
         "Quasi Dynamic", 
-        "To Be Updated", 
+        "异速生长拟合", 
         "To Be Updated",
     ])
 
@@ -268,4 +317,8 @@ with tab2:
                             max_plots = col3.selectbox("Max plots", [3,6,9], index=1, key=f"quasi_dynamic_data_plots_{fname}")
                         plot_scatter_matrix(df_quasi_dynamic, use_seq, n_cols, max_plots)
 
-        
+    with subtab2_2:
+        st.write("To Be Updated")
+
+        curve_sample = get_power_function_sample(df_quasi_dynamic)
+        st.dataframe(curve_sample, use_container_width=True)
