@@ -20,7 +20,7 @@ def plot_curve_fitting(
     nsubfig=4,  # 总子图数量
 ):
     selected_cols = df_scatter.columns.tolist()
-    fig, axes = plt.subplots(nrow, ncol, figsize=(6, 3), sharex=True, sharey=True, dpi=300)
+    fig, axes = plt.subplots(nrow, ncol, figsize=(6, 4), sharex=True, sharey=True, dpi=300)
     axes = axes.flatten()
     for i, col in enumerate(selected_cols[:nsubfig]):  # 最多画 nsubfig 个
         axes[i].scatter(df_scatter.index, df_scatter[col], alpha=1, s=100, facecolors='none', edgecolors='#F9B3AD', linewidth=1)
@@ -81,7 +81,7 @@ def plot_curve_fitting_compare(
     
     # 取第一组数据的列名
     selected_cols = df_scatter_list[0].columns.tolist()
-    fig, axes = plt.subplots(nrow, ncol, figsize=(6, 3), sharex=True, sharey=True, dpi=300)
+    fig, axes = plt.subplots(nrow, ncol, figsize=(6, 4), sharex=True, sharey=True, dpi=300)
     axes = axes.flatten()
 
     # 逐个子图绘制
@@ -117,7 +117,7 @@ def plot_curve_fitting_compare(
         
         # 只在第一个子图标注图例（避免重复）
         if i == 0:
-            ax.legend(fontsize=7, loc='upper left', frameon=False)
+            ax.legend(fontsize=7, loc='upper left', frameon=False, prop=font_prop)
 
     # 隐藏多余子图
     for j in range(i + 1, len(axes)):
