@@ -68,7 +68,7 @@ st.markdown(
 
 # ========== Tabs ==========
 tab1, tab2, tab3 = st.tabs([
-    "数据概览", 
+    "Uploaded Data", 
     "拟合", 
     "参数",
     ])
