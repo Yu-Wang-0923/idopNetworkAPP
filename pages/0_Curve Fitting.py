@@ -57,6 +57,7 @@ with tab1:
         accept_multiple_files=True,
         help="Supports CSV, multiple files allowed",
         label_visibility="visible",
+        max_upload_size=1000,
     )
 
 
