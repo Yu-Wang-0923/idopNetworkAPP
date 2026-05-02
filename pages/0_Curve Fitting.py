@@ -44,37 +44,8 @@ st.set_page_config(
 #     unsafe_allow_html=True
 # )
 
-st.title("Curve Fitting")
+st.title("Curve Fitting", anchor=False)
 
-# 全局美化 Tabs CSS
-# st.markdown(
-#     """
-#     <style>
-#     /* 标签整体圆角、间距 */
-#     .stTabs [data-baseweb="tab-list"] {
-#         gap: 8px;
-#     }
-
-#     /* 单个标签样式 */
-#     .stTabs [data-baseweb="tab"] {
-#         height: 45px;
-#         border-radius: 10px;
-#         padding: 0 25px;
-#         font-size: 18px !important;
-#         font-weight: 600;
-#         color: #666;
-#         background-color: #f5f7fa;
-#     }
-
-#     /* 选中激活的标签 */
-#     .stTabs [aria-selected="true"] {
-#         background-color: #2563eb !important;
-#         color: white !important;
-#     }
-#     </style>
-#     """, 
-#     unsafe_allow_html=True,
-# )
 
 # ========== Tabs ==========
 tab1, tab2, tab3 = st.tabs([
