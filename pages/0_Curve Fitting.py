@@ -92,14 +92,14 @@ with tab2:
                 df_curve_sample = get_power_function_sample(df_quasi_dynamic)
                 st.session_state.df_curve_sample[file.name] = df_curve_sample
                 show_data_expander(f"Quasi Dynamic: {file.name}", df_curve_sample)
-                # plot_curve_fitting(
-                #                     df_scatter=df_quasi_dynamic,
-                #                     df_curve=df_curve_sample,
-                #                     show_scatter=True,
-                #                     nrow=2,
-                #                     ncol=2,
-                #                     nsubfig=4,  # 最多画4张图
-                #                     )
+                plot_curve_fitting(
+                                    df_scatter=df_quasi_dynamic,
+                                    df_curve=df_curve_sample,
+                                    show_scatter=True,
+                                    nrow=2,
+                                    ncol=2,
+                                    nsubfig=4,  # 最多画4张图
+                                    )
         else:
             st.info("Please upload CSV file(s)")
 
