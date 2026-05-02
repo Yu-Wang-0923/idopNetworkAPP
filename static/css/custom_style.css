@@ -41,9 +41,9 @@ section[data-testid="stSidebar"] h1,
 section[data-testid="stSidebar"] h2,
 section[data-testid="stSidebar"] h3 {
     /* 标题文字颜色（浅蓝白） */
-    color: #e0e7ff !important;
+    color: #000000 !important;
     /* 底部白色半透明分隔线 */
-    border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+    border-bottom: 2px solid rgb(0, 0, 0);
     /* 标题与分隔线间距 */
     padding-bottom: 0.5rem;
 }
