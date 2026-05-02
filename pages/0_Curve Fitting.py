@@ -1,103 +1,22 @@
-import sys
+
 import numpy as np
 import pandas as pd
 import streamlit as st
 
 
-# 页面设置
+import sys
+sys.path.append("..")
+from backend.curve_fitting import *
+from backend.plot_curve_fitting import *
+
 st.set_page_config(page_title="Curve Fitting", page_icon=None, layout="wide", initial_sidebar_state="auto",)
 st.title("Curve Fitting", text_alignment="center")
 
 
-# 调试 Curve Fitting
-# import io
-# import sys
-
-# from pathlib import Path
-# import matplotlib.pyplot as plt
-# import matplotlib.font_manager as fm
-# from sklearn.preprocessing import MinMaxScaler
-# from scipy.optimize import curve_fit
-
-sys.path.append("..")
-
-# # sys.path.append(str(Path(__file__).parent.parent))
-from backend.curve_fitting import *
-from backend.plot_curve_fitting import *
-
-# # 字体文件路径（你已经放在 static 文件夹里了）
-# font_path = Path(__file__).parent.parent / "static" / "SimHei.ttf"
-# font_prop = fm.FontProperties(fname=font_path)
-
-
-
-
-
-
-
-
-
-
-# import matplotlib.pyplot as plt
-# plt.rcParams['font.sans-serif']=['SimHei','Songti SC','STFangsong']
-# plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
-
-# @st.cache_data
-# def load_csv(file):
-#     return pd.read_csv(file)
-
-# @st.cache_data
-# def data_transformation(
-#     data: pd.DataFrame,
-#     scaler_type: str,
-# ) -> pd.DataFrame:
-#     """
-#     数据变换.
-#     """
-#     if scaler_type == "none":
-#         return data.copy()
-#     if scaler_type == "rescale_to_-1_1":
-#         scaled = MinMaxScaler(feature_range=(-1, 1)).fit_transform(data)
-#     elif scaler_type == "rescale_to_0_1":
-#         scaled = MinMaxScaler(feature_range=(0, 1)).fit_transform(data)
-#     elif scaler_type == "log1p":
-#         if (data < -1).any().any():
-#             raise ValueError("log1p 变换要求所有数值列数据均大于等于 -1。")
-#         scaled = data.apply(np.log1p, axis=0)
-#     else:
-#         raise ValueError(f"不支持的数据变换类型: {scaler_type}")
-#     return pd.DataFrame(scaled, columns=data.columns, index=data.index)
-
-
-# def plot_scatter_matrix(df, use_seq, n_cols, max_plots):
-#     x = np.arange(1, len(df)+1) if use_seq else df.index
-#     cols = st.columns(n_cols)
-#     selected_cols = df.columns[:max_plots]
-#     for i, col in enumerate(selected_cols):
-#         with cols[i % n_cols]:
-#             fig, ax = plt.subplots(figsize=(4,3)) # , dpi=300
-#             ax.scatter(x, df[col], s=150, alpha=0.7, facecolors='none', edgecolors='#4285F4', linewidth=1)
-#             ax.set_title(col, fontproperties=font_prop)
-#             ax.set_xlabel("Sequence" if use_seq else "Index", fontproperties=font_prop)
-#             ax.set_ylabel(col, fontproperties=font_prop)
-#             for label in ax.get_xticklabels() + ax.get_yticklabels():
-#                 label.set_fontproperties(font_prop)
-#             ax.grid(alpha=0.3)
-#             ax.margins(x=0.2, y=0.3)
-#             ax.xaxis.set_major_locator(plt.MaxNLocator(5))
-#             ax.yaxis.set_major_locator(plt.MaxNLocator(5))
-#             st.pyplot(fig)
-#             plt.close()
-
-
-
-
-
-# ========== Sidebar ==========
-# with st.sidebar:
-#     st.write("To Be Updated")
-#     st.info('stpe-1: Uploaded Data')
-#     st.info('stpe-2: Transformation Data')
+with st.sidebar:
+    st.write("To Be Updated")
+    st.info('stpe-1: Uploaded Data')
+    st.info('stpe-2: Transformation Data')
 
 
 
