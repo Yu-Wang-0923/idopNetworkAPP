@@ -22,7 +22,7 @@ if "df_curve_sample" not in st.session_state:
 
 
 with st.sidebar:
-    st.write("To Be Updated")
+    st.write("To Be Updated...")
     # st.divider()
 
 tab1, tab2, tab3 = st.tabs(["Uploaded Data", "Static Data", "Dynamic Data"])
@@ -91,7 +91,7 @@ with tab1:
 
 
     with subtab1_3:
-        st.write("To Be Updated")
+        st.write("To Be Updated...")
 
 
 
@@ -99,7 +99,7 @@ with tab2:
     subtab2_1, subtab2_2, subtab2_3 = st.tabs([
         "Quasi Dynamic", 
         "Allometric Scaling Law", 
-        "To Be Updated",
+        "To Be Updated...",
     ])
 
     with subtab2_1:
@@ -168,10 +168,32 @@ with tab2:
             st.info("Please upload CSV file(s)")
 
     with subtab2_3:
-        st.write("To Be Updated")
+        st.write("To Be Updated...")
 
 with tab3:
     st.write("To Be Updated")
+    subtab3_1, subtab3_2, subtab3_3, subtab3_4, subtab3_5 = st.tabs([
+        "Polynomial Fitting", 
+        "Logistic Growth Fitting", 
+        "Fourier Series Fitting",
+        "Wavelet Fitting",
+        "To Be Updated...",
+    ])
+
+    with subtab3_1:
+        st.write("To Be Updated...")
+    
+    with subtab3_2:
+        st.write("To Be Updated...")
+
+    with subtab3_3:
+        st.write("To Be Updated...")
+
+    with subtab3_4:
+        st.write("To Be Updated...")
+
+    with subtab3_5:
+        st.write("To Be Updated...")
 
 
 
