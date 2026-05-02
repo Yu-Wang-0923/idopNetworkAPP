@@ -1,151 +1,213 @@
-/* 1. 全局基础样式 */
+/* ===================== 全局样式 ===================== */
+/* 1. 整个Streamlit应用根容器样式 */
 .stApp {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-    font-family: ‘Segoe UI‘, Tahoma, Geneva, Verdana, sans-serif !important;
+    /* 背景：紫蓝色渐变 */
+    background: linear-gradient(135deg, #dee4e4 0%, #3eb5ec 100%) !important;
+    /* 全局统一字体 */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
 }
- 
-/* 2. 主内容区域样式 */
+
+/* ===================== 主内容区域 ===================== */
+/* 2. 页面中间主内容容器样式 */
 .main .block-container {
+    /* 上下内边距 */
     padding-top: 2rem;
     padding-bottom: 2rem;
+    /* 半透明白色背景，提升可读性 */
     background-color: rgba(255, 255, 255, 0.95);
+    /* 大圆角，让卡片更柔和 */
     border-radius: 20px;
+    /* 阴影效果，增强立体感 */
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    /* 顶部外边距，与顶部拉开距离 */
     margin-top: 1rem;
+    /* 限制最大宽度，避免大屏拉伸过度 */
     max-width: 1200px !important;
 }
 
-/* 3. 侧边栏深度美化 */
-section[data-testid=“stSidebar”] {
+/* ===================== 侧边栏样式 ===================== */
+/* 3. 侧边栏整体容器样式 */
+section[data-testid="stSidebar"] {
+    /* 侧边栏背景：深紫渐变 */
     background: linear-gradient(180deg, #4f46e5 0%, #7c3aed 100%) !important;
+    /* 默认文字颜色白色 */
     color: white !important;
+    /* 固定最小宽度，防止过窄 */
     min-width: 280px !important;
 }
- 
-/* 侧边栏标题 */
-section[data-testid=“stSidebar”] h1,
-section[data-testid=“stSidebar”] h2,
-section[data-testid=“stSidebar”] h3 {
+
+/* 4. 侧边栏标题（h1/h2/h3）统一样式 */
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3 {
+    /* 标题文字颜色（浅蓝白） */
     color: #e0e7ff !important;
+    /* 底部白色半透明分隔线 */
     border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+    /* 标题与分隔线间距 */
     padding-bottom: 0.5rem;
 }
- 
-/* 侧边栏所有文本和输入标签 */
-section[data-testid=“stSidebar”] .stTextInput label,
-section[data-testid=“stSidebar”] .stNumberInput label,
-section[data-testid=“stSidebar”] .stSelectbox label,
-section[data-testid=“stSidebar”] .stSlider label,
-section[data-testid=“stSidebar”] p {
+
+/* 5. 侧边栏内所有文本、输入框标签样式 */
+section[data-testid="stSidebar"] .stTextInput label,
+section[data-testid="stSidebar"] .stNumberInput label,
+section[data-testid="stSidebar"] .stSelectbox label,
+section[data-testid="stSidebar"] .stSlider label,
+section[data-testid="stSidebar"] p {
+    /* 浅灰色文字，降低视觉权重 */
     color: #d1d5db !important;
+    /* 字体加粗 */
     font-weight: 500;
 }
 
-/* 6. 按钮美化 - 主要按钮（如生成按钮） */
+/* ===================== 按钮样式 ===================== */
+/* 6. 所有Streamlit按钮基础样式 */
 .stButton > button {
+    /* 按钮背景：紫蓝渐变 */
     background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%) !important;
+    /* 文字白色 */
     color: white !important;
+    /* 去掉默认边框 */
     border: none !important;
+    /* 圆角按钮 */
     border-radius: 12px !important;
+    /* 内边距，让按钮更大方 */
     padding: 12px 30px !important;
+    /* 字体稍大 */
     font-size: 1.1rem !important;
+    /* 字体加粗 */
     font-weight: 600 !important;
+    /* 过渡动画：hover时平滑变化 */
     transition: all 0.3s ease !important;
+    /* 宽度100%，占满父容器 */
     width: 100%;
+    /* 顶部外边距，与上方元素拉开距离 */
     margin-top: 1rem;
 }
- 
-/* 按钮悬停效果 */
+
+/* 7. 按钮鼠标悬浮效果 */
 .stButton > button:hover {
+    /* 向上轻微移动 */
     transform: translateY(-3px);
+    /* 增加阴影，强化悬浮感 */
     box-shadow: 0 10px 20px rgba(79, 70, 229, 0.4) !important;
 }
- 
-/* 按钮点击效果 */
+
+/* 8. 按钮点击按下效果 */
 .stButton > button:active {
+    /* 向下轻微回弹，模拟按压 */
     transform: translateY(-1px);
 }
- 
-/* 7. 警告、成功、信息提示框美化 */
+
+/* ===================== 提示框样式 ===================== */
+/* 9. 所有提示框（成功/警告/错误）基础样式 */
 .stAlert {
+    /* 圆角 */
     border-radius: 12px !important;
+    /* 左侧粗边框，用于区分类型 */
     border-left: 6px solid !important;
 }
- 
-/* 成功信息（绿色） */
-div[data-testid=“stAlert”] div[role=“alert”]:nth-child(1) {
+
+/* 10. 成功提示框（绿色） */
+div[data-testid="stAlert"] div[role="alert"]:nth-child(1) {
+    /* 左侧边框绿色 */
     border-left-color: #10b981 !important;
+    /* 背景淡绿色 */
     background-color: #d1fae5 !important;
 }
- 
-/* 警告信息（黄色） */
-div[data-testid=“stAlert”] div[role=“alert”]:nth-child(2) {
+
+/* 11. 警告提示框（黄色） */
+div[data-testid="stAlert"] div[role="alert"]:nth-child(2) {
+    /* 左侧边框黄色 */
     border-left-color: #f59e0b !important;
+    /* 背景淡黄色 */
     background-color: #fef3c7 !important;
 }
- 
-/* 错误信息（红色） */
-div[data-testid=“stAlert”] div[role=“alert”]:nth-child(3) {
+
+/* 12. 错误提示框（红色） */
+div[data-testid="stAlert"] div[role="alert"]:nth-child(3) {
+    /* 左侧边框红色 */
     border-left-color: #ef4444 !important;
+    /* 背景淡红色 */
     background-color: #fee2e2 !important;
 }
 
-/* 8. 图片展示区域美化 */
+/* ===================== 图片展示样式 ===================== */
+/* 13. 图片容器居中 */
 .stImage {
     text-align: center;
 }
- 
+
+/* 14. 图片美化样式 */
 .stImage img {
+    /* 最大宽度100%，自适应屏幕 */
     max-width: 100%;
+    /* 图片圆角 */
     border-radius: 16px;
+    /* 阴影增强质感 */
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25);
+    /* 白色边框，类似相框效果 */
     border: 8px solid white;
+    /* 悬停时平滑放大动画 */
     transition: transform 0.5s ease, box-shadow 0.5s ease;
+    /* 图片居中 */
     margin: 1rem auto;
     display: block;
 }
- 
-/* 图片悬停放大效果 */
+
+/* 15. 图片鼠标悬浮放大效果 */
 .stImage img:hover {
+    /* 轻微放大 */
     transform: scale(1.02);
+    /* 加深阴影 */
     box-shadow: 0 25px 50px rgba(0, 0, 0, 0.35);
 }
- 
-/* 9. 为图片添加标题或说明文字的样式 */
+
+/* ===================== 图片说明文字样式 ===================== */
+/* 16. 自定义图片标题/说明文字样式 */
 .image-caption {
+    /* 居中 */
     text-align: center;
+    /* 斜体 */
     font-style: italic;
+    /* 灰色文字 */
     color: #6b7280;
+    /* 与图片间距 */
     margin-top: 0.5rem;
+    /* 稍小字号 */
     font-size: 0.95rem;
 }
 
-/* 10. 自定义加载动画（当模型推理时显示） */
+/* ===================== 加载动画样式 ===================== */
+/* 17. 呼吸闪烁动画（可用于加载文字） */
 @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    0%, 100% { opacity: 1; }   /* 初始/结束：完全不透明 */
+    50% { opacity: 0.5; }      /* 中间：半透明 */
 }
- 
-/* 模拟一个加载指示器，你可以通过Streamlit的`st.spinner`或自定义HTML触发 */
+
+/* 18. 自定义加载指示器（默认隐藏，JS控制显示） */
 .loading-indicator {
-    display: none; /* 默认隐藏，通过JS控制显示 */
+    display: none; /* 默认隐藏 */
     text-align: center;
     padding: 3rem;
     color: #4f46e5;
 }
- 
+
+/* 19. 加载指示器中的旋转圆圈动画 */
 .loading-indicator::after {
-    content: “”;
+    content: "";
     display: inline-block;
     width: 40px;
     height: 40px;
     border: 5px solid #e0e7ff;
     border-top: 5px solid #4f46e5;
     border-radius: 50%;
+    /* 旋转动画 */
     animation: spin 1s linear infinite;
     margin-left: 1rem;
 }
- 
+
+/* 20. 圆圈旋转动画 */
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
