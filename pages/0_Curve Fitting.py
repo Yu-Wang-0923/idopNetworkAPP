@@ -71,8 +71,8 @@ def plot_scatter_matrix(df, use_seq, n_cols):
     cols = st.columns(n_cols)
     for i, col in enumerate(df.columns):
         with cols[i % n_cols]:
-            fig, ax = plt.subplots(figsize=(6,3), dpi=300)
-            ax.scatter(x, df[col], s=70, alpha=0.7, facecolors='none', edgecolors='#4285F4', linewidth=1)
+            fig, ax = plt.subplots(figsize=(6,3)) # , dpi=300
+            ax.scatter(x, df[col], s=150, alpha=0.7, facecolors='none', edgecolors='#4285F4', linewidth=1)
             ax.set_title(col, fontproperties=font_prop)
             ax.set_xlabel("Sequence" if use_seq else "Index", fontproperties=font_prop)
             ax.set_ylabel(col, fontproperties=font_prop)
@@ -82,7 +82,7 @@ def plot_scatter_matrix(df, use_seq, n_cols):
             ax.margins(x=0.2, y=0.3)
             ax.xaxis.set_major_locator(plt.MaxNLocator(5))
             ax.yaxis.set_major_locator(plt.MaxNLocator(5))
-            st.pyplot(fig, dpi=300)
+            st.pyplot(fig)
             plt.close()
 
 
