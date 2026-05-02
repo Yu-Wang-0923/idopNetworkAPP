@@ -34,7 +34,7 @@ with tab1:
         if uploaded_files:     
             for file in uploaded_files:
                 df_original = load_csv(file)
-                with st.expander(f"📄 Original Data: {file.name}", expanded=False):
+                with st.expander(f"📄 Original Data: {file.name}, Rows: {df_original.shape[0]} | Columns: {df_original.shape[1]}", expanded=False):
                     st.info(f"Rows: {df_original.shape[0]} | Columns: {df_original.shape[1]}")
                     with st.expander(f"📄 Original Data Overview: {file.name}", expanded=False):
                         st.dataframe(df_original, use_container_width=True)
