@@ -1,6 +1,6 @@
 # 调试 Curve Fitting
 # import io
-import sys
+# import sys
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -36,7 +36,7 @@ st.set_page_config(
 )
 
 # 页面标题 
-st.title("Curve Fitting", text_alignment="center")
+# st.title("Curve Fitting", text_alignment="center")
 
 
 
