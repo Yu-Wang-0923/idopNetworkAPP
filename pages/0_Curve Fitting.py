@@ -297,13 +297,14 @@ def plot_curve_fitting(
     max_plots
 ):
     x = np.arange(1, len(df_quasi_dynamic)+1) if use_seq else df_quasi_dynamic.index
+    a_index = df_quasi_dynamic.index
     cols = st.columns(n_cols)
     selected_cols = df_quasi_dynamic.columns[:max_plots]
     for i, col in enumerate(selected_cols):
         with cols[i % n_cols]:
             fig, ax = plt.subplots(figsize=(4,3)) # , dpi=300
             ax.scatter(x, df_quasi_dynamic[col], s=150, alpha=0.7, facecolors='none', edgecolors='#4285F4', linewidth=1)
-            ax.plot(x, df_curve_sample[col], alpha=0.7, color='#4285F4', linewidth=1)
+            ax.plot(a_index, df_curve_sample[col], alpha=0.7, color='#4285F4', linewidth=1)
             ax.set_title(col, fontproperties=font_prop)
             ax.set_xlabel("Sequence" if use_seq else "Index", fontproperties=font_prop)
             ax.set_ylabel(col, fontproperties=font_prop)
