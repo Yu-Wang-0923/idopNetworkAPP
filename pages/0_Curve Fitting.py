@@ -133,7 +133,7 @@ with tab1:
 
             st.divider()
 
-            cache = {}
+            original_data = {}
             for file in uploaded_files:
                 with st.expander(f"📄 Original Data: {file.name}", expanded=False):
                     df = load_csv(file)
@@ -142,8 +142,8 @@ with tab1:
                         df = df.set_index(df.columns[0])
                     
                     # 缓存, key: 文件名, value: df
-                    cache[file.name] = df
-                    st.session_state["file_df_cache"] = cache
+                    original_data[file.name] = df
+                    st.session_state["original_data"] = original_data
 
                     with st.expander(f"📄 Original Data Overview: {file.name}", expanded=False):
                         st.dataframe(df, use_container_width=True)
@@ -179,17 +179,10 @@ with tab1:
             
             st.divider()
 
-            cache = st.session_state.get("file_df_cache", {})
+            original_data = st.session_state.get("original_data", {})
             
-            for fname, df in cache.items():
+            for fname, df in original_data.items():
                 with st.expander(f"📄 Transformation Data: {file.name}", expanded=False):
-
-                    # file = uploaded_files[0]
-                    # df = load_csv(file)
-
-                    # if st.session_state.get("use_index", True):
-                    #     df = df.set_index(df.columns[0])
-
                     df_transform = data_transformation(df, scaler_type)
 
                     with st.expander(f"📄 Transformation Data Overview: {file.name}", expanded=False):
@@ -205,13 +198,41 @@ with tab1:
                             use_seq = col1.checkbox("Use sequential X-axis", key=f"seq_{fname}", value=True)
                             n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"col_{fname}")
                             max_plots = col3.selectbox("Max plots", [3,6,9], index=1, key=f"plots_{fname}")
-
                         plot_scatter_matrix(df_transform, use_seq, n_cols, max_plots)
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
     with subtab1_3:
         st.write("To Be Updated")
+
+
+
+
+
+
+
+
+
+
+
+
+
+def get_quasi_dynamic_df(
+    data: pd.DataFrame,
+) -> pd.DataFrame:
+    r"""
+    从 Static DataFrame 变换到 quasi-dynamic DataFrame.
+    y_j(s_i) -> y_j(tau_i).
+    T_i = \sum_{j=1}^p y_j(s_i), i = 1, 2, ..., n.
+    tau_i = sigma(T_i), s.t. tau_1 ≦ ... ≦ tau_n.
+    """
+    row_sum = data.sum(axis=1).sort_values()
+    quasi_dynamic_df = data.loc[row_sum.index].copy()
+    quasi_dynamic_df.index = pd.Index(row_sum.values)
+    return quasi_dynamic_df
+
+
+
 
 with tab2:
     subtab2_1, subtab2_2, subtab2_3 = st.tabs([
@@ -221,4 +242,12 @@ with tab2:
     ])
 
     with subtab2_1:
-        st.write("To Be Updated")
+        with st.expander("⚙️ Quasi Dynamic", expanded=False):
+            col1,col2,col3 = st.columns(3)
+            use_seq = col1.checkbox("Use sequential X-axis", key=f"seq_{fname}", value=True)
+            n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"col_{fname}")
+            max_plots = col3.selectbox("Max plots", [3,6,9], index=1, key=f"plots_{fname}")
+        
+
+
+        
