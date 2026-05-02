@@ -139,8 +139,8 @@ with tab1:
                     with st.expander("📊 Scatter Plot", expanded=False):
                         with st.expander("⚙️ Plot Settings", expanded=False):
                             col1,col2 = st.columns(2)
-                            use_seq = col1.checkbox("Use sequential X-axis", key=f"seq_{fname}", value=True)
-                            n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"col_{fname}")
+                            use_seq = col1.checkbox("Use sequential X-axis", key=f"seq_{file.name}", value=True)
+                            n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"col_{file.name}")
 
                         plot_scatter_matrix(df, use_seq, n_cols)
         else:
