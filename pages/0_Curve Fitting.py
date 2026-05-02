@@ -14,7 +14,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="auto",
     menu_items={
-        "Get help": None,
+        "Get help": "https://www.streamlit.io",
         "Report a Bug": None,
         "About": "# 数据看板\n版本 1.0.0"
     }
