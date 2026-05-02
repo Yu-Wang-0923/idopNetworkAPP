@@ -30,7 +30,8 @@ def plot_curve_fitting(
         axes[i].margins(x=0.2, y=0.3)
         axes[i].xaxis.set_major_locator(plt.MaxNLocator(5))
         axes[i].yaxis.set_major_locator(plt.MaxNLocator(5))
-        axes[i].tick_params(axis='x', labelfontproperties=font_prop)
+        for label in axes[i].get_xticklabels():
+            label.set_fontproperties(font_prop)
     # 隐藏多余子图
     for j in range(i + 1, len(axes)):
         axes[j].set_visible(False)
