@@ -13,7 +13,7 @@ def local_css(file_name):
         st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
  
 # 调用函数，加载我们创建的CSS文件
-local_css("static/css/custom_style.css")
+local_css("Yu-Wang-0923/idopNetworkAPP/ static/css/custom_style.css")
 
 
 
