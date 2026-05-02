@@ -84,3 +84,9 @@ with tab1:
     unsafe_allow_html=True,
     )
 
+    subtab1_1, subtab1_2, subtab1_3 = st.tabs([
+        "数据概览", 
+        "拟合", 
+        "参数",
+    ])
+
