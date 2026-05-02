@@ -127,12 +127,12 @@ with tab2:
                         df_quasi = st.session_state.df_quasi_dynamic[file.name]
                         with st.expander(f"Quasi Dynamic: {file.name}", expanded=False):
                             with st.expander("Data Overview", expanded=False):
-                                st.dataframe(df_quasi_dynamic, use_container_width=True)
+                                st.dataframe(df_quasi, use_container_width=True)
                             with st.expander("Descriptive Statistics", expanded=False):
-                                st.dataframe(df_quasi_dynamic.describe(), use_container_width=True)
+                                st.dataframe(df_quasi.describe(), use_container_width=True)
                             with st.expander("Scatter Plot", expanded=False):
                                 plot_curve_fitting(
-                                            df_scatter=df_quasi_dynamic,
+                                            df_scatter=df_quasi,
                                             df_curve=None,
                                             show_curve=False,
                                             nrow=2,
