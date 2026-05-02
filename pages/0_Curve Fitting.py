@@ -34,12 +34,12 @@ with tab1:
         if uploaded_files:     
             for file in uploaded_files:
                 df_original = load_csv(file)
-                with st.expander(f"📄 Original Data: {file.name}, Rows: {df_original.shape[0]}, Columns: {df_original.shape[1]}", expanded=False):
-                    with st.expander(f"📄 Original Data Overview: {file.name}", expanded=False):
+                with st.expander(f"Original Data: {file.name}, Rows: {df_original.shape[0]}, Columns: {df_original.shape[1]}", expanded=False):
+                    with st.expander("Original Data Overview", expanded=False):
                         st.dataframe(df_original, use_container_width=True)
-                    with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
+                    with st.expander("Descriptive Statistics", expanded=False):
                         st.dataframe(df_original.describe(), use_container_width=True)
-                    # with st.expander("📊 Scatter Plot", expanded=False):
+                    with st.expander("Scatter Plot", expanded=False):
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
