@@ -80,6 +80,8 @@ def plot_scatter_matrix(df, use_seq, n_cols):
                 label.set_fontproperties(font_prop)
             ax.grid(alpha=0.3)
             ax.margins(x=0.2, y=0.3)
+            ax.xaxis.set_major_locator(plt.MaxNLocator(5))
+            ax.yaxis.set_major_locator(plt.MaxNLocator(5))
             st.pyplot(fig)
             plt.close()
 
