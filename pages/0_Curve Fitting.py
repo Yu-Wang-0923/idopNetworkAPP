@@ -45,7 +45,7 @@ with tab1:
                 df_original = load_csv(file)
                 st.session_state.df_original[file.name] = df_original
                 show_data_expander(f"Original Data: {file.name}", df_original)
-                with st.expander(Original Data: {file.name}, expanded=False):
+                with st.expander(f"Original Data: {file.name}", expanded=False):
                     with st.expander("Data Overview", expanded=False):
                         st.dataframe(df_original, use_container_width=True)
                     with st.expander("Descriptive Statistics", expanded=False):
