@@ -56,7 +56,7 @@ with tab1:
         type=["csv"],
         accept_multiple_files=True,
         help="支持 csv, 可多选文件",
-        label_visibility="collapsed",
+        label_visibility="hidden",
     )
 
 
