@@ -7,7 +7,12 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 from scipy.optimize import curve_fit
 
-import zhplot
+# import zhplot
+from pathlib import Path
+
+# 字体文件路径（你已经放在 static 文件夹里了）
+font_path = Path(__file__).parent.parent / "static" / "SimHei.ttf"
+font_prop = fm.FontProperties(fname=font_path)
 
 
 # 页面设置
@@ -68,7 +73,7 @@ def plot_scatter_matrix(df, use_seq, n_cols):
         with cols[i % n_cols]:
             fig, ax = plt.subplots(figsize=(6,3))
             ax.scatter(x, df[col], s=20, alpha=0.7)
-            ax.set_title(col)
+            ax.set_title(col, fontproperties=font_prop)
             ax.grid(alpha=0.3)
             st.pyplot(fig)
             plt.close()
