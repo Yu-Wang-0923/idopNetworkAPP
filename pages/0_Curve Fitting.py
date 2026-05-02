@@ -62,17 +62,16 @@ def data_transformation(
 
 
 def plot_scatter_matrix(df, use_seq, n_cols):
-    with st.expander("📊 Scatter Plot", expanded=True):
-        x = np.arange(1, len(df)+1) if use_seq else df.index
-        cols = st.columns(n_cols)
-        for i, col in enumerate(df.columns):
-            with cols[i % n_cols]:
-                fig, ax = plt.subplots(figsize=(6,3))
-                ax.scatter(x, df[col], s=20, alpha=0.7)
-                ax.set_title(col)
-                ax.grid(alpha=0.3)
-                st.pyplot(fig)
-                plt.close()
+    x = np.arange(1, len(df)+1) if use_seq else df.index
+    cols = st.columns(n_cols)
+    for i, col in enumerate(df.columns):
+        with cols[i % n_cols]:
+            fig, ax = plt.subplots(figsize=(6,3))
+            ax.scatter(x, df[col], s=20, alpha=0.7)
+            ax.set_title(col)
+            ax.grid(alpha=0.3)
+            st.pyplot(fig)
+            plt.close()
 
 
 
@@ -172,13 +171,17 @@ with tab1:
                     with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
                         st.dataframe(df_transform.describe().round(2), use_container_width=True)
 
-                    # 绘图参数（带折叠面板，稳定不回弹）
-                    with st.expander("⚙️ 绘图参数", expanded=False):
+                    # # 绘图参数（带折叠面板，稳定不回弹）
+                    # with st.expander("⚙️ 绘图参数", expanded=False):
+                    #     use_seq = st.checkbox("使用 1,2,3... 序号X轴", key=f"seq_{fname}")
+                    #     n_cols = st.slider("子图每行数量", 1, 4, 2, key=f"col_{fname}")
+
+                    with st.expander("📊 Scatter Plot", expanded=True):
+                        with st.expander("⚙️ 绘图参数", expanded=False):
                         use_seq = st.checkbox("使用 1,2,3... 序号X轴", key=f"seq_{fname}")
                         n_cols = st.slider("子图每行数量", 1, 4, 2, key=f"col_{fname}")
 
-                    # 调用函数
-                    plot_scatter_matrix(df_transform, use_seq, n_cols)
+                        plot_scatter_matrix(df_transform, use_seq, n_cols)
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
