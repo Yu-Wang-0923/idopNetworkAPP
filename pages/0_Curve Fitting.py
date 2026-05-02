@@ -43,7 +43,7 @@ st.set_page_config(
 
 
 # 页面标题 
-# st.title("Curve Fitting", text_alignment="center")
+st.title("Curve Fitting", text_alignment="center")
 
 
 
@@ -104,20 +104,20 @@ st.set_page_config(
 
 
 # ========== Sidebar ==========
-with st.sidebar:
-    st.write("To Be Updated")
-    st.info('stpe-1: Uploaded Data')
-    st.info('stpe-2: Transformation Data')
+# with st.sidebar:
+#     st.write("To Be Updated")
+#     st.info('stpe-1: Uploaded Data')
+#     st.info('stpe-2: Transformation Data')
 
 
 
 
 # ========== Tabs ==========
-tab1, tab2, tab3 = st.tabs([
-    "Uploaded Data", 
-    "Curve Fitting", 
-    "To Be Updated",
-    ])
+# tab1, tab2, tab3 = st.tabs([
+#     "Uploaded Data", 
+#     "Curve Fitting", 
+#     "To Be Updated",
+#     ])
 
 # with tab1:
 #     uploaded_files = st.file_uploader(
