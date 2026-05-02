@@ -1,8 +1,9 @@
 import streamlit as st
 
-def local_css(file_name):
-    with open(file_name) as f:
-        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+def load_global_css():
+    css_path = Path(__file__).parent / "static" / "css" / "custom_style.css"
+    with open(css_path, "r", encoding="utf-8") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 # 只在入口文件加载一次
 local_css("static/css/custom_style.css")
