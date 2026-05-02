@@ -251,9 +251,10 @@ def get_power_function_params(
     quasi_dynamic_df: pd.DataFrame,
 ) -> pd.DataFrame:
     """拟合幂函数参数 a_j, b_j。"""
-    x = quasi_dynamic_df.index.values.astype(float)
+    
     results = {}
     for col in quasi_dynamic_df.columns:
+        x = quasi_dynamic_df.index.values.astype(float)
         y = quasi_dynamic_df[col].values.astype(float)
         mask = (x > 0) & (y > 0)
         x = x[mask]
