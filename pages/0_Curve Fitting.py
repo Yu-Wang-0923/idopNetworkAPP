@@ -76,16 +76,17 @@ with tab1:
                     "Use first column as index",
                     value=True  # 默认勾选
                 )
+            st.divider()
 
             for file in uploaded_files:
-                st.subheader(f"📄 Original Data: {file.name}")
-                df = load_csv(file)
+                with st.expander(f"📄 Original Data: {file.name}", expanded=True):
+                    df = load_csv(file)
 
-                if use_first_col_as_index:
-                    df = df.set_index(df.columns[0])
+                    if use_first_col_as_index:
+                        df = df.set_index(df.columns[0])
 
-                st.dataframe(df, use_container_width=True)
-                st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
+                    st.dataframe(df, use_container_width=True)
+                    st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
