@@ -57,13 +57,13 @@ with tab1:
         accept_multiple_files=True,
         help="Supports CSV, multiple files allowed",
         label_visibility="visible",
-        max_upload_size=1000,
+        max_upload_size=500,
     )
 
 
 
     subtab1_1, subtab1_2, subtab1_3 = st.tabs([
-        "To Be Updated", 
+        "Data Overview", 
         "To Be Updated", 
         "To Be Updated",
     ])
