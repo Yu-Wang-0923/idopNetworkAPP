@@ -26,7 +26,7 @@ def plot_curve_fitting(
         if show_scatter:
             axes[i].scatter(df_scatter.index, df_scatter[col], alpha=0.6, s=25)
         axes[i].plot(df_curve.index, df_curve[col], linewidth=2.5)
-        axes[i].set_title(col, fontsize=11)
+        axes[i].set_title(col, fontsize=11, fontproperties=font_prop)
         axes[i].margins(x=0.2, y=0.3)
     # 隐藏多余子图
     for j in range(i + 1, len(axes)):
@@ -34,3 +34,5 @@ def plot_curve_fitting(
     plt.tight_layout()
     st.pyplot(fig)
     plt.close(fig)
+
+    #, fontproperties=font_prop
