@@ -117,7 +117,7 @@ def plot_curve_fitting_compare(
         
         # 只在第一个子图标注图例（避免重复）
         if i == 0:
-            ax.legend(fontsize=7, loc='upper left', frameon=False, fontproperties=font_prop)
+            ax.legend(fontsize=7, loc='upper left', frameon=False)
 
     # 隐藏多余子图
     for j in range(i + 1, len(axes)):
