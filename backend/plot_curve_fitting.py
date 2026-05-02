@@ -133,8 +133,8 @@ def plot_curve_fitting_compare(
     fig.legend(
         all_handles, all_labels,
         loc='upper center',    # 顶部居中
-        bbox_to_anchor=(0.5, 1.5),  # 稍微往上一点，不遮挡图
-        ncol=3,                # 一行放3个，自动换行
+        bbox_to_anchor=(0.5, 1.15),  # 稍微往上一点，不遮挡图
+        ncol=4, 
         fontsize=8,
         frameon=False,
         prop=font_prop
