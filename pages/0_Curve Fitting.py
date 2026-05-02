@@ -14,14 +14,28 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="auto",
     menu_items={
+        # 右上角 ⋮ 三点菜单里，帮助选项保留, 点击后跳转到：https://www.streamlit.io
         "Get help": "https://www.streamlit.io",
         "Report a Bug": None,
-        "About": "# 数据看板\n版本 1.0.0"
+        "About": "# 数据看板\n版本 1.0.0" 
     }
-    )
+)
 
 
-st.markdown("<h1 style='text-align: center;'>Curve Fitting</h1>", unsafe_allow_html=True)
+st.markdown(
+    """
+    <h1 style='text-align: center; color: #2E86AB; 
+                font-size: 48px; 
+                font-weight: 700; 
+                margin-bottom: 30px;
+                text-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
+        Curve Fitting
+    </h1>
+    """,
+    unsafe_allow_html=True
+)
+
+
 
 # ========== Tabs ==========
 tab1, tab2, tab3 = st.tabs(["数据", "拟合", "参数"])
