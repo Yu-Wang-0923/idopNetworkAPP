@@ -15,6 +15,8 @@ if "df_original" not in st.session_state:
     st.session_state.df_original = {}
 if "df_transform" not in st.session_state:
     st.session_state.df_transform = {}
+if "df_quasi_dynamic" not in st.session_state:
+    st.session_state.df_quasi_dynamic = {}
 
 
 with st.sidebar:
@@ -86,11 +88,24 @@ with tab2:
         "To Be Updated",
     ])
 
-    # with subtab2_1:
-        # if uploaded_files:
-        #     for 
-        #         df_quasi_dynamic = get_quasi_dynamic_df(df_transform)
+    with subtab2_1:
+        if uploaded_files:
+            for file in uploaded_files:
 
+                df_transform = st.session_state.df_transform[file.name]
+                df_quasi_dynamic = get_quasi_dynamic_df(df_transform)
+
+                with st.expander(f"Transform Data: {file.name}, Rows: {df_quasi_dynamic.shape[0]}, Columns: {df_quasi_dynamic.shape[1]}", expanded=False):
+                        with st.expander("Transform Data Overview", expanded=False):
+                            st.dataframe(df_quasi_dynamic, use_container_width=True)
+                        with st.expander("Descriptive Statistics", expanded=False):
+                            st.dataframe(df_quasi_dynamic.describe(), use_container_width=True)
+                        with st.expander("Scatter Plot", expanded=False):
+                            st.write("To Be Updated")
+        else:
+            st.info("Please upload CSV file(s) to view data overview")
+
+        
                 # with st.expander("⚙️ Quasi Dynamic", expanded=False):
                 # st.write("To Be Updated")
 
