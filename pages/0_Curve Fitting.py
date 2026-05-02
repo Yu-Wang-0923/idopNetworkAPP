@@ -8,7 +8,12 @@ from scipy.optimize import curve_fit
 
 # 调试 Curve Fitting
 
-st.set_page_config(page_title="Curve Fitting", page_icon="📈")
+st.set_page_config(
+    page_title="Curve Fitting", 
+    page_icon="📈"
+    layout="wide",
+    )
+    
 
 st.markdown("<h1 style='text-align: center;'>Curve Fitting</h1>", unsafe_allow_html=True)
 
