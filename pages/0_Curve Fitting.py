@@ -10,8 +10,14 @@ from scipy.optimize import curve_fit
 
 st.set_page_config(
     page_title="Curve Fitting", 
-    page_icon="📈",
+    page_icon=None,
     layout="wide",
+    initial_sidebar_state="auto",
+    menu_items={
+        "Get help": None,
+        "Report a Bug": None,
+        "About": "# 数据看板\n版本 1.0.0"
+    }
     )
 
 
