@@ -21,7 +21,7 @@ plt.rcParams["axes.unicode_minus"] = False
 st.markdown("<h1 style='text-align: center;'>Functional Clustering</h1>", unsafe_allow_html=True)
 
 # ========== Tabs ==========
-tab1, tab2, tab3 = st.tabs(["一元功能聚类", "多元功能聚类", "待更新..."])
+tab1, tab2, tab3 = st.tabs(["固定簇的功能聚类", "BIC功能聚类", "待更新..."])
 
 
 # ========== Tab 1 ==========
