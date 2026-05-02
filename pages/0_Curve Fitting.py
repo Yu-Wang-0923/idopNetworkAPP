@@ -110,14 +110,14 @@ tab1, tab2, tab3 = st.tabs([
     ])
 
 with tab1:
-    uploaded_files = st.file_uploader(
-        label="Please upload your files",
-        type=["csv"],
-        accept_multiple_files=True,
-        help="Supports CSV, multiple files allowed",
-        label_visibility="visible",
-        max_upload_size=500,
-    )
+    # uploaded_files = st.file_uploader(
+    #     label="Please upload your files",
+    #     type=["csv"],
+    #     accept_multiple_files=True,
+    #     help="Supports CSV, multiple files allowed",
+    #     label_visibility="visible",
+    #     max_upload_size=500,
+    # )
     st.write("To Be Updated")
 
     # subtab1_1, subtab1_2, subtab1_3 = st.tabs([
