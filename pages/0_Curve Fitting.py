@@ -1,9 +1,12 @@
-# 调试 Curve Fitting
-# import io
-# import sys
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+
+# 调试 Curve Fitting
+# import io
+# import sys
+
 # from pathlib import Path
 # import matplotlib.pyplot as plt
 # import matplotlib.font_manager as fm
@@ -13,7 +16,7 @@ import streamlit as st
 # sys.path.append("..")
 
 # # sys.path.append(str(Path(__file__).parent.parent))
-from backend.curve_fitting import *
+# from backend.curve_fitting import *
 # from backend.plot_curve_fitting import *
 
 # # 字体文件路径（你已经放在 static 文件夹里了）
