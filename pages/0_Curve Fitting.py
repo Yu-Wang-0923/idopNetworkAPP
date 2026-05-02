@@ -16,9 +16,9 @@ sys.path.append("..")
 from backend.curve_fitting import *
 from backend.plot_curve_fitting import *
 
-# 字体文件路径（你已经放在 static 文件夹里了）
-font_path = Path(__file__).parent.parent / "static" / "SimHei.ttf"
-font_prop = fm.FontProperties(fname=font_path)
+# # 字体文件路径（你已经放在 static 文件夹里了）
+# font_path = Path(__file__).parent.parent / "static" / "SimHei.ttf"
+# font_prop = fm.FontProperties(fname=font_path)
 
 
 # 页面设置
