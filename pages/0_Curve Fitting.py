@@ -1,5 +1,6 @@
 # 调试 Curve Fitting
 import io
+import sys
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -9,6 +10,11 @@ import matplotlib.font_manager as fm
 from sklearn.preprocessing import MinMaxScaler
 from scipy.optimize import curve_fit
 
+
+
+sys.path.append(str(Path(__file__).parent.parent))
+from backend.curve_fitting import *
+from backend.plot_curve_fitting import *
 
 # 字体文件路径（你已经放在 static 文件夹里了）
 font_path = Path(__file__).parent.parent / "static" / "SimHei.ttf"
@@ -39,52 +45,52 @@ st.title("Curve Fitting", text_alignment="center")
 plt.rcParams['font.sans-serif']=['SimHei','Songti SC','STFangsong']
 plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
 
-@st.cache_data
-def load_csv(file):
-    return pd.read_csv(file)
+# @st.cache_data
+# def load_csv(file):
+#     return pd.read_csv(file)
 
-@st.cache_data
-def data_transformation(
-    data: pd.DataFrame,
-    scaler_type: str,
-) -> pd.DataFrame:
-    """
-    数据变换.
-    """
-    if scaler_type == "none":
-        return data.copy()
-    if scaler_type == "rescale_to_-1_1":
-        scaled = MinMaxScaler(feature_range=(-1, 1)).fit_transform(data)
-    elif scaler_type == "rescale_to_0_1":
-        scaled = MinMaxScaler(feature_range=(0, 1)).fit_transform(data)
-    elif scaler_type == "log1p":
-        if (data < -1).any().any():
-            raise ValueError("log1p 变换要求所有数值列数据均大于等于 -1。")
-        scaled = data.apply(np.log1p, axis=0)
-    else:
-        raise ValueError(f"不支持的数据变换类型: {scaler_type}")
-    return pd.DataFrame(scaled, columns=data.columns, index=data.index)
+# @st.cache_data
+# def data_transformation(
+#     data: pd.DataFrame,
+#     scaler_type: str,
+# ) -> pd.DataFrame:
+#     """
+#     数据变换.
+#     """
+#     if scaler_type == "none":
+#         return data.copy()
+#     if scaler_type == "rescale_to_-1_1":
+#         scaled = MinMaxScaler(feature_range=(-1, 1)).fit_transform(data)
+#     elif scaler_type == "rescale_to_0_1":
+#         scaled = MinMaxScaler(feature_range=(0, 1)).fit_transform(data)
+#     elif scaler_type == "log1p":
+#         if (data < -1).any().any():
+#             raise ValueError("log1p 变换要求所有数值列数据均大于等于 -1。")
+#         scaled = data.apply(np.log1p, axis=0)
+#     else:
+#         raise ValueError(f"不支持的数据变换类型: {scaler_type}")
+#     return pd.DataFrame(scaled, columns=data.columns, index=data.index)
 
 
-def plot_scatter_matrix(df, use_seq, n_cols, max_plots):
-    x = np.arange(1, len(df)+1) if use_seq else df.index
-    cols = st.columns(n_cols)
-    selected_cols = df.columns[:max_plots]
-    for i, col in enumerate(selected_cols):
-        with cols[i % n_cols]:
-            fig, ax = plt.subplots(figsize=(4,3)) # , dpi=300
-            ax.scatter(x, df[col], s=150, alpha=0.7, facecolors='none', edgecolors='#4285F4', linewidth=1)
-            ax.set_title(col, fontproperties=font_prop)
-            ax.set_xlabel("Sequence" if use_seq else "Index", fontproperties=font_prop)
-            ax.set_ylabel(col, fontproperties=font_prop)
-            for label in ax.get_xticklabels() + ax.get_yticklabels():
-                label.set_fontproperties(font_prop)
-            ax.grid(alpha=0.3)
-            ax.margins(x=0.2, y=0.3)
-            ax.xaxis.set_major_locator(plt.MaxNLocator(5))
-            ax.yaxis.set_major_locator(plt.MaxNLocator(5))
-            st.pyplot(fig)
-            plt.close()
+# def plot_scatter_matrix(df, use_seq, n_cols, max_plots):
+#     x = np.arange(1, len(df)+1) if use_seq else df.index
+#     cols = st.columns(n_cols)
+#     selected_cols = df.columns[:max_plots]
+#     for i, col in enumerate(selected_cols):
+#         with cols[i % n_cols]:
+#             fig, ax = plt.subplots(figsize=(4,3)) # , dpi=300
+#             ax.scatter(x, df[col], s=150, alpha=0.7, facecolors='none', edgecolors='#4285F4', linewidth=1)
+#             ax.set_title(col, fontproperties=font_prop)
+#             ax.set_xlabel("Sequence" if use_seq else "Index", fontproperties=font_prop)
+#             ax.set_ylabel(col, fontproperties=font_prop)
+#             for label in ax.get_xticklabels() + ax.get_yticklabels():
+#                 label.set_fontproperties(font_prop)
+#             ax.grid(alpha=0.3)
+#             ax.margins(x=0.2, y=0.3)
+#             ax.xaxis.set_major_locator(plt.MaxNLocator(5))
+#             ax.yaxis.set_major_locator(plt.MaxNLocator(5))
+#             st.pyplot(fig)
+#             plt.close()
 
 
 
@@ -222,104 +228,104 @@ with tab1:
 
 
 
-def get_quasi_dynamic_df(
-    data: pd.DataFrame,
-) -> pd.DataFrame:
-    r"""
-    从 Static DataFrame 变换到 quasi-dynamic DataFrame.
-    y_j(s_i) -> y_j(tau_i).
-    T_i = \sum_{j=1}^p y_j(s_i), i = 1, 2, ..., n.
-    tau_i = sigma(T_i), s.t. tau_1 ≦ ... ≦ tau_n.
-    """
-    row_sum = data.sum(axis=1).sort_values()
-    quasi_dynamic_df = data.loc[row_sum.index].copy()
-    quasi_dynamic_df.index = pd.Index(row_sum.values)
-    return quasi_dynamic_df
+# def get_quasi_dynamic_df(
+#     data: pd.DataFrame,
+# ) -> pd.DataFrame:
+#     r"""
+#     从 Static DataFrame 变换到 quasi-dynamic DataFrame.
+#     y_j(s_i) -> y_j(tau_i).
+#     T_i = \sum_{j=1}^p y_j(s_i), i = 1, 2, ..., n.
+#     tau_i = sigma(T_i), s.t. tau_1 ≦ ... ≦ tau_n.
+#     """
+#     row_sum = data.sum(axis=1).sort_values()
+#     quasi_dynamic_df = data.loc[row_sum.index].copy()
+#     quasi_dynamic_df.index = pd.Index(row_sum.values)
+#     return quasi_dynamic_df
 
 
 
-def power_equation(
-    x: np.ndarray,
-    a: float,
-    b: float,
-) -> np.ndarray:
-    """y = a * x^{b}."""
-    return a * np.power(x, b)
+# def power_equation(
+#     x: np.ndarray,
+#     a: float,
+#     b: float,
+# ) -> np.ndarray:
+#     """y = a * x^{b}."""
+#     return a * np.power(x, b)
 
 
-def get_power_function_params(
-    quasi_dynamic_df: pd.DataFrame,
-) -> pd.DataFrame:
-    """拟合幂函数参数 a_j, b_j。"""
+# def get_power_function_params(
+#     quasi_dynamic_df: pd.DataFrame,
+# ) -> pd.DataFrame:
+#     """拟合幂函数参数 a_j, b_j。"""
     
-    results = {}
-    for col in quasi_dynamic_df.columns:
-        x = quasi_dynamic_df.index.values.astype(float)
-        y = quasi_dynamic_df[col].values.astype(float)
-        mask = (x > 0) & (y > 0)
-        x = x[mask]
-        y = y[mask]
-        a_hat, b_hat = curve_fit(power_equation, x, y, maxfev=50_000)[0]
-        results[col] = [a_hat, b_hat]
-    return pd.DataFrame(results, index=["a", "b"]).T
+#     results = {}
+#     for col in quasi_dynamic_df.columns:
+#         x = quasi_dynamic_df.index.values.astype(float)
+#         y = quasi_dynamic_df[col].values.astype(float)
+#         mask = (x > 0) & (y > 0)
+#         x = x[mask]
+#         y = y[mask]
+#         a_hat, b_hat = curve_fit(power_equation, x, y, maxfev=50_000)[0]
+#         results[col] = [a_hat, b_hat]
+#     return pd.DataFrame(results, index=["a", "b"]).T
 
 
-def chebyshev_nodes(
-    n: int,
-    a: float,
-    b: float,
-) -> np.ndarray:
-    """生成切比雪夫节点。"""
-    nodes = [
-        0.5 * (a + b) + 0.5 * (b - a) * np.cos((2 * i + 1) * np.pi / (2 * n))
-        for i in range(n)
-    ]
-    return np.sort(np.array(nodes))
+# def chebyshev_nodes(
+#     n: int,
+#     a: float,
+#     b: float,
+# ) -> np.ndarray:
+#     """生成切比雪夫节点。"""
+#     nodes = [
+#         0.5 * (a + b) + 0.5 * (b - a) * np.cos((2 * i + 1) * np.pi / (2 * n))
+#         for i in range(n)
+#     ]
+#     return np.sort(np.array(nodes))
 
 
-def get_power_function_sample(
-    quasi_dynamic_df: pd.DataFrame,
-) -> pd.DataFrame:
-    """计算幂律拟合曲线采样值。"""
-    power_function_params = get_power_function_params(quasi_dynamic_df)
-    params = power_function_params.reindex(quasi_dynamic_df.columns)
-    tau_lo = float(quasi_dynamic_df.index.min())
-    tau_hi = float(quasi_dynamic_df.index.max())
-    allometric_index = chebyshev_nodes(len(quasi_dynamic_df), tau_lo, tau_hi)
-    a = params["a"].to_numpy(dtype=float)
-    b = params["b"].to_numpy(dtype=float)
-    y = power_equation(allometric_index[:, np.newaxis], a, b)
-    return pd.DataFrame(y, index=allometric_index, columns=quasi_dynamic_df.columns)
+# def get_power_function_sample(
+#     quasi_dynamic_df: pd.DataFrame,
+# ) -> pd.DataFrame:
+#     """计算幂律拟合曲线采样值。"""
+#     power_function_params = get_power_function_params(quasi_dynamic_df)
+#     params = power_function_params.reindex(quasi_dynamic_df.columns)
+#     tau_lo = float(quasi_dynamic_df.index.min())
+#     tau_hi = float(quasi_dynamic_df.index.max())
+#     allometric_index = chebyshev_nodes(len(quasi_dynamic_df), tau_lo, tau_hi)
+#     a = params["a"].to_numpy(dtype=float)
+#     b = params["b"].to_numpy(dtype=float)
+#     y = power_equation(allometric_index[:, np.newaxis], a, b)
+#     return pd.DataFrame(y, index=allometric_index, columns=quasi_dynamic_df.columns)
 
 
 
-def plot_curve_fitting(
-    df_quasi_dynamic, 
-    df_curve_sample,
-    use_seq, 
-    n_cols, 
-    max_plots
-):
-    x = np.arange(1, len(df_quasi_dynamic)+1) if use_seq else df_quasi_dynamic.index
-    a_index = df_curve_sample.index
-    cols = st.columns(n_cols)
-    selected_cols = df_quasi_dynamic.columns[:max_plots]
-    for i, col in enumerate(selected_cols):
-        with cols[i % n_cols]:
-            fig, ax = plt.subplots(figsize=(4,3)) # , dpi=300
-            ax.scatter(a_index, df_quasi_dynamic[col], s=150, alpha=0.7, facecolors='none', edgecolors='#4285F4', linewidth=1)
-            ax.plot(a_index, df_curve_sample[col], alpha=0.7, color='#ff0000', linewidth=4)
-            ax.set_title(col, fontproperties=font_prop)
-            ax.set_xlabel("Sequence" if use_seq else "Index", fontproperties=font_prop)
-            ax.set_ylabel(col, fontproperties=font_prop)
-            for label in ax.get_xticklabels() + ax.get_yticklabels():
-                label.set_fontproperties(font_prop)
-            ax.grid(alpha=0.3)
-            ax.margins(x=0.2, y=0.3)
-            ax.xaxis.set_major_locator(plt.MaxNLocator(5))
-            ax.yaxis.set_major_locator(plt.MaxNLocator(5))
-            st.pyplot(fig)
-            plt.close()
+# def plot_curve_fitting(
+#     df_quasi_dynamic, 
+#     df_curve_sample,
+#     use_seq, 
+#     n_cols, 
+#     max_plots
+# ):
+#     x = np.arange(1, len(df_quasi_dynamic)+1) if use_seq else df_quasi_dynamic.index
+#     a_index = df_curve_sample.index
+#     cols = st.columns(n_cols)
+#     selected_cols = df_quasi_dynamic.columns[:max_plots]
+#     for i, col in enumerate(selected_cols):
+#         with cols[i % n_cols]:
+#             fig, ax = plt.subplots(figsize=(4,3)) # , dpi=300
+#             ax.scatter(a_index, df_quasi_dynamic[col], s=150, alpha=0.7, facecolors='none', edgecolors='#4285F4', linewidth=1)
+#             ax.plot(a_index, df_curve_sample[col], alpha=0.7, color='#ff0000', linewidth=4)
+#             ax.set_title(col, fontproperties=font_prop)
+#             ax.set_xlabel("Sequence" if use_seq else "Index", fontproperties=font_prop)
+#             ax.set_ylabel(col, fontproperties=font_prop)
+#             for label in ax.get_xticklabels() + ax.get_yticklabels():
+#                 label.set_fontproperties(font_prop)
+#             ax.grid(alpha=0.3)
+#             ax.margins(x=0.2, y=0.3)
+#             ax.xaxis.set_major_locator(plt.MaxNLocator(5))
+#             ax.yaxis.set_major_locator(plt.MaxNLocator(5))
+#             st.pyplot(fig)
+#             plt.close()
 
 with tab2:
     subtab2_1, subtab2_2, subtab2_3 = st.tabs([
