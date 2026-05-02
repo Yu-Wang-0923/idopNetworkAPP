@@ -255,6 +255,9 @@ def get_power_function_params(
     results = {}
     for col in quasi_dynamic_df.columns:
         y = quasi_dynamic_df[col].values.astype(float)
+        mask = (x > 0) & (y > 0)
+        x = x[mask]
+        y = y[mask]
         a_hat, b_hat = curve_fit(power_equation, x, y, maxfev=50_000)[0]
         results[col] = [a_hat, b_hat]
     return pd.DataFrame(results, index=["a", "b"]).T
