@@ -55,7 +55,7 @@ section[data-testid="stSidebar"] .stSelectbox label,
 section[data-testid="stSidebar"] .stSlider label,
 section[data-testid="stSidebar"] p {
     /* 浅灰色文字，降低视觉权重 */
-    color: #d1d5db !important;
+    color: #000000 !important;
     /* 字体加粗 */
     font-weight: 500;
 }
