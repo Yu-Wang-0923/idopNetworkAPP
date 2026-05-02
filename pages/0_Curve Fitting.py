@@ -10,11 +10,11 @@ import streamlit as st
 # from sklearn.preprocessing import MinMaxScaler
 # from scipy.optimize import curve_fit
 
-# sys.path.append("..")
+sys.path.append("..")
 
 # # sys.path.append(str(Path(__file__).parent.parent))
-# from backend.curve_fitting import *
-# from backend.plot_curve_fitting import *
+from backend.curve_fitting import *
+from backend.plot_curve_fitting import *
 
 # # 字体文件路径（你已经放在 static 文件夹里了）
 # font_path = Path(__file__).parent.parent / "static" / "SimHei.ttf"
@@ -22,18 +22,18 @@ import streamlit as st
 
 
 # # 页面设置
-# st.set_page_config(
-#     page_title="Curve Fitting", 
-#     page_icon=None,
-#     layout="wide",
-#     initial_sidebar_state="auto",
-#     menu_items={
-#         # 右上角 ⋮ 三点菜单里，帮助选项保留, 点击后跳转到：https://www.streamlit.io
-#         "Get help": "https://www.streamlit.io",
-#         "Report a Bug": None,
-#         "About": "# 数据看板\n版本 1.0.0" 
-#     }
-# )
+st.set_page_config(
+    page_title="Curve Fitting", 
+    page_icon=None,
+    layout="wide",
+    initial_sidebar_state="auto",
+    menu_items={
+        # 右上角 ⋮ 三点菜单里，帮助选项保留, 点击后跳转到：https://www.streamlit.io
+        "Get help": "https://www.streamlit.io",
+        "Report a Bug": None,
+        "About": "# 数据看板\n版本 1.0.0" 
+    }
+)
 
 # 页面标题 
 st.title("Curve Fitting", text_alignment="center")
