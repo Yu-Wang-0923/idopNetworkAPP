@@ -1,12 +1,6 @@
 import streamlit as st
 
-# import os
-# print("当前工作目录:", os.getcwd())
-# print("文件是否存在:", os.path.exists("static/css/custom_style.css"))
 
-# # 添加自定义CSS
-import streamlit as st
- 
 # 在Streamlit库导入后，添加自定义CSS
 def local_css(file_name):
     with open(file_name) as f:
