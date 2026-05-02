@@ -6,6 +6,15 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 from scipy.optimize import curve_fit
 
+# 添加自定义CSS
+def local_css(file_name):
+    with open(file_name) as f:
+        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+
+local_css("static/css/custom_style.css")
+
+
+
 st.set_page_config(page_title="Curve Fitting", page_icon="📈")
 plt.rcParams["font.sans-serif"] = [
     "PingFang SC",
