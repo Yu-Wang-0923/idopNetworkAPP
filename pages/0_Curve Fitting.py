@@ -10,7 +10,7 @@ import streamlit as st
 # from sklearn.preprocessing import MinMaxScaler
 # from scipy.optimize import curve_fit
 
-sys.path.append("..")
+# sys.path.append("..")
 
 # # sys.path.append(str(Path(__file__).parent.parent))
 from backend.curve_fitting import *
