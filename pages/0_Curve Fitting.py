@@ -1,30 +1,21 @@
-
+import sys
 import numpy as np
 import pandas as pd
 import streamlit as st
-
-
-import sys
 sys.path.append("..")
 from backend.curve_fitting import *
 from backend.plot_curve_fitting import *
 
-st.set_page_config(page_title="Curve Fitting", page_icon=None, layout="wide", initial_sidebar_state="auto",)
+
+st.set_page_config(page_title="Curve Fitting", page_icon=None, layout="wide", initial_sidebar_state="auto")
 st.title("Curve Fitting", text_alignment="center")
 
 
 with st.sidebar:
     st.write("To Be Updated")
-    st.info('stpe-1: Uploaded Data')
-    st.info('stpe-2: Transformation Data')
+    # st.divider()
 
-
-
-tab1, tab2, tab3 = st.tabs([
-    "Uploaded Data", 
-    "Curve Fitting", 
-    "To Be Updated",
-    ])
+tab1, tab2, tab3 = st.tabs(["Uploaded Data", "Curve Fitting", "To Be Updated"])
 
 with tab1:
     uploaded_files = st.file_uploader(
@@ -41,18 +32,15 @@ with tab1:
     with subtab1_1:
         if uploaded_files:
             with st.expander("⚙️ Data Settings", expanded=False):
-                use_first_col_as_index = st.checkbox(
-                    "Use first column as index",
-                    value=True  # 默认勾选
-                )
-    #             st.session_state["use_first_col_as_index"] = use_first_col_as_index
-
-            st.divider()
-
-    #         # original_data_session = {}
+                use_first_col_as_index = st.checkbox("Use first column as index", value=True)
             for file in uploaded_files:
                 with st.expander(f"📄 Original Data: {file.name}", expanded=False):
                     df = load_csv(file)
+                with st.expander(f"📄 Original Data Overview: {file.name}", expanded=False):
+                    st.dataframe(df, use_container_width=True)
+                    st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
+                with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
+                    st.dataframe(df.describe(),use_container_width=True)
 
     #                 if st.session_state["use_first_col_as_index"]:
     #                     df = df.set_index(df.columns[0])
@@ -61,12 +49,7 @@ with tab1:
                     # original_data_session[file.name] = df
     #                 # st.session_state["original_data_session"] = original_data_session
 
-                    with st.expander(f"📄 Original Data Overview: {file.name}", expanded=False):
-                        st.dataframe(df, use_container_width=True)
-                        st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
-
-                    with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
-                        st.dataframe(df.describe(),use_container_width=True)
+                
 
                     # key_id = id(df)
                     # with st.expander("📊 Scatter Plot", expanded=False):
