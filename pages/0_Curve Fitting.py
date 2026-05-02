@@ -17,6 +17,8 @@ if "df_transform" not in st.session_state:
     st.session_state.df_transform = {}
 if "df_quasi_dynamic" not in st.session_state:
     st.session_state.df_quasi_dynamic = {}
+if "df_curve_sample" not in st.session_state:
+    st.session_state.df_curve_sample = {}
 
 
 with st.sidebar:
@@ -68,7 +70,7 @@ with tab1:
 with tab2:
     subtab2_1, subtab2_2, subtab2_3 = st.tabs([
         "Quasi Dynamic", 
-        "异速生长拟合", 
+        "Allometric Scaling Law", 
         "To Be Updated",
     ])
 
