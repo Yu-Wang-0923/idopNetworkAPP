@@ -35,7 +35,7 @@ def plot_curve_fitting(
         axes[j].set_visible(False)
     plt.subplots_adjust(wspace=0,hspace=0)
     plt.tight_layout()
-    st.pyplot(fig, dpi)
+    st.pyplot(fig)
     plt.close(fig)
 
     #, facecolors='none', edgecolors='#4285F4', linewidth=1
