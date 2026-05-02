@@ -127,14 +127,19 @@ with tab1:
                     ]
                 )
             
-            file = uploaded_files[0]
-            df = load_csv(file)
+            st.divider()
 
-            if st.session_state.get("use_index", True):
-                df = df.set_index(df.columns[0])
+            for file in uploaded_files:
+                with st.expander(f"📄 Original Data: {file.name}", expanded=False):
 
-            df_transform = data_transformation(df, scaler_type)
-            st.dataframe(df_transform.describe().round(2), use_container_width=True)
+                file = uploaded_files[0]
+                df = load_csv(file)
+
+                if st.session_state.get("use_index", True):
+                    df = df.set_index(df.columns[0])
+
+                df_transform = data_transformation(df, scaler_type)
+                st.dataframe(df_transform.describe().round(2), use_container_width=True)
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
