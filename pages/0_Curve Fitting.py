@@ -66,7 +66,7 @@ def data_transformation(
     return pd.DataFrame(scaled, columns=data.columns, index=data.index)
 
 
-def plot_scatter_matrix(df, use_seq, n_cols, max_plots=6):
+def plot_scatter_matrix(df, use_seq, n_cols, max_plots):
     x = np.arange(1, len(df)+1) if use_seq else df.index
     cols = st.columns(n_cols)
     selected_cols = df.columns[:max_plots]
@@ -158,7 +158,7 @@ with tab1:
                             n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"col_{key_id}")
                             max_plots = col3.selectbox("Max plots", [3,6,9], index=6, key=f"plots_{key_id}")
 
-                        plot_scatter_matrix(df, use_seq, n_cols)
+                        plot_scatter_matrix(df, use_seq, n_cols, max_plots)
         else:
             st.info("Please upload CSV file(s) to view data overview")
     
@@ -204,7 +204,7 @@ with tab1:
                             n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"col_{fname}")
                             max_plots = col3.selectbox("Max plots", [3,6,9], index=6, key=f"col_{fname}")
 
-                        plot_scatter_matrix(df_transform, use_seq, n_cols)
+                        plot_scatter_matrix(df_transform, use_seq, n_cols, max_plots)
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
