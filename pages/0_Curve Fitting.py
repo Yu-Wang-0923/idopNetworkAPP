@@ -102,14 +102,14 @@ st.title("Curve Fitting", text_alignment="center")
 
 
 
-========== Tabs ==========
+# ========== Tabs ==========
 tab1, tab2, tab3 = st.tabs([
     "Uploaded Data", 
     "Curve Fitting", 
     "To Be Updated",
     ])
 
-with tab1:
+# with tab1:
     # uploaded_files = st.file_uploader(
     #     label="Please upload your files",
     #     type=["csv"],
@@ -118,7 +118,7 @@ with tab1:
     #     label_visibility="visible",
     #     max_upload_size=500,
     # )
-    st.write("To Be Updated")
+    # st.write("To Be Updated")
 
     # subtab1_1, subtab1_2, subtab1_3 = st.tabs([
     #     "Data Overview", 
