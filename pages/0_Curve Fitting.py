@@ -36,11 +36,11 @@ with tab1:
             for file in uploaded_files:
                 with st.expander(f"📄 Original Data: {file.name}", expanded=False):
                     df = load_csv(file)
-                with st.expander(f"📄 Original Data Overview: {file.name}", expanded=False):
-                    st.dataframe(df, use_container_width=True)
-                    st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
-                with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
-                    st.dataframe(df.describe(),use_container_width=True)
+                    with st.expander(f"📄 Original Data Overview: {file.name}", expanded=False):
+                        st.dataframe(df, use_container_width=True)
+                        st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
+                    with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
+                        st.dataframe(df.describe(),use_container_width=True)
 
     #                 if st.session_state["use_first_col_as_index"]:
     #                     df = df.set_index(df.columns[0])
