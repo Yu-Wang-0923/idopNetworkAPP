@@ -354,6 +354,7 @@ with tab2:
         st.write("To Be Updated")
 
         curve_sample = get_power_function_sample(df_quasi_dynamic)
+        st.dataframe(df_quasi_dynamic, use_container_width=True)
         st.dataframe(curve_sample, use_container_width=True)
         plot_curve_fitting(df_quasi_dynamic=df_quasi_dynamic, df_curve_sample=curve_sample, use_seq = None, n_cols=2, max_plots=6)
 # "Sequence"
