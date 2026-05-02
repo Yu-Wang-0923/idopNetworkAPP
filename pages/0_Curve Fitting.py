@@ -74,17 +74,17 @@ with tab1:
                 st.session_state.df_transform[file.name] = df_transform
                 with st.expander(f"Transform Data: {file.name}", expanded=False):
                     with st.expander("Data Overview", expanded=False):
-                        st.dataframe(df_original, use_container_width=True)
+                        st.dataframe(df_transform, use_container_width=True)
                     with st.expander("Descriptive Statistics", expanded=False):
-                        st.dataframe(df_original.describe(), use_container_width=True)
+                        st.dataframe(df_transform.describe(), use_container_width=True)
                     with st.expander("Scatter Plot", expanded=False):
                         plot_curve_fitting(
-                                    df_scatter=df_original,
+                                    df_scatter=df_transform,
                                     df_curve=None,
                                     show_curve=False,
                                     nrow=2,
                                     ncol=3,
-                                    nsubfig=6,  # 最多画4张图
+                                    nsubfig=6,
                                     )
         else:
             st.info("Please upload CSV file(s)")
@@ -108,14 +108,19 @@ with tab2:
                 df_transform = st.session_state.df_transform[file.name]
                 df_quasi_dynamic = get_quasi_dynamic_df(df_transform)
                 st.session_state.df_quasi_dynamic[file.name] = df_quasi_dynamic
-                show_data_expander(f"Quasi Dynamic: {file.name}", df_quasi_dynamic)
-                plot_curve_fitting(
+                with st.expander(f"Quasi Dynamic: {file.name}", expanded=False):
+                    with st.expander("Data Overview", expanded=False):
+                        st.dataframe(df_quasi_dynamic, use_container_width=True)
+                    with st.expander("Descriptive Statistics", expanded=False):
+                        st.dataframe(df_quasi_dynamic.describe(), use_container_width=True)
+                    with st.expander("Scatter Plot", expanded=False):
+                        plot_curve_fitting(
                                     df_scatter=df_quasi_dynamic,
                                     df_curve=None,
                                     show_curve=False,
                                     nrow=2,
                                     ncol=3,
-                                    nsubfig=6,  # 最多画4张图
+                                    nsubfig=6,
                                     )
         else:
             st.info("Please upload CSV file(s)")
@@ -135,24 +140,30 @@ with tab2:
                 curve_list.append(df_curve_sample)
                 name_list.append(file.name)  # 图例用
 
-                show_data_expander(f"Quasi Dynamic: {file.name}", df_curve_sample)
-                plot_curve_fitting(
+                with st.expander(f"Allometric Scaling Law: {file.name}", expanded=False):
+                    with st.expander("Data Overview", expanded=False):
+                        st.dataframe(df_quasi_dynamic, use_container_width=True)
+                    with st.expander("Descriptive Statistics", expanded=False):
+                        st.dataframe(df_quasi_dynamic.describe(), use_container_width=True)
+                    with st.expander("Curve Fitting Plot", expanded=False):
+                        plot_curve_fitting(
                                     df_scatter=df_quasi_dynamic,
                                     df_curve=df_curve_sample,
                                     show_curve=True,
                                     nrow=2,
                                     ncol=3,
-                                    nsubfig=6,  # 最多画4张图
+                                    nsubfig=6,
                                     )
-            plot_curve_fitting_compare(
-                                        df_scatter_list=scatter_list,
-                                        df_curve_list=curve_list,
-                                        label_list=name_list,
-                                        show_curve=True,
-                                        nrow=2,
-                                        ncol=3,    # 你要 6 张子图
-                                        nsubfig=6
-                                        )
+            with st.expander("Allometric Scaling Law Compare", expanded=False):                        
+                plot_curve_fitting_compare(
+                                            df_scatter_list=scatter_list,
+                                            df_curve_list=curve_list,
+                                            label_list=name_list,
+                                            show_curve=True,
+                                            nrow=2,
+                                            ncol=3,
+                                            nsubfig=6
+                                            )
         else:
             st.info("Please upload CSV file(s)")
 
