@@ -59,7 +59,7 @@ with tab1:
                 scaler_type = st.selectbox("Transform Type", ["none", "rescale_to_0_1", "rescale_to_-1_1", "log1p"],key="transform_data")
             for file in uploaded_files:
 
-                # df = st.session_state.original_data[file.name]
+                df = st.session_state.original_data[file.name]
                 df_transform = data_transformation(original_data, scaler_type)
                 st.session_state.df_transform[file.name] = df_transform
             
