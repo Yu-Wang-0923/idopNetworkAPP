@@ -30,17 +30,21 @@ with tab1:
     subtab1_1, subtab1_2, subtab1_3 = st.tabs(["Data Overview", "Data Transformation", "To Be Updated",])
 
     with subtab1_1:
-        if uploaded_files:       
+
+        if uploaded_files:     
             for file in uploaded_files:
                 df_original = load_csv(file)
+
                 with st.expander(f"📄 Original Data: {file.name}", expanded=False):
                     with st.expander(f"📄 Original Data Overview: {file.name}", expanded=False):
-                        st.dataframe(df_original, use_container_width=True)
                         st.info(f"Rows: {df_original.shape[0]} | Columns: {df_original.shape[1]}")
+                        st.dataframe(df_original, use_container_width=True)
                     with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
                         st.dataframe(df_original.describe(), use_container_width=True)
-                st.write("当前索引列：", df_original.index.name)  # 看索引名字
-                st.write("索引是否生效：", df_original.index)      # 看索引内容
+                    with st.expander("📊 Scatter Plot", expanded=False):
+
+        else:
+            st.info("Please upload CSV file(s) to view data overview")
 
     #                 if st.session_state["use_first_col_as_index"]:
     #                     df = df.set_index(df.columns[0])
@@ -60,8 +64,7 @@ with tab1:
                     #         max_plots = col3.selectbox("Max plots", [3,6,9], index=1, key=f"original_data_plots_{key_id}")
 
         #             #     plot_scatter_matrix(df, use_seq, n_cols, max_plots)
-        # else:
-        #     st.info("Please upload CSV file(s) to view data overview")
+        
     
 #     with subtab1_2:
 #         if uploaded_files:
