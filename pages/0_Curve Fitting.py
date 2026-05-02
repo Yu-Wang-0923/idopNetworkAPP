@@ -291,7 +291,7 @@ def get_power_function_sample(
 
 def plot_curve_fitting(
     df_quasi_dynamic, 
-    df_curve_sample
+    df_curve_sample,
     use_seq, 
     n_cols, 
     max_plots
