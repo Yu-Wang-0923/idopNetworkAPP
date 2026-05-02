@@ -110,7 +110,7 @@ def plot_curve_fitting_compare(
                 )
         
         # 子图样式
-        ax.set_title(col, fontsize=11) # fontproperties=font_prop
+        ax.set_title(col, fontsize=11, fontproperties=font_prop) # fontproperties=font_prop
         ax.margins(x=0.2, y=0.3)
         ax.xaxis.set_major_locator(plt.MaxNLocator(5))
         ax.yaxis.set_major_locator(plt.MaxNLocator(5))
