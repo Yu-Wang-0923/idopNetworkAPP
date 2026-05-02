@@ -75,6 +75,9 @@ def plot_scatter_matrix(df, use_seq, n_cols):
             ax.scatter(x, df[col], s=20, alpha=0.7)
             ax.set_title(col, fontproperties=font_prop)
             ax.set_xlabel("Sequence" if use_seq else "Index", fontproperties=font_prop)
+            ax.set_ylabel(col, fontproperties=font_prop)
+            for label in ax.get_xticklabels() + ax.get_yticklabels():
+                label.set_fontproperties(font_prop)
             ax.grid(alpha=0.3)
             st.pyplot(fig)
             plt.close()
