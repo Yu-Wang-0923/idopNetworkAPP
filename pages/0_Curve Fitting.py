@@ -66,10 +66,11 @@ def data_transformation(
     return pd.DataFrame(scaled, columns=data.columns, index=data.index)
 
 
-def plot_scatter_matrix(df, use_seq, n_cols):
+def plot_scatter_matrix(df, use_seq, n_cols, max_plots=6):
     x = np.arange(1, len(df)+1) if use_seq else df.index
     cols = st.columns(n_cols)
-    for i, col in enumerate(df.columns):
+    selected_cols = df.columns[:max_plots]
+    for i, col in enumerate(selected_cols):
         with cols[i % n_cols]:
             fig, ax = plt.subplots(figsize=(4,3)) # , dpi=300
             ax.scatter(x, df[col], s=150, alpha=0.7, facecolors='none', edgecolors='#4285F4', linewidth=1)
@@ -152,9 +153,10 @@ with tab1:
                     key_id = id(df)
                     with st.expander("📊 Scatter Plot", expanded=False):
                         with st.expander("⚙️ Plot Settings", expanded=False):
-                            col1,col2 = st.columns(2)
+                            col1,col2 = st.columns(3)
                             use_seq = col1.checkbox("Use sequential X-axis", key=f"seq_{key_id}", value=True)
                             n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"col_{key_id}")
+                            max_plots = col3.selectbox("Max plots", [3,6,9], index=6, key=f"plots_{key_id}")
 
                         plot_scatter_matrix(df, use_seq, n_cols)
         else:
@@ -197,9 +199,10 @@ with tab1:
 
                     with st.expander("📊 Scatter Plot", expanded=False):
                         with st.expander("⚙️ Plot Settings", expanded=False):
-                            col1,col2 = st.columns(2)
+                            col1,col2 = st.columns(3)
                             use_seq = col1.checkbox("Use sequential X-axis", key=f"seq_{fname}", value=True)
                             n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"col_{fname}")
+                            max_plots = col3.selectbox("Max plots", [3,6,9], index=6, key=f"col_{fname}")
 
                         plot_scatter_matrix(df_transform, use_seq, n_cols)
         else:
