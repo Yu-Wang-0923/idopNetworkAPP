@@ -96,22 +96,6 @@ with tab1:
                     "Use first column as index",
                     value=True  # 默认勾选
                 )
-                scaler_type = st.selectbox(
-                    "Data Transformation",
-                    options=[
-                        "none",
-                        "rescale_to_0_1",
-                        "rescale_to_-1_1",
-                        "log1p",
-                    ],
-                    format_func=lambda x: {
-                        "none": "None (No transformation)",
-                        "rescale_to_0_1": "Rescale to [0, 1]",
-                        "rescale_to_-1_1": "Rescale to [-1, 1]",
-                        "log1p": "Log1p Transformation",
-                    }[x],
-                    index=0  # 默认选 none
-                )
 
             st.divider()
 
