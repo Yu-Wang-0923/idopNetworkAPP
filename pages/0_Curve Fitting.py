@@ -1,3 +1,4 @@
+# 调试 Curve Fitting
 import io
 import numpy as np
 import pandas as pd
@@ -6,10 +7,6 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 from scipy.optimize import curve_fit
 
-# 调试 Curve Fitting
-
-
-
 
 # 添加自定义CSS
 # def local_css(file_name):
@@ -17,8 +14,6 @@ from scipy.optimize import curve_fit
 #         st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
 
 # local_css("static/css/custom_style.css")
-
-
 
 
 # 页面设置
@@ -35,7 +30,7 @@ st.set_page_config(
     }
 )
 
-
+# 页面标题
 st.title("Curve Fitting", text_alignment="center")
 
 
@@ -56,7 +51,13 @@ with tab1:
     unsafe_allow_html=True,
     )
 
-    st.header("📁 上传数据")
+    st.header("上传数据")
+    uploaded_files = st.sidebar.file_uploader(
+        "选择 CSV 文件",
+        type=["csv"],
+        accept_multiple_files=True,
+    )
+
 
 
     subtab1_1, subtab1_2, subtab1_3 = st.tabs([
