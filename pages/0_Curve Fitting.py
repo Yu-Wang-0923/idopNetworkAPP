@@ -25,7 +25,7 @@ with st.sidebar:
     st.write("To Be Updated")
     # st.divider()
 
-tab1, tab2, tab3 = st.tabs(["Uploaded Data", "Curve Fitting", "To Be Updated"])
+tab1, tab2, tab3 = st.tabs(["Uploaded Data", "Static Data", "Dynamic Data"])
 
 with tab1:
     uploaded_files = st.file_uploader(
