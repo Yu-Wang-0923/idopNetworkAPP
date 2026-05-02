@@ -52,7 +52,7 @@ with tab1:
     )
 
     st.header("上传数据")
-    uploaded_files = st.sidebar.file_uploader(
+    uploaded_files = st.file_uploader(
         "选择 CSV 文件",
         type=["csv"],
         accept_multiple_files=True,
