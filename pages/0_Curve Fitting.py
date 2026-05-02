@@ -37,7 +37,7 @@ with tab1:
         max_upload_size=500,
     )
 
-    subtab1_1, subtab1_2, subtab1_3 = st.tabs(["Data Overview", "Data Transformation", "To Be Updated",])
+    subtab1_1, subtab1_2, subtab1_3 = st.tabs(["Data Overview", "Data Transformation", "To Be Updated"])
 
     with subtab1_1:
         if uploaded_files:     
@@ -90,8 +90,8 @@ with tab2:
             for file in uploaded_files:
                 df_quasi_dynamic = st.session_state.df_quasi_dynamic[file.name]        
                 df_curve_sample = get_power_function_sample(df_quasi_dynamic)
-                st.session_state.df_quasi_dynamic[file.name] = df_quasi_dynamic
-                show_data_expander(f"Quasi Dynamic: {file.name}", df_quasi_dynamic)
+                st.session_state.df_curve_sample[file.name] = df_curve_sample
+                show_data_expander(f"Quasi Dynamic: {file.name}", df_curve_sample)
                 # plot_curve_fitting(
                 #                     df_scatter=df_quasi_dynamic,
                 #                     df_curve=df_curve_sample,
