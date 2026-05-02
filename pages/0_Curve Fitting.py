@@ -48,7 +48,7 @@ with tab1:
                 plot_curve_fitting(
                                     df_scatter=df_original,
                                     df_curve=None,
-                                    show_scatter=False,
+                                    show_curve=False,
                                     nrow=2,
                                     ncol=3,
                                     nsubfig=6,  # 最多画4张图
@@ -70,7 +70,7 @@ with tab1:
                 plot_curve_fitting(
                                     df_scatter=df_transform,
                                     df_curve=None,
-                                    show_scatter=False,
+                                    show_curve=False,
                                     nrow=2,
                                     ncol=3,
                                     nsubfig=6,  # 最多画4张图
@@ -101,7 +101,7 @@ with tab2:
                 plot_curve_fitting(
                                     df_scatter=df_quasi_dynamic,
                                     df_curve=None,
-                                    show_scatter=False,
+                                    show_curve=False,
                                     nrow=2,
                                     ncol=3,
                                     nsubfig=6,  # 最多画4张图
@@ -120,7 +120,7 @@ with tab2:
                 plot_curve_fitting(
                                     df_scatter=df_quasi_dynamic,
                                     df_curve=df_curve_sample,
-                                    show_scatter=True,
+                                    show_curve=True,
                                     nrow=2,
                                     ncol=3,
                                     nsubfig=6,  # 最多画4张图
