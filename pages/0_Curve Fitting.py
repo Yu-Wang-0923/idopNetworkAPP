@@ -25,7 +25,7 @@ st.set_page_config(
 st.markdown(
     """
     <h1 style='text-align: center; color: #2E86AB; 
-                font-size: 64px; 
+                font-size: 48px; 
                 font-weight: 700; 
                 margin-bottom: 30px;
                 text-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
@@ -49,7 +49,7 @@ st.markdown(
         height: 45px;
         border-radius: 10px;
         padding: 0 25px;
-        font-size: 16px;
+        font-size: 24px;
         font-weight: 600;
         color: #666;
         background-color: #f5f7fa;
