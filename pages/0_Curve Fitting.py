@@ -97,10 +97,10 @@ plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
 
 
 # ========== Sidebar ==========
-with st.sidebar:
-    st.write("To Be Updated")
-    st.info('stpe-1: Uploaded Data')
-    st.info('stpe-2: Transformation Data')
+# with st.sidebar:
+#     st.write("To Be Updated")
+#     st.info('stpe-1: Uploaded Data')
+#     st.info('stpe-2: Transformation Data')
 
 
 
