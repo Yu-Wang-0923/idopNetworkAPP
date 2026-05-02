@@ -19,11 +19,11 @@ st.title("Curve Fitting", text_alignment="center")
 # from sklearn.preprocessing import MinMaxScaler
 # from scipy.optimize import curve_fit
 
-# sys.path.append("..")
+sys.path.append("..")
 
 # # sys.path.append(str(Path(__file__).parent.parent))
-# from backend.curve_fitting import *
-# from backend.plot_curve_fitting import *
+from backend.curve_fitting import *
+from backend.plot_curve_fitting import *
 
 # # 字体文件路径（你已经放在 static 文件夹里了）
 # font_path = Path(__file__).parent.parent / "static" / "SimHei.ttf"
@@ -101,24 +101,22 @@ st.title("Curve Fitting", text_alignment="center")
 
 
 
-
-# ========== Tabs ==========
 tab1, tab2, tab3 = st.tabs([
     "Uploaded Data", 
     "Curve Fitting", 
     "To Be Updated",
     ])
 
-# with tab1:
-    # uploaded_files = st.file_uploader(
-    #     label="Please upload your files",
-    #     type=["csv"],
-    #     accept_multiple_files=True,
-    #     help="Supports CSV, multiple files allowed",
-    #     label_visibility="visible",
-    #     max_upload_size=500,
-    # )
-    # st.write("To Be Updated")
+with tab1:
+    uploaded_files = st.file_uploader(
+        label="Please upload your files",
+        type=["csv"],
+        accept_multiple_files=True,
+        help="Supports CSV, multiple files allowed",
+        label_visibility="visible",
+        max_upload_size=500,
+    )
+    st.write("To Be Updated")
 
     # subtab1_1, subtab1_2, subtab1_3 = st.tabs([
     #     "Data Overview", 
