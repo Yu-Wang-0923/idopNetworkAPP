@@ -44,7 +44,7 @@ st.set_page_config(
 #     unsafe_allow_html=True
 # )
 
-st.title("Curve Fitting", anchor=False)
+st.title("Curve Fitting", text_alignment="center")
 
 
 # ========== Tabs ==========
