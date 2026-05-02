@@ -1,12 +1,12 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
 import io
+import numpy as np
+import pandas as pd
+import streamlit as st
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import MinMaxScaler
 from scipy.optimize import curve_fit
+from sklearn.preprocessing import MinMaxScaler
 
-st.set_page_config(page_title="功能聚类", page_icon="📈")
+st.set_page_config(page_title="Functional Clustering", page_icon="📈")
 plt.rcParams["font.sans-serif"] = [
     "PingFang SC",
     "Hiragino Sans GB",
@@ -18,7 +18,7 @@ plt.rcParams["font.sans-serif"] = [
 ]
 plt.rcParams["axes.unicode_minus"] = False
 
-st.markdown("<h1 style='text-align: center;'>功能聚类</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>Functional Clustering</h1>", unsafe_allow_html=True)
 
 # ========== Tabs ==========
 tab1, tab2, tab3 = st.tabs(["一元功能聚类", "多元功能聚类", "待更新..."])

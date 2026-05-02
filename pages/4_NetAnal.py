@@ -1,12 +1,12 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
 import io
+import numpy as np
+import pandas as pd
+import streamlit as st
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import MinMaxScaler
 from scipy.optimize import curve_fit
+from sklearn.preprocessing import MinMaxScaler
 
-st.set_page_config(page_title="网络分析", page_icon="📈")
+st.set_page_config(page_title="Network Analysis", page_icon="📈")
 plt.rcParams["font.sans-serif"] = [
     "PingFang SC",
     "Hiragino Sans GB",
@@ -18,7 +18,7 @@ plt.rcParams["font.sans-serif"] = [
 ]
 plt.rcParams["axes.unicode_minus"] = False
 
-st.markdown("<h1 style='text-align: center;'>网络分析</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>Network Analysis</h1>", unsafe_allow_html=True)
 
 
 # ========== Tabs ==========
