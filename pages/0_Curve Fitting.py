@@ -13,7 +13,8 @@ st.title("Curve Fitting", text_alignment="center")
 
 if "df_original" not in st.session_state:
     st.session_state.df_original = {}
-
+if "df_transform" not in st.session_state:
+    st.session_state.df_transform = {}
 
 
 with st.sidebar:
@@ -60,6 +61,7 @@ with tab1:
 
                 df = load_csv(file)
                 df_transform = data_transformation(df, scaler_type)
+                st.session_state.df_transform[file.name] = df_transform
             
                 with st.expander(f"Transform Data: {file.name}, Rows: {df_transform.shape[0]}, Columns: {df_transform.shape[1]}", expanded=False):
                         with st.expander("Transform Data Overview", expanded=False):
