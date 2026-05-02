@@ -6,8 +6,13 @@ print("文件是否存在:", os.path.exists("static/css/custom_style.css"))
 
 # 添加自定义CSS
 def local_css(file_name):
-    with open(file_name) as f:
-        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+    # 自动获取 Home.py 所在文件夹
+    current_folder = os.path.dirname(os.path.abspath(__file__))
+    # 拼接正确路径（核心修复）
+    full_path = os.path.join(current_folder, file_name)
+    
+    with open(full_path, "r", encoding="utf-8") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
  
 # 调用函数，加载我们创建的CSS文件
 local_css("static/css/custom_style.css")
