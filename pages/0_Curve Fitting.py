@@ -152,24 +152,24 @@ with tab1:
             
             st.divider()
 
-            for file in uploaded_files:
-                with st.expander(f"📄 Transformation Data: {file.name}", expanded=False):
+            # for file in uploaded_files:
+            with st.expander(f"📄 Transformation Data: {file.name}", expanded=False):
 
-                    file = uploaded_files[0]
-                    df = load_csv(file)
+                file = uploaded_files[0]
+                df = load_csv(file)
 
-                    if st.session_state.get("use_index", True):
-                        df = df.set_index(df.columns[0])
+                if st.session_state.get("use_index", True):
+                    df = df.set_index(df.columns[0])
 
-                    df_transform = data_transformation(df, scaler_type)
+                df_transform = data_transformation(df, scaler_type)
 
-                    with st.expander(f"📄 Transformation Data Overview: {file.name}", expanded=False):
-                        st.dataframe(df_transform, use_container_width=True)
-                        st.info(f"Rows: {df_transform.shape[0]} | Columns: {df_transform.shape[1]}")
-                    with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
-                        st.dataframe(df_transform.describe().round(2), use_container_width=True)
+                with st.expander(f"📄 Transformation Data Overview: {file.name}", expanded=False):
+                    st.dataframe(df_transform, use_container_width=True)
+                    st.info(f"Rows: {df_transform.shape[0]} | Columns: {df_transform.shape[1]}")
+                with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
+                    st.dataframe(df_transform.describe().round(2), use_container_width=True)
 
-                    plot_scatter_matrix(df_transform)
+                plot_scatter_matrix(df_transform)
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
