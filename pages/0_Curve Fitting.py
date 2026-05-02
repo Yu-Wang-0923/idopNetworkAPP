@@ -36,6 +36,8 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+st.title("Curve Fitting")
+
 # 全局美化 Tabs CSS
 st.markdown(
     """
