@@ -63,15 +63,31 @@ def data_transformation(
 
 def plot_scatter_matrix(df: pd.DataFrame):
     with st.expander("📊 Scatter Plot Matrix", expanded=True):
+        # ========== 绘图参数面板 ==========
+        with st.expander("⚙️ 绘图参数", expanded=False):
+            use_sequential_index = st.checkbox(
+                "使用 1,2,3... 序号作为 X 轴",
+                value=False,
+                key=f"idx_{id(df)}"
+            )
+            # 子图布局：几列
+            n_cols = st.slider(
+                "子图每行数量（列数）",
+                min_value=1, max_value=4, value=2,
+                key=f"cols_{id(df)}"
+            )
+
         numeric_cols = df.columns
-        cols = st.columns(2)
+        # 自动布局
+        cols = st.columns(n_cols)
 
         for i, col in enumerate(numeric_cols):
-            with cols[i % 2]:
+            with cols[i % n_cols]:
                 fig, ax = plt.subplots(figsize=(6, 3))
-                ax.scatter(df.index, df[col], s=20, alpha=0.7)
+                x = np.arange(1, len(df)+1) if use_sequential_index else df.index
+                ax.scatter(x, df[col], s=20, alpha=0.7)
                 ax.set_title(f"Scatter Plot: {col}")
-                ax.set_xlabel("Index")
+                ax.set_xlabel("Sequence" if use_sequential_index else "Index")
                 ax.set_ylabel(col)
                 ax.grid(alpha=0.3)
                 plt.tight_layout()
