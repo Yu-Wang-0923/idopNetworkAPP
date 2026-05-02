@@ -136,7 +136,7 @@ with tab1:
 
             st.divider()
 
-            original_data_session = {}
+            # original_data_session = {}
             for file in uploaded_files:
                 with st.expander(f"📄 Original Data: {file.name}", expanded=False):
                     df = load_csv(file)
@@ -145,8 +145,8 @@ with tab1:
                         df = df.set_index(df.columns[0])
                     
                     # 缓存, key: 文件名, value: df
-                    original_data_session[file.name] = df
-                    st.session_state["original_data_session"] = original_data_session
+                    # original_data_session[file.name] = df
+                    # st.session_state["original_data_session"] = original_data_session
 
                     with st.expander(f"📄 Original Data Overview: {file.name}", expanded=False):
                         st.dataframe(df, use_container_width=True)
