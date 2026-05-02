@@ -56,13 +56,13 @@ with tab1:
                 df = st.session_state.data_dict[file.name]
                 df_transform = data_transformation(df, scaler_type)
             
-            with st.expander(f"Transform Data: {file.name}, Rows: {df_transform.shape[0]}, Columns: {df_transform.shape[1]}", expanded=False):
-                    with st.expander("Transform Data Overview", expanded=False):
-                        st.dataframe(df_transform, use_container_width=True)
-                    with st.expander("Descriptive Statistics", expanded=False):
-                        st.dataframe(df_transform.describe(), use_container_width=True)
-                    with st.expander("Scatter Plot", expanded=False):
-                        st.write("To Be Updated")
+                with st.expander(f"Transform Data: {file.name}, Rows: {df_transform.shape[0]}, Columns: {df_transform.shape[1]}", expanded=False):
+                        with st.expander("Transform Data Overview", expanded=False):
+                            st.dataframe(df_transform, use_container_width=True)
+                        with st.expander("Descriptive Statistics", expanded=False):
+                            st.dataframe(df_transform.describe(), use_container_width=True)
+                        with st.expander("Scatter Plot", expanded=False):
+                            st.write("To Be Updated")
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
