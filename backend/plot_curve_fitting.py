@@ -84,6 +84,9 @@ def plot_curve_fitting_compare(
     fig, axes = plt.subplots(nrow, ncol, figsize=(6, 4), sharex=True, sharey=True, dpi=300)
     axes = axes.flatten()
 
+    all_handles = []
+    all_labels = []
+
     # 逐个子图绘制
     for i, col in enumerate(selected_cols[:nsubfig]):
         ax = axes[i]
@@ -114,10 +117,21 @@ def plot_curve_fitting_compare(
         ax.margins(x=0.2, y=0.3)
         ax.xaxis.set_major_locator(plt.MaxNLocator(5))
         ax.yaxis.set_major_locator(plt.MaxNLocator(5))
+        for label in ax.get_xticklabels():
+            label.set_fontproperties(font_prop)
+        for label in ax.get_yticklabels():
+            label.set_fontproperties(font_prop)
         
         # 只在第一个子图标注图例（避免重复）
-        if i == 0:
-            ax.legend(fontsize=7, loc='upper left', frameon=False, prop=font_prop)
+        fig.legend(
+            all_handles, all_labels,
+            loc='upper center',    # 顶部居中
+            bbox_to_anchor=(0.5, 1.02),  # 稍微往上一点，不遮挡图
+            ncol=3,                # 一行放3个，自动换行
+            fontsize=8,
+            frameon=False,
+            prop=font_prop
+        )
 
     # 隐藏多余子图
     for j in range(i + 1, len(axes)):
