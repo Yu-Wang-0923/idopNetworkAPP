@@ -7,15 +7,6 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 from scipy.optimize import curve_fit
 
-
-# 添加自定义CSS
-# def local_css(file_name):
-#     with open(file_name) as f:
-#         st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
-
-# local_css("static/css/custom_style.css")
-
-
 # 页面设置
 st.set_page_config(
     page_title="Curve Fitting", 
@@ -34,6 +25,27 @@ st.set_page_config(
 st.title("Curve Fitting", text_alignment="center")
 
 
+
+
+@st.cache_data
+def load_csv(file):
+    return pd.read_csv(file)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # ========== Tabs ==========
 tab1, tab2, tab3 = st.tabs([
     "Uploaded Data", 
@@ -42,15 +54,6 @@ tab1, tab2, tab3 = st.tabs([
     ])
 
 with tab1:
-    # st.markdown(
-    # """
-    # <div class="affiliation">
-    #     To Be Updated
-    # </div>
-    # """,
-    # unsafe_allow_html=True,
-    # )
-
     uploaded_files = st.file_uploader(
         label="Please upload your files",
         type=["csv"],
@@ -60,11 +63,20 @@ with tab1:
         max_upload_size=500,
     )
 
-
-
     subtab1_1, subtab1_2, subtab1_3 = st.tabs([
         "Data Overview", 
         "To Be Updated", 
         "To Be Updated",
     ])
+
+    with subtab1_1:
+        if uploaded_files:
+            for file in uploaded_files:
+                st.subheader(f"📄 Original Data: {file.name}")
+
+                df_original = load_original_csv(file)
+                st.info(f"Rows: {df_original.shape[0]} | Columns: {df_original.shape[1]}")
+                st.dataframe(df_original, use_container_width=True)
+        else:
+            st.info("Please upload CSV file(s) to view data overview")
 
