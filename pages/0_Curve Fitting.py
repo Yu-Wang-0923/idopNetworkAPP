@@ -1,23 +1,13 @@
+import sys
 import numpy as np
 import pandas as pd
 import streamlit as st
 
 
+# 页面设置
+st.set_page_config(page_title="Curve Fitting", page_icon=None, layout="wide", initial_sidebar_state="auto",)
+st.title("Curve Fitting", text_alignment="center")
 
-
-# # 页面设置
-st.set_page_config(
-    page_title="Curve Fitting", 
-    page_icon=None,
-    layout="wide",
-    initial_sidebar_state="auto",
-    menu_items={
-        # 右上角 ⋮ 三点菜单里，帮助选项保留, 点击后跳转到：https://www.streamlit.io
-        "Get help": "https://www.streamlit.io",
-        "Report a Bug": None,
-        "About": "# 数据看板\n版本 1.0.0" 
-    }
-)
 
 # 调试 Curve Fitting
 # import io
@@ -42,8 +32,8 @@ st.set_page_config(
 
 
 
-# 页面标题 
-st.title("Curve Fitting", text_alignment="center")
+
+
 
 
 
@@ -112,58 +102,58 @@ st.title("Curve Fitting", text_alignment="center")
 
 
 
-# ========== Tabs ==========
-# tab1, tab2, tab3 = st.tabs([
-#     "Uploaded Data", 
-#     "Curve Fitting", 
-#     "To Be Updated",
-#     ])
+========== Tabs ==========
+tab1, tab2, tab3 = st.tabs([
+    "Uploaded Data", 
+    "Curve Fitting", 
+    "To Be Updated",
+    ])
 
-# with tab1:
-#     uploaded_files = st.file_uploader(
-#         label="Please upload your files",
-#         type=["csv"],
-#         accept_multiple_files=True,
-#         help="Supports CSV, multiple files allowed",
-#         label_visibility="visible",
-#         max_upload_size=500,
-#     )
+with tab1:
+    uploaded_files = st.file_uploader(
+        label="Please upload your files",
+        type=["csv"],
+        accept_multiple_files=True,
+        help="Supports CSV, multiple files allowed",
+        label_visibility="visible",
+        max_upload_size=500,
+    )
 
-    # subtab1_1, subtab1_2, subtab1_3 = st.tabs([
-    #     "Data Overview", 
-    #     "Data Transformation", 
-    #     "To Be Updated",
-    # ])
+    subtab1_1, subtab1_2, subtab1_3 = st.tabs([
+        "Data Overview", 
+        "Data Transformation", 
+        "To Be Updated",
+    ])
 
-    # with subtab1_1:
-    #     if uploaded_files:
-    #         with st.expander("⚙️ Data Settings", expanded=False):
-    #             use_first_col_as_index = st.checkbox(
-    #                 "Use first column as index",
-    #                 value=True  # 默认勾选
-    #             )
-    #             st.session_state["use_first_col_as_index"] = use_first_col_as_index
+    with subtab1_1:
+        if uploaded_files:
+            with st.expander("⚙️ Data Settings", expanded=False):
+                use_first_col_as_index = st.checkbox(
+                    "Use first column as index",
+                    value=True  # 默认勾选
+                )
+                st.session_state["use_first_col_as_index"] = use_first_col_as_index
 
-    #         st.divider()
+            st.divider()
 
-            # original_data_session = {}
-            # for file in uploaded_files:
-            #     with st.expander(f"📄 Original Data: {file.name}", expanded=False):
-            #         df = load_csv(file)
+            original_data_session = {}
+            for file in uploaded_files:
+                with st.expander(f"📄 Original Data: {file.name}", expanded=False):
+                    df = load_csv(file)
 
-            #         if st.session_state["use_first_col_as_index"]:
-            #             df = df.set_index(df.columns[0])
+                    if st.session_state["use_first_col_as_index"]:
+                        df = df.set_index(df.columns[0])
                     
-            #         # 缓存, key: 文件名, value: df
-            #         original_data_session[file.name] = df
-            #         st.session_state["original_data_session"] = original_data_session
+                    # 缓存, key: 文件名, value: df
+                    original_data_session[file.name] = df
+                    st.session_state["original_data_session"] = original_data_session
 
-            #         with st.expander(f"📄 Original Data Overview: {file.name}", expanded=False):
-            #             st.dataframe(df, use_container_width=True)
-            #             st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
+                    with st.expander(f"📄 Original Data Overview: {file.name}", expanded=False):
+                        st.dataframe(df, use_container_width=True)
+                        st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
 
-            #         with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
-            #             st.dataframe(df.describe(),use_container_width=True)
+                    with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
+                        st.dataframe(df.describe(),use_container_width=True)
 
                     # key_id = id(df)
                     # with st.expander("📊 Scatter Plot", expanded=False):
@@ -174,8 +164,8 @@ st.title("Curve Fitting", text_alignment="center")
                     #         max_plots = col3.selectbox("Max plots", [3,6,9], index=1, key=f"original_data_plots_{key_id}")
 
                     #     plot_scatter_matrix(df, use_seq, n_cols, max_plots)
-        # else:
-        #     st.info("Please upload CSV file(s) to view data overview")
+        else:
+            st.info("Please upload CSV file(s) to view data overview")
     
 #     with subtab1_2:
 #         if uploaded_files:
