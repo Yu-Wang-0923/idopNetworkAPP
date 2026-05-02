@@ -45,7 +45,13 @@ with tab1:
                 df_original = load_csv(file)
                 st.session_state.df_original[file.name] = df_original
                 show_data_expander(f"Original Data: {file.name}", df_original)
-                plot_curve_fitting(
+                with st.expander(title, expanded=False):
+                    with st.expander("Data Overview", expanded=False):
+                        st.dataframe(df, use_container_width=True)
+                    with st.expander("Descriptive Statistics", expanded=False):
+                        st.dataframe(df.describe(), use_container_width=True)
+                    with st.expander("Scatter Plot", expanded=False):
+                        plot_curve_fitting(
                                     df_scatter=df_original,
                                     df_curve=None,
                                     show_curve=False,
@@ -53,6 +59,7 @@ with tab1:
                                     ncol=3,
                                     nsubfig=6,  # 最多画4张图
                                     )
+                
                 
         else:
             st.info("Please upload CSV file(s)")
