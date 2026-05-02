@@ -7,6 +7,9 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 from scipy.optimize import curve_fit
 
+
+
+
 # 页面设置
 st.set_page_config(
     page_title="Curve Fitting", 
@@ -25,6 +28,10 @@ st.set_page_config(
 st.title("Curve Fitting", text_alignment="center")
 
 
+
+
+plt.rcParams["font.family"] = ["WenQuanYi Zen Hei", "SimHei", "DejaVu Sans"]
+plt.rcParams["axes.unicode_minus"] = False  # 解决负号显示
 
 
 @st.cache_data
@@ -161,7 +168,7 @@ with tab1:
                         st.info(f"Rows: {df_transform.shape[0]} | Columns: {df_transform.shape[1]}")
                     with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
                         st.dataframe(df_transform.describe().round(2), use_container_width=True)
-                        
+
                     plot_scatter_matrix(df_transform)
         else:
             st.info("Please upload CSV file(s) to view data overview")
