@@ -82,7 +82,7 @@ def plot_scatter_matrix(df, use_seq, n_cols):
             ax.margins(x=0.2, y=0.3)
             ax.xaxis.set_major_locator(plt.MaxNLocator(5))
             ax.yaxis.set_major_locator(plt.MaxNLocator(5))
-            st.pyplot(fig)
+            st.pyplot(fig, dpi=300)
             plt.close()
 
 
