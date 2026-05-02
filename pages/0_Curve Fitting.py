@@ -128,16 +128,16 @@ with tab1:
         "To Be Updated",
     ])
 
-    with subtab1_1:
-        if uploaded_files:
-            with st.expander("⚙️ Data Settings", expanded=False):
-                use_first_col_as_index = st.checkbox(
-                    "Use first column as index",
-                    value=True  # 默认勾选
-                )
-                st.session_state["use_first_col_as_index"] = use_first_col_as_index
+    # with subtab1_1:
+    #     if uploaded_files:
+    #         with st.expander("⚙️ Data Settings", expanded=False):
+    #             use_first_col_as_index = st.checkbox(
+    #                 "Use first column as index",
+    #                 value=True  # 默认勾选
+    #             )
+    #             st.session_state["use_first_col_as_index"] = use_first_col_as_index
 
-            st.divider()
+    #         st.divider()
 
             # original_data_session = {}
             # for file in uploaded_files:
