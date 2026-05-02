@@ -30,12 +30,10 @@ with tab1:
     subtab1_1, subtab1_2, subtab1_3 = st.tabs(["Data Overview", "Data Transformation", "To Be Updated",])
 
     with subtab1_1:
-        if uploaded_files:
-            with st.expander("⚙️ Data Settings", expanded=False):
-                use_first_col_as_index = st.checkbox("Use first column as index", value=True)
+        if uploaded_files:       
             for file in uploaded_files:
+                df_original = load_csv(file)
                 with st.expander(f"📄 Original Data: {file.name}", expanded=False):
-                    df_original = load_csv(file)
                     with st.expander(f"📄 Original Data Overview: {file.name}", expanded=False):
                         st.dataframe(df_original, use_container_width=True)
                         st.info(f"Rows: {df_original.shape[0]} | Columns: {df_original.shape[1]}")
