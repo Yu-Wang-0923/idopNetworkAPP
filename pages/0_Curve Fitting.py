@@ -35,12 +35,12 @@ with tab1:
                 use_first_col_as_index = st.checkbox("Use first column as index", value=True)
             for file in uploaded_files:
                 with st.expander(f"📄 Original Data: {file.name}", expanded=False):
-                    df = load_csv(file)
+                    df_original = load_csv(file)
                     with st.expander(f"📄 Original Data Overview: {file.name}", expanded=False):
-                        st.dataframe(df, use_container_width=True)
-                        st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
+                        st.dataframe(df_original, use_container_width=True)
+                        st.info(f"Rows: {df_original.shape[0]} | Columns: {df_original.shape[1]}")
                     with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
-                        st.dataframe(df.describe(),use_container_width=True)
+                        st.dataframe(df_original.describe(), use_container_width=True)
 
     #                 if st.session_state["use_first_col_as_index"]:
     #                     df = df.set_index(df.columns[0])
