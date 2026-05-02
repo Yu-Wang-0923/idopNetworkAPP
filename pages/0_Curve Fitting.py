@@ -50,7 +50,7 @@ st.markdown(
         height: 45px;
         border-radius: 10px;
         padding: 0 25px;
-        font-size: 24px;
+        font-size: 36px;
         font-weight: 600;
         color: #666;
         background-color: #f5f7fa;
