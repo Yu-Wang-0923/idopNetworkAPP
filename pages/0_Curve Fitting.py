@@ -45,6 +45,15 @@ with tab1:
                 df_original = load_csv(file)
                 st.session_state.df_original[file.name] = df_original
                 show_data_expander(f"Original Data: {file.name}", df_original)
+                plot_curve_fitting(
+                                    df_scatter=df_original,
+                                    df_curve=df_curve_sample,
+                                    show_scatter=False,
+                                    nrow=2,
+                                    ncol=3,
+                                    nsubfig=6,  # 最多画4张图
+                                    )
+                
         else:
             st.info("Please upload CSV file(s)")
 
@@ -58,6 +67,14 @@ with tab1:
                 df_transform = data_transformation(df_original, scaler_type)
                 st.session_state.df_transform[file.name] = df_transform
                 show_data_expander(f"Transform Data: {file.name}", df_transform)
+                plot_curve_fitting(
+                                    df_scatter=df_transform,
+                                    df_curve=df_curve_sample,
+                                    show_scatter=False,
+                                    nrow=2,
+                                    ncol=3,
+                                    nsubfig=6,  # 最多画4张图
+                                    )
         else:
             st.info("Please upload CSV file(s)")
 
@@ -81,6 +98,14 @@ with tab2:
                 df_quasi_dynamic = get_quasi_dynamic_df(df_transform)
                 st.session_state.df_quasi_dynamic[file.name] = df_quasi_dynamic
                 show_data_expander(f"Quasi Dynamic: {file.name}", df_quasi_dynamic)
+                plot_curve_fitting(
+                                    df_scatter=df_quasi_dynamic,
+                                    df_curve=df_curve_sample,
+                                    show_scatter=False,
+                                    nrow=2,
+                                    ncol=3,
+                                    nsubfig=6,  # 最多画4张图
+                                    )
         else:
             st.info("Please upload CSV file(s)")
 
