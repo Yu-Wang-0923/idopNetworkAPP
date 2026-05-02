@@ -22,21 +22,21 @@ st.set_page_config(
     }
 )
 
-# 标题
-st.markdown(
-    """
-    <h1 style='text-align: center; color: #2E86AB; 
-                font-size: 48px; 
-                font-weight: 700; 
-                margin-bottom: 30px;
-                text-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
-        Curve Fitting
-    </h1>
-    """,
-    unsafe_allow_html=True
-)
+# # 标题
+# st.markdown(
+#     """
+#     <h1 style='text-align: center; color: #2E86AB; 
+#                 font-size: 48px; 
+#                 font-weight: 700; 
+#                 margin-bottom: 30px;
+#                 text-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
+#         Curve Fitting
+#     </h1>
+#     """,
+#     unsafe_allow_html=True
+# )
 
-st.title("Curve Fitting")
+# st.title("Curve Fitting")
 
 # 全局美化 Tabs CSS
 st.markdown(
