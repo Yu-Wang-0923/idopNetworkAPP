@@ -153,7 +153,7 @@ with tab1:
                     key_id = id(df)
                     with st.expander("📊 Scatter Plot", expanded=False):
                         with st.expander("⚙️ Plot Settings", expanded=False):
-                            col1,col2 = st.columns(3)
+                            col1,col2,col3 = st.columns(3)
                             use_seq = col1.checkbox("Use sequential X-axis", key=f"seq_{key_id}", value=True)
                             n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"col_{key_id}")
                             max_plots = col3.selectbox("Max plots", [3,6,9], index=6, key=f"plots_{key_id}")
@@ -199,7 +199,7 @@ with tab1:
 
                     with st.expander("📊 Scatter Plot", expanded=False):
                         with st.expander("⚙️ Plot Settings", expanded=False):
-                            col1,col2 = st.columns(3)
+                            col1,col2,col3 = st.columns(3)
                             use_seq = col1.checkbox("Use sequential X-axis", key=f"seq_{fname}", value=True)
                             n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"col_{fname}")
                             max_plots = col3.selectbox("Max plots", [3,6,9], index=6, key=f"col_{fname}")
