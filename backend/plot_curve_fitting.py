@@ -20,7 +20,7 @@ def plot_curve_fitting(
     nsubfig=4,  # 总子图数量
 ):
     selected_cols = df_scatter.columns.tolist()
-    fig, axes = plt.subplots(nrow, ncol, figsize=(8, 4),sharex=True,sharey=True)
+    fig, axes = plt.subplots(nrow, ncol, figsize=(8, 4), sharex=True, sharey=True, dpi=300)
     axes = axes.flatten()
     for i, col in enumerate(selected_cols[:nsubfig]):  # 最多画 nsubfig 个
         if show_scatter:
@@ -35,7 +35,7 @@ def plot_curve_fitting(
         axes[j].set_visible(False)
     plt.subplots_adjust(wspace=0,hspace=0)
     plt.tight_layout()
-    st.pyplot(fig)
+    st.pyplot(fig, dpi)
     plt.close(fig)
 
     #, facecolors='none', edgecolors='#4285F4', linewidth=1
