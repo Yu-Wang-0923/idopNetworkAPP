@@ -79,6 +79,7 @@ def plot_scatter_matrix(df, use_seq, n_cols):
             for label in ax.get_xticklabels() + ax.get_yticklabels():
                 label.set_fontproperties(font_prop)
             ax.grid(alpha=0.3)
+            ax.margins(x=0.2, y=0.3)
             st.pyplot(fig)
             plt.close()
 
