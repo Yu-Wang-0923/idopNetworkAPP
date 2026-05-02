@@ -62,27 +62,28 @@ def data_transformation(
 
 
 def plot_scatter_matrix(df: pd.DataFrame):
-    with st.expander("📊 Scatter Plot Matrix", expanded=True):
-        # ========== 绘图参数面板 ==========
-        with st.expander("⚙️ 绘图参数", expanded=False):
-            use_sequential_index = st.checkbox(
-                "使用 1,2,3... 序号作为 X 轴",
-                value=False,
-                key=f"idx_{id(df)}"
-            )
-            # 子图布局：几列
-            n_cols = st.slider(
-                "子图每行数量（列数）",
-                min_value=1, max_value=4, value=2,
-                key=f"cols_{id(df)}"
-            )
+    # ========== 绘图参数（放在最外层，保证实时生效）==========
+    col1, col2 = st.columns(2)
+    with col1:
+        use_sequential_index = st.checkbox(
+            "使用 1,2,3... 序号作为 X 轴",
+            value=False,
+            key=f"idx_{id(df)}"
+        )
+    with col2:
+        n_cols = st.slider(
+            "子图每行数量",
+            1, 4, 2,
+            key=f"cols_{id(df)}"
+        )
 
+    # ========== 图表区域 ==========
+    with st.expander("📊 Scatter Plot Matrix", expanded=True):
         numeric_cols = df.columns
-        # 自动布局
-        cols = st.columns(n_cols)
+        plot_cols = st.columns(n_cols)
 
         for i, col in enumerate(numeric_cols):
-            with cols[i % n_cols]:
+            with plot_cols[i % n_cols]:
                 fig, ax = plt.subplots(figsize=(6, 3))
                 x = np.arange(1, len(df)+1) if use_sequential_index else df.index
                 ax.scatter(x, df[col], s=20, alpha=0.7)
