@@ -83,9 +83,9 @@ with tab1:
 
                 if use_first_col_as_index:
                     df = df.set_index(df.columns[0])
-                    
-                st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
+
                 st.dataframe(df, use_container_width=True)
+                st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
