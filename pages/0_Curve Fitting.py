@@ -109,8 +109,8 @@ with tab1:
 
                     st.dataframe(df, use_container_width=True)
                     st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
-                    st.write("Descriptive Statistics")
-                    st.dataframe(df.describe(),use_container_width=True)
+                    with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
+                        st.dataframe(df.describe(),use_container_width=True)
         else:
             st.info("Please upload CSV file(s) to view data overview")
     
@@ -141,7 +141,8 @@ with tab1:
                     df_transform = data_transformation(df, scaler_type)
                     st.dataframe(df_transform, use_container_width=True)
                     st.info(f"Rows: {df_transform.shape[0]} | Columns: {df_transform.shape[1]}")
-                    st.dataframe(df_transform.describe().round(2), use_container_width=True)
+                    with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
+                        st.dataframe(df_transform.describe().round(2), use_container_width=True)
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
