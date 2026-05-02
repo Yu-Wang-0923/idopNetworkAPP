@@ -10,11 +10,11 @@ import matplotlib.font_manager as fm
 from sklearn.preprocessing import MinMaxScaler
 from scipy.optimize import curve_fit
 
-sys.path.append("..")
+# sys.path.append("..")
 
-# sys.path.append(str(Path(__file__).parent.parent))
-from backend.curve_fitting import *
-from backend.plot_curve_fitting import *
+# # sys.path.append(str(Path(__file__).parent.parent))
+# from backend.curve_fitting import *
+# from backend.plot_curve_fitting import *
 
 # # 字体文件路径（你已经放在 static 文件夹里了）
 # font_path = Path(__file__).parent.parent / "static" / "SimHei.ttf"
