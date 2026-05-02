@@ -1,22 +1,19 @@
 import io
 import numpy as np
 import pandas as pd
-import streamlit as st
+# import streamlit as st
 from sklearn.preprocessing import MinMaxScaler
 from scipy.optimize import curve_fit
 
 
-
-
-
 # 数据加载
-@st.cache_data
+# @st.cache_data
 def load_csv(file):
     return pd.read_csv(file)
 
 
 # 数据变换
-@st.cache_data
+# @st.cache_data
 def data_transformation(
     data: pd.DataFrame,
     scaler_type: str,
