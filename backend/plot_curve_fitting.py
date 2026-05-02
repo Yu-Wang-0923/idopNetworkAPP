@@ -66,8 +66,11 @@ def plot_curve_fitting(
 # ]
 
 
+import matplotlib.pyplot as plt
+import streamlit as st
+
 def plot_curve_fitting_compare(
-    df_scatter_list, 
+    df_scatter_list,
     df_curve_list,
     label_list,
     show_curve=True,
@@ -75,45 +78,49 @@ def plot_curve_fitting_compare(
     ncol=2,
     nsubfig=4,
 ):
-    # 配色（自动循环，支持多组）
-    scatter_colors = ['#F9B3AD', '#C9A1CA', '#76C2AF', '#E5C68F', '#C59FCE', '#A0D8E7']
-    curve_colors = ['#F8A09B', '#BC8FC1', '#52B793', '#DDB866', '#B488C2', '#79C6DF']
+    scatter_colors = ['#F9B3AD', '#81B1D9', '#76C2AF', '#E5C68F', '#C59FCE', '#A0D8E7']
+    curve_colors = ['#F8A09B', '#5A9BD3', '#52B793', '#DDB866', '#B488C2', '#79C6DF']
     
-    # 取第一组数据的列名
     selected_cols = df_scatter_list[0].columns.tolist()
     fig, axes = plt.subplots(nrow, ncol, figsize=(6, 4), sharex=True, sharey=True, dpi=300)
     axes = axes.flatten()
 
+    # 用来存放所有图例句柄，统一画在顶部
     all_handles = []
     all_labels = []
 
-    # 逐个子图绘制
     for i, col in enumerate(selected_cols[:nsubfig]):
         ax = axes[i]
         
-        # 遍历【每一组数据】画在同一张子图上
         for idx, (df_scatter, df_curve) in enumerate(zip(df_scatter_list, df_curve_list)):
             color_scatter = scatter_colors[idx % len(scatter_colors)]
-            color_curve = curve_colors[idx % len(curve_colors)]
+            color_curve = curve_colors[idx % len(scatter_colors)]
             label = label_list[idx]
 
             # 散点
-            ax.scatter(
+            scatter = ax.scatter(
                 df_scatter.index, df_scatter[col],
                 alpha=1, s=100, facecolors='none',
                 edgecolors=color_scatter, linewidth=1,
-                label=f"{label} 原始"
             )
-            # 拟合曲线
+            # 曲线
+            curve = None
             if show_curve:
-                ax.plot(
+                curve = ax.plot(
                     df_curve.index, df_curve[col],
                     color=color_curve, linewidth=3,
-                    label=f"{label} 拟合"
-                )
+                )[0]
+
+            # 只在第一个子图收集图例
+            if i == 0:
+                all_handles.append(scatter)
+                all_labels.append(f"{label} 原始")
+                if show_curve:
+                    all_handles.append(curve)
+                    all_labels.append(f"{label} 拟合")
         
-        # 子图样式
-        ax.set_title(col, fontsize=11, fontproperties=font_prop) # fontproperties=font_prop
+        # 样式
+        ax.set_title(col, fontsize=11, fontproperties=font_prop)
         ax.margins(x=0.2, y=0.3)
         ax.xaxis.set_major_locator(plt.MaxNLocator(5))
         ax.yaxis.set_major_locator(plt.MaxNLocator(5))
@@ -121,17 +128,17 @@ def plot_curve_fitting_compare(
             label.set_fontproperties(font_prop)
         for label in ax.get_yticklabels():
             label.set_fontproperties(font_prop)
-        
-        # 只在第一个子图标注图例（避免重复）
-        fig.legend(
-            all_handles, all_labels,
-            loc='upper center',    # 顶部居中
-            bbox_to_anchor=(0.5, 1.02),  # 稍微往上一点，不遮挡图
-            ncol=3,                # 一行放3个，自动换行
-            fontsize=8,
-            frameon=False,
-            prop=font_prop
-        )
+
+    # 图例放在【整张图顶部、居中、横向排列】
+    fig.legend(
+        all_handles, all_labels,
+        loc='upper center',    # 顶部居中
+        bbox_to_anchor=(0.5, 1.02),  # 稍微往上一点，不遮挡图
+        ncol=3,                # 一行放3个，自动换行
+        fontsize=8,
+        frameon=False,
+        prop=font_prop
+    )
 
     # 隐藏多余子图
     for j in range(i + 1, len(axes)):
