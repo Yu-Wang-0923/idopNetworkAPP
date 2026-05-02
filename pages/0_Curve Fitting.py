@@ -8,6 +8,7 @@ from scipy.optimize import curve_fit
 
 # 调试 Curve Fitting
 
+# 页面设置
 st.set_page_config(
     page_title="Curve Fitting", 
     page_icon=None,
@@ -21,7 +22,7 @@ st.set_page_config(
     }
 )
 
-
+# 标题
 st.markdown(
     """
     <h1 style='text-align: center; color: #2E86AB; 
@@ -62,11 +63,15 @@ st.markdown(
     }
     </style>
     """, 
-unsafe_allow_html=True,
+    unsafe_allow_html=True,
 )
 
 # ========== Tabs ==========
-tab1, tab2, tab3 = st.tabs(["数据", "拟合", "参数"])
+tab1, tab2, tab3 = st.tabs([
+    "数据概览", 
+    "拟合", 
+    "参数",
+    ])
 
 with tab1:
     st.markdown(
