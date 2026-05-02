@@ -181,9 +181,14 @@ with tab1:
 
             original_data_session = st.session_state.get("original_data_session", {})
             
+
+            transform_data_session = {}
             for fname, df in original_data_session.items():
                 with st.expander(f"📄 Transformation Data: {file.name}", expanded=False):
                     df_transform = data_transformation(df, scaler_type)
+
+                    transform_data_session[file.name] = df_transform
+                    st.session_state["transform_data_session"] = transform_data_session
 
                     with st.expander(f"📄 Transformation Data Overview: {file.name}", expanded=False):
                         st.dataframe(df_transform, use_container_width=True)
@@ -245,5 +250,14 @@ with tab2:
         with st.expander("⚙️ Quasi Dynamic", expanded=False):
             st.write("To Be Updated")
 
+        transform_data_session = st.session_state.get("transform_data_session", {})
+
+        for fname, df_transform in original_data_session.items():
+                with st.expander(f"📄 Transformation Data: {file.name}", expanded=False):
+                    df_quasi_dynamic = get_quasi_dynamic_df(df_transform)
+
+                    with st.expander(f"📄 Transformation Data Overview: {file.name}", expanded=False):
+                        st.dataframe(df_quasi_dynamic, use_container_width=True)
+                        st.info(f"Rows: {df_quasi_dynamic.shape[0]} | Columns: {df_quasi_dynamic.shape[1]}")
 
         
