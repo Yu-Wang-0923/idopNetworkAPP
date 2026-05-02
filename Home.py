@@ -1,15 +1,15 @@
 import streamlit as st
 
 
-# 加载 css
-def local_css():
-    current_dir = Path(__file__).parent
-    css_path = current_dir / "static" / "css" / "custom_style.css"
-    
-    with open(css_path, encoding="utf-8") as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-local_css()
+# 添加自定义CSS
+def local_css(file_name):
+    with open(file_name) as f:
+        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+ 
+# 调用函数，加载我们创建的CSS文件
+local_css("static/css/custom_style.css")
+
 
 st.set_page_config(
     page_title="idopNetwork",
