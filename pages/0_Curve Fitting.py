@@ -40,6 +40,7 @@ with tab1:
                     with st.expander("Descriptive Statistics", expanded=False):
                         st.dataframe(df_original.describe(), use_container_width=True)
                     with st.expander("Scatter Plot", expanded=False):
+                        st.write("To Be Updated")
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
