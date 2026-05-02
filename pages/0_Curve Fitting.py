@@ -60,7 +60,7 @@ with tab1:
             for file in uploaded_files:
 
                 # df = st.session_state.original_data[file.name]
-                df_transform = data_transformation(df, scaler_type)
+                df_transform = data_transformation(df_original, scaler_type)
                 st.session_state.df_transform[file.name] = df_transform
             
                 with st.expander(f"Transform Data: {file.name}, Rows: {df_transform.shape[0]}, Columns: {df_transform.shape[1]}", expanded=False):
