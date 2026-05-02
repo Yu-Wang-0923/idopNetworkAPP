@@ -335,34 +335,36 @@ with tab2:
     ])
 
     with subtab2_1:
-        with st.expander("⚙️ Quasi Dynamic", expanded=False):
-            st.write("To Be Updated")
+        if uploaded_files:
+            with st.expander("⚙️ Quasi Dynamic", expanded=False):
+                st.write("To Be Updated")
 
-        transform_data_session = st.session_state.get("transform_data_session", {})
+            transform_data_session = st.session_state.get("transform_data_session", {})
 
-        for fname, df_transform in transform_data_session.items():
-                with st.expander(f"📄 Transformation Data: {file.name}", expanded=False):
-                    df_quasi_dynamic = get_quasi_dynamic_df(df_transform)
+            for fname, df_transform in transform_data_session.items():
+                    with st.expander(f"📄 Transformation Data: {file.name}", expanded=False):
+                        df_quasi_dynamic = get_quasi_dynamic_df(df_transform)
 
-                    with st.expander(f"📄 Transformation Data Overview: {file.name}", expanded=False):
-                        st.dataframe(df_quasi_dynamic, use_container_width=True)
-                        st.info(f"Rows: {df_quasi_dynamic.shape[0]} | Columns: {df_quasi_dynamic.shape[1]}")
-                    
-                    with st.expander("📊 Scatter Plot", expanded=False):
-                        with st.expander("⚙️ Plot Settings", expanded=False):
-                            col1,col2,col3 = st.columns(3)
-                            use_seq = col1.checkbox("Use sequential X-axis", key=f"quasi_dynamic_data_seq_{fname}", value=False)
-                            n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"quasi_dynamic_data_col_{fname}")
-                            max_plots = col3.selectbox("Max plots", [3,6,9], index=1, key=f"quasi_dynamic_data_plots_{fname}")
-                        plot_scatter_matrix(df_quasi_dynamic, use_seq, n_cols, max_plots)
+                        with st.expander(f"📄 Transformation Data Overview: {file.name}", expanded=False):
+                            st.dataframe(df_quasi_dynamic, use_container_width=True)
+                            st.info(f"Rows: {df_quasi_dynamic.shape[0]} | Columns: {df_quasi_dynamic.shape[1]}")
+                        
+                        with st.expander("📊 Scatter Plot", expanded=False):
+                            with st.expander("⚙️ Plot Settings", expanded=False):
+                                col1,col2,col3 = st.columns(3)
+                                use_seq = col1.checkbox("Use sequential X-axis", key=f"quasi_dynamic_data_seq_{fname}", value=False)
+                                n_cols = col2.selectbox("Subplots per row", [1,2,3,4,5,6], index=2, key=f"quasi_dynamic_data_col_{fname}")
+                                max_plots = col3.selectbox("Max plots", [3,6,9], index=1, key=f"quasi_dynamic_data_plots_{fname}")
+                            plot_scatter_matrix(df_quasi_dynamic, use_seq, n_cols, max_plots)
 
     with subtab2_2:
-        st.write("To Be Updated")
+        if uploaded_files:
+            st.write("To Be Updated")
 
-        curve_sample = get_power_function_sample(df_quasi_dynamic)
-        st.dataframe(df_quasi_dynamic, use_container_width=True)
-        st.dataframe(curve_sample, use_container_width=True)
-        plot_curve_fitting(df_quasi_dynamic=df_quasi_dynamic, df_curve_sample=curve_sample, use_seq = None, n_cols=3, max_plots=6)
+            curve_sample = get_power_function_sample(df_quasi_dynamic)
+            st.dataframe(df_quasi_dynamic, use_container_width=True)
+            st.dataframe(curve_sample, use_container_width=True)
+            plot_curve_fitting(df_quasi_dynamic=df_quasi_dynamic, df_curve_sample=curve_sample, use_seq = None, n_cols=3, max_plots=6)
 # "Sequence"
 
 
