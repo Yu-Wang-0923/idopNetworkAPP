@@ -139,6 +139,8 @@ with tab1:
                         df = df.set_index(df.columns[0])
 
                     df_transform = data_transformation(df, scaler_type)
+                    st.dataframe(df_transform, use_container_width=True)
+                    st.info(f"Rows: {df_transform.shape[0]} | Columns: {df_transform.shape[1]}")
                     st.dataframe(df_transform.describe().round(2), use_container_width=True)
         else:
             st.info("Please upload CSV file(s) to view data overview")
