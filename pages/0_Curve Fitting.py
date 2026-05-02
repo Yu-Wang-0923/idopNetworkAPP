@@ -69,7 +69,7 @@ def data_transformation(
 # ========== Tabs ==========
 tab1, tab2, tab3 = st.tabs([
     "Uploaded Data", 
-    "Data Transformation", 
+    "To Be Updated", 
     "To Be Updated",
     ])
 
@@ -85,7 +85,7 @@ with tab1:
 
     subtab1_1, subtab1_2, subtab1_3 = st.tabs([
         "Data Overview", 
-        "To Be Updated", 
+        "Data Transformation", 
         "To Be Updated",
     ])
 
@@ -107,8 +107,9 @@ with tab1:
                     if use_first_col_as_index:
                         df = df.set_index(df.columns[0])
 
-                    st.dataframe(df, use_container_width=True)
-                    st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
+                    with st.expander(f"📄 Original Data Overview: {file.name}", expanded=False):
+                        st.dataframe(df, use_container_width=True)
+                        st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
                     with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
                         st.dataframe(df.describe(),use_container_width=True)
         else:
@@ -139,8 +140,10 @@ with tab1:
                         df = df.set_index(df.columns[0])
 
                     df_transform = data_transformation(df, scaler_type)
-                    st.dataframe(df_transform, use_container_width=True)
-                    st.info(f"Rows: {df_transform.shape[0]} | Columns: {df_transform.shape[1]}")
+
+                    with st.expander(f"📄 Transformation Data Overview: {file.name}", expanded=False):
+                        st.dataframe(df_transform, use_container_width=True)
+                        st.info(f"Rows: {df_transform.shape[0]} | Columns: {df_transform.shape[1]}")
                     with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
                         st.dataframe(df_transform.describe().round(2), use_container_width=True)
         else:
