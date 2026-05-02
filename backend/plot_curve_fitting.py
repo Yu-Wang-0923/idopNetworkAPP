@@ -25,7 +25,7 @@ def plot_curve_fitting(
     for i, col in enumerate(selected_cols[:nsubfig]):  # 最多画 nsubfig 个
         axes[i].scatter(df_scatter.index, df_scatter[col], alpha=0.95, s=100, facecolors='none', edgecolors='#F9B3AD', linewidth=1)
         if show_curve:
-            axes[i].plot(df_curve.index, df_curve[col], color='#F8A09B', linewidth=4)
+            axes[i].plot(df_curve.index, df_curve[col], color='#A06EA5', linewidth=4)
         axes[i].set_title(col, fontsize=11, fontproperties=font_prop)
         axes[i].margins(x=0.2, y=0.3)
         axes[i].xaxis.set_major_locator(plt.MaxNLocator(5))
@@ -65,6 +65,15 @@ def plot_curve_fitting(
 #     "#C13A3B"   # 深砖红
 # ]
 
+# dark_colors = [
+#     "#E87974",  # 加深蜜桃粉
+#     "#D8A840",  # 加深奶油黄
+#     "#5BA8D1",  # 加深天蓝色
+#     "#A06EA5",  # 加深薰衣草紫
+#     "#9FB4C2",  # 加深雾灰蓝
+#     "#9E2223"   # 加深砖红
+# ]
+
 
 import matplotlib.pyplot as plt
 import streamlit as st
@@ -79,7 +88,7 @@ def plot_curve_fitting_compare(
     nsubfig=4,
 ):
     scatter_colors = ['#F9B3AD', '#C9A1CA', '#76C2AF', '#E5C68F', '#C59FCE', '#A0D8E7']
-    curve_colors = ['#F8A09B', '#BC8FC1', '#52B793', '#DDB866', '#B488C2', '#79C6DF']
+    curve_colors = ['#9E2223', '#A06EA5', '#52B793', '#DDB866', '#B488C2', '#79C6DF']
     
     selected_cols = df_scatter_list[0].columns.tolist()
     fig, axes = plt.subplots(nrow, ncol, figsize=(6, 3), sharex=True, sharey=True, dpi=300)
