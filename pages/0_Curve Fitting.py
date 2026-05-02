@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 from sklearn.preprocessing import MinMaxScaler
 from scipy.optimize import curve_fit
 
