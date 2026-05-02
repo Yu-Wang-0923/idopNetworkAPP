@@ -334,7 +334,7 @@ with tab2:
 
         transform_data_session = st.session_state.get("transform_data_session", {})
 
-        for fname, df_transform in original_data_session.items():
+        for fname, df_transform in transform_data_session.items():
                 with st.expander(f"📄 Transformation Data: {file.name}", expanded=False):
                     df_quasi_dynamic = get_quasi_dynamic_df(df_transform)
 
