@@ -35,7 +35,7 @@ def plot_curve_fitting(
     for j in range(i + 1, len(axes)):
         axes[j].set_visible(False)
     plt.subplots_adjust(wspace=0,hspace=0)
-    plt.tight_layout(pad=0.1)
+    plt.tight_layout()
     st.pyplot(fig)
     plt.close(fig)
 
