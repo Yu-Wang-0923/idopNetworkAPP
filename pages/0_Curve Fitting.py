@@ -31,7 +31,27 @@ st.title("Curve Fitting", text_alignment="center")
 def load_csv(file):
     return pd.read_csv(file)
 
-
+@st.cache_data
+def data_transformation(
+    data: pd.DataFrame,
+    scaler_type: str,
+) -> pd.DataFrame:
+    """
+    数据变换.
+    """
+    if scaler_type == "none":
+        return data.copy()
+    if scaler_type == "rescale_to_-1_1":
+        scaled = MinMaxScaler(feature_range=(-1, 1)).fit_transform(data)
+    elif scaler_type == "rescale_to_0_1":
+        scaled = MinMaxScaler(feature_range=(0, 1)).fit_transform(data)
+    elif scaler_type == "log1p":
+        if (data < -1).any().any():
+            raise ValueError("log1p 变换要求所有数值列数据均大于等于 -1。")
+        scaled = data.apply(np.log1p, axis=0)
+    else:
+        raise ValueError(f"不支持的数据变换类型: {scaler_type}")
+    return pd.DataFrame(scaled, columns=data.columns, index=data.index)
 
 
 
@@ -49,7 +69,7 @@ def load_csv(file):
 # ========== Tabs ==========
 tab1, tab2, tab3 = st.tabs([
     "Uploaded Data", 
-    "To Be Updated", 
+    "Data Transformation", 
     "To Be Updated",
     ])
 
@@ -76,6 +96,23 @@ with tab1:
                     "Use first column as index",
                     value=True  # 默认勾选
                 )
+                scaler_type = st.selectbox(
+                    "Data Transformation",
+                    options=[
+                        "none",
+                        "rescale_to_0_1",
+                        "rescale_to_-1_1",
+                        "log1p",
+                    ],
+                    format_func=lambda x: {
+                        "none": "None (No transformation)",
+                        "rescale_to_0_1": "Rescale to [0, 1]",
+                        "rescale_to_-1_1": "Rescale to [-1, 1]",
+                        "log1p": "Log1p Transformation",
+                    }[x],
+                    index=0  # 默认选 none
+                )
+
             st.divider()
 
             for file in uploaded_files:
@@ -89,6 +126,26 @@ with tab1:
                     st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
                     st.write("Descriptive Statistics")
                     st.dataframe(df.describe(),use_container_width=True)
+        else:
+            st.info("Please upload CSV file(s) to view data overview")
+    
+    with subtab1_2:
+        if uploaded_files:
+            with st.expander("⚙️ Transformation Settings", expanded=False):
+                scaler_type = st.selectbox(
+                    "Transformation Type", 
+                    [
+                        "none", 
+                        "rescale_to_0_1", 
+                        "rescale_to_-1_1", 
+                        "log1p"
+                    ]
+                )
+            
+            file = uploaded_files[0]
+            df = load_csv(file)
+            df_transform = data_transform(df, scaler_type)
+            st.dataframe(df_result.describe().round(2), use_container_width=True)
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
