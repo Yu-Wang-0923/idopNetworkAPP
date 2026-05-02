@@ -69,24 +69,26 @@ st.markdown(
 # ========== Tabs ==========
 tab1, tab2, tab3 = st.tabs([
     "Uploaded Data", 
-    "拟合", 
-    "参数",
+    "To Be Updated", 
+    "To Be Updated",
     ])
 
 with tab1:
     st.markdown(
     """
     <div class="affiliation">
-        复杂系统拓扑统计理论及应用北京市重点实验室<br/>
-        北京雁栖湖应用数学研究院
+        To Be Updated
     </div>
     """,
     unsafe_allow_html=True,
     )
 
+    st.header("📁 上传数据")
+
+
     subtab1_1, subtab1_2, subtab1_3 = st.tabs([
-        "数据概览", 
-        "拟合", 
-        "参数",
+        "To Be Updated", 
+        "To Be Updated", 
+        "To Be Updated",
     ])
 
