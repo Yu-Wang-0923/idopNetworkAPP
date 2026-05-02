@@ -35,13 +35,8 @@ with tab1:
         label_visibility="visible",
         max_upload_size=500,
     )
-    st.write("To Be Updated")
 
-    subtab1_1, subtab1_2, subtab1_3 = st.tabs([
-        "Data Overview", 
-        "Data Transformation", 
-        "To Be Updated",
-    ])
+    subtab1_1, subtab1_2, subtab1_3 = st.tabs(["Data Overview", "Data Transformation", "To Be Updated",])
 
     with subtab1_1:
         if uploaded_files:
@@ -70,8 +65,8 @@ with tab1:
                         st.dataframe(df, use_container_width=True)
                         st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
 
-    #                 with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
-    #                     st.dataframe(df.describe(),use_container_width=True)
+                    with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
+                        st.dataframe(df.describe(),use_container_width=True)
 
                     # key_id = id(df)
                     # with st.expander("📊 Scatter Plot", expanded=False):
