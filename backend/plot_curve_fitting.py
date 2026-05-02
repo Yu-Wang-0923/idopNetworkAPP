@@ -7,13 +7,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 
-
-
 font_path = Path(__file__).parent.parent / "static" / "SimHei.ttf"
 font_prop = fm.FontProperties(fname=font_path)
-
-
-
 
 
 def plot_curve_fitting(
