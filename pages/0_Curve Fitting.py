@@ -42,20 +42,22 @@ tab1, tab2, tab3 = st.tabs([
     ])
 
 with tab1:
-    st.markdown(
-    """
-    <div class="affiliation">
-        To Be Updated
-    </div>
-    """,
-    unsafe_allow_html=True,
-    )
+    # st.markdown(
+    # """
+    # <div class="affiliation">
+    #     To Be Updated
+    # </div>
+    # """,
+    # unsafe_allow_html=True,
+    # )
 
-    st.header("上传数据")
     uploaded_files = st.file_uploader(
-        "选择 CSV 文件",
+        label="📁 请上传你的文件",
         type=["csv"],
         accept_multiple_files=True,
+        help="支持 csv, 可多选文件",
+        label_visibility="visible",
+        width=600,
     )
 
 
