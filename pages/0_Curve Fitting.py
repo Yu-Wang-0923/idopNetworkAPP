@@ -52,9 +52,11 @@ with tab1:
     # )
 
     uploaded_files = st.file_uploader(
+        label="📁 请上传你的文件",
         type=["csv"],
         accept_multiple_files=True,
         help="支持 csv, 可多选文件",
+        label_visibility="collapsed",
     )
 
 
