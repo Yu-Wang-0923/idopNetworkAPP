@@ -121,7 +121,7 @@ def plot_curve_fitting_compare(
         
         # 样式
         ax.set_title(col, fontsize=11, fontproperties=font_prop)
-        ax.margins(x=0.2, y=0.3)
+        ax.margins(x=0.1, y=0.2)
         ax.xaxis.set_major_locator(plt.MaxNLocator(5))
         ax.yaxis.set_major_locator(plt.MaxNLocator(5))
         for label in ax.get_xticklabels():
@@ -133,7 +133,7 @@ def plot_curve_fitting_compare(
     fig.legend(
         all_handles, all_labels,
         loc='upper center',    # 顶部居中
-        bbox_to_anchor=(0.5, 1.02),  # 稍微往上一点，不遮挡图
+        bbox_to_anchor=(0.5, 1.5),  # 稍微往上一点，不遮挡图
         ncol=3,                # 一行放3个，自动换行
         fontsize=8,
         frameon=False,
