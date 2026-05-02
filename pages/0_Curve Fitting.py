@@ -47,7 +47,7 @@ with tab1:
                 show_data_expander(f"Original Data: {file.name}", df_original)
                 plot_curve_fitting(
                                     df_scatter=df_original,
-                                    df_curve=df_curve_sample,
+                                    df_curve=None,
                                     show_scatter=False,
                                     nrow=2,
                                     ncol=3,
@@ -69,7 +69,7 @@ with tab1:
                 show_data_expander(f"Transform Data: {file.name}", df_transform)
                 plot_curve_fitting(
                                     df_scatter=df_transform,
-                                    df_curve=df_curve_sample,
+                                    df_curve=None,
                                     show_scatter=False,
                                     nrow=2,
                                     ncol=3,
@@ -100,7 +100,7 @@ with tab2:
                 show_data_expander(f"Quasi Dynamic: {file.name}", df_quasi_dynamic)
                 plot_curve_fitting(
                                     df_scatter=df_quasi_dynamic,
-                                    df_curve=df_curve_sample,
+                                    df_curve=None,
                                     show_scatter=False,
                                     nrow=2,
                                     ncol=3,
