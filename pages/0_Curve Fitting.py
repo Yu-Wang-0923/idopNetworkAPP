@@ -54,7 +54,22 @@ def data_transformation(
     return pd.DataFrame(scaled, columns=data.columns, index=data.index)
 
 
+def plot_scatter_matrix(df: pd.DataFrame):
+    with st.expander("📊 Scatter Plot Matrix", expanded=True):
+        numeric_cols = df.columns
+        cols = st.columns(2)
 
+        for i, col in enumerate(numeric_cols):
+            with cols[i % 2]:
+                fig, ax = plt.subplots(figsize=(6, 3))
+                ax.scatter(df.index, df[col], s=20, alpha=0.7)
+                ax.set_title(f"Scatter Plot: {col}")
+                ax.set_xlabel("Index")
+                ax.set_ylabel(col)
+                ax.grid(alpha=0.3)
+                plt.tight_layout()
+                st.pyplot(fig)
+                plt.close()
 
 
 
@@ -146,6 +161,8 @@ with tab1:
                         st.info(f"Rows: {df_transform.shape[0]} | Columns: {df_transform.shape[1]}")
                     with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
                         st.dataframe(df_transform.describe().round(2), use_container_width=True)
+                        
+                    plot_scatter_matrix(df_transform)
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
