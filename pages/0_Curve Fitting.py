@@ -168,18 +168,14 @@ with tab1:
                     with st.expander(f"📄 Transformation Data Overview: {file.name}", expanded=False):
                         st.dataframe(df_transform, use_container_width=True)
                         st.info(f"Rows: {df_transform.shape[0]} | Columns: {df_transform.shape[1]}")
+
                     with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
                         st.dataframe(df_transform.describe().round(2), use_container_width=True)
 
-                    # # 绘图参数（带折叠面板，稳定不回弹）
-                    # with st.expander("⚙️ 绘图参数", expanded=False):
-                    #     use_seq = st.checkbox("使用 1,2,3... 序号X轴", key=f"seq_{fname}")
-                    #     n_cols = st.slider("子图每行数量", 1, 4, 2, key=f"col_{fname}")
-
                     with st.expander("📊 Scatter Plot", expanded=True):
-                        with st.expander("⚙️ 绘图参数", expanded=False):
-                            use_seq = st.checkbox("使用 1,2,3... 序号X轴", key=f"seq_{fname}")
-                            n_cols = st.slider("子图每行数量", 1, 4, 2, key=f"col_{fname}")
+                        with st.expander("⚙️ Plot Settings", expanded=False):
+                            use_seq = st.checkbox("Use sequential integer X-axis", key=f"seq_{fname}",value=True)
+                            n_cols = st.selectbox("Subplots per row", options=[1,2,3,4,5,6], index=2, key=f"col_{fname}")
 
                             plot_scatter_matrix(df_transform, use_seq, n_cols)
         else:
