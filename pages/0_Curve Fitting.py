@@ -39,6 +39,8 @@ with tab1:
                         st.info(f"Rows: {df_original.shape[0]} | Columns: {df_original.shape[1]}")
                     with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
                         st.dataframe(df_original.describe(), use_container_width=True)
+                st.write("当前索引列：", df_original.index.name)  # 看索引名字
+                st.write("索引是否生效：", df_original.index)      # 看索引内容
 
     #                 if st.session_state["use_first_col_as_index"]:
     #                     df = df.set_index(df.columns[0])
