@@ -102,7 +102,7 @@ with st.sidebar:
 # ========== Tabs ==========
 tab1, tab2, tab3 = st.tabs([
     "Uploaded Data", 
-    "To Be Updated", 
+    "Curve Fitting", 
     "To Be Updated",
     ])
 
@@ -215,7 +215,7 @@ with tab1:
 
 with tab2:
     subtab2_1, subtab2_2, subtab2_3 = st.tabs([
-        "To Be Updated", 
+        "Quasi Dynamic", 
         "To Be Updated", 
         "To Be Updated",
     ])
