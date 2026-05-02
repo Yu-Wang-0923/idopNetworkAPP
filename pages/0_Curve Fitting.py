@@ -61,18 +61,44 @@ def data_transformation(
     return pd.DataFrame(scaled, columns=data.columns, index=data.index)
 
 
+# def plot_scatter_matrix(df, use_seq, n_cols):
+#     x = np.arange(1, len(df)+1) if use_seq else df.index
+#     cols = st.columns(n_cols)
+#     for i, col in enumerate(df.columns):
+#         with cols[i % n_cols]:
+#             fig, ax = plt.subplots(figsize=(6,3))
+#             ax.scatter(x, df[col], s=20, alpha=0.7)
+#             ax.set_title(col)
+#             ax.grid(alpha=0.3)
+#             st.pyplot(fig)
+#             plt.close()
+
 def plot_scatter_matrix(df, use_seq, n_cols):
+    plt.style.use('default')
     x = np.arange(1, len(df)+1) if use_seq else df.index
     cols = st.columns(n_cols)
+    
     for i, col in enumerate(df.columns):
         with cols[i % n_cols]:
-            fig, ax = plt.subplots(figsize=(6,3))
-            ax.scatter(x, df[col], s=20, alpha=0.7)
-            ax.set_title(col)
-            ax.grid(alpha=0.3)
+            fig, ax = plt.subplots(figsize=(7, 3.5), dpi=100)
+            
+            # 美化散点
+            ax.scatter(x, df[col], s=30, alpha=0.8, color='#2E86AB', edgecolor='white', linewidth=0.5)
+            
+            # 标题与样式
+            ax.set_title(f'{col}', fontsize=12, pad=12, fontweight=500)
+            ax.set_xlabel('Sequence' if use_seq else 'Index', fontsize=10)
+            ax.set_ylabel(col, fontsize=10)
+            
+            # 网格与边框
+            ax.grid(True, alpha=0.2, linestyle='--')
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.tick_params(axis='both', labelsize=9)
+            
+            plt.tight_layout()
             st.pyplot(fig)
             plt.close()
-
 
 
 
