@@ -145,7 +145,7 @@ with tab1:
             file = uploaded_files[0]
             df = load_csv(file)
             df_transform = data_transform(df, scaler_type)
-            st.dataframe(df_result.describe().round(2), use_container_width=True)
+            st.dataframe(df_transform.describe().round(2), use_container_width=True)
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
