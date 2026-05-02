@@ -212,3 +212,12 @@ with tab1:
 
     with subtab1_3:
         st.write("To Be Updated")
+
+with tab2:
+    subtab2_1, subtab2_2, subtab2_3 = st.tabs([
+        "To Be Updated", 
+        "To Be Updated", 
+        "To Be Updated",
+    ])
+
+    with subtab2_1:
