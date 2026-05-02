@@ -42,8 +42,8 @@ st.title("Curve Fitting", text_alignment="center")
 
 
 # import matplotlib.pyplot as plt
-plt.rcParams['font.sans-serif']=['SimHei','Songti SC','STFangsong']
-plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
+# plt.rcParams['font.sans-serif']=['SimHei','Songti SC','STFangsong']
+# plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
 
 # @st.cache_data
 # def load_csv(file):
