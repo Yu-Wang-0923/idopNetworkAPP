@@ -90,9 +90,11 @@ def plot_scatter_matrix(df, use_seq, n_cols, max_plots):
 
 
 
-
-
-
+# ========== Sidebar ==========
+with st.sidebar:
+    st.write("To Be Updated")
+    st.divider()
+    st.write("To Be Updated")
 
 
 
