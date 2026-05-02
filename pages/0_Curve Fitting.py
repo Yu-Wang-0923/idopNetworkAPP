@@ -61,37 +61,16 @@ def data_transformation(
     return pd.DataFrame(scaled, columns=data.columns, index=data.index)
 
 
-def plot_scatter_matrix(df: pd.DataFrame):
-    # ========== 绘图参数（放在最外层，保证实时生效）==========
-    col1, col2 = st.columns(2)
-    with col1:
-        use_sequential_index = st.checkbox(
-            "使用 1,2,3... 序号作为 X 轴",
-            value=False,
-            key=f"idx_{id(df)}"
-        )
-    with col2:
-        n_cols = st.slider(
-            "子图每行数量",
-            1, 4, 2,
-            key=f"cols_{id(df)}"
-        )
-
-    # ========== 图表区域 ==========
-    with st.expander("📊 Scatter Plot Matrix", expanded=True):
-        numeric_cols = df.columns
-        plot_cols = st.columns(n_cols)
-
-        for i, col in enumerate(numeric_cols):
-            with plot_cols[i % n_cols]:
-                fig, ax = plt.subplots(figsize=(6, 3))
-                x = np.arange(1, len(df)+1) if use_sequential_index else df.index
+def plot_scatter_matrix(df, use_seq, n_cols):
+    with st.expander("📊 Scatter Plot", expanded=True):
+        x = np.arange(1, len(df)+1) if use_seq else df.index
+        cols = st.columns(n_cols)
+        for i, col in enumerate(df.columns):
+            with cols[i % n_cols]:
+                fig, ax = plt.subplots(figsize=(6,3))
                 ax.scatter(x, df[col], s=20, alpha=0.7)
-                ax.set_title(f"Scatter Plot: {col}")
-                ax.set_xlabel("Sequence" if use_sequential_index else "Index")
-                ax.set_ylabel(col)
+                ax.set_title(col)
                 ax.grid(alpha=0.3)
-                plt.tight_layout()
                 st.pyplot(fig)
                 plt.close()
 
@@ -193,7 +172,13 @@ with tab1:
                     with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
                         st.dataframe(df_transform.describe().round(2), use_container_width=True)
 
-                    plot_scatter_matrix(df_transform)
+                    # 绘图参数（带折叠面板，稳定不回弹）
+                    with st.expander("⚙️ 绘图参数", expanded=False):
+                        use_seq = st.checkbox("使用 1,2,3... 序号X轴", key=f"seq_{fname}")
+                        n_cols = st.slider("子图每行数量", 1, 4, 2, key=f"col_{fname}")
+
+                    # 调用函数
+                    plot_scatter_matrix(df_transform, use_seq, n_cols)
         else:
             st.info("Please upload CSV file(s) to view data overview")
 
