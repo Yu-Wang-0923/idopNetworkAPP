@@ -112,10 +112,18 @@ with tab2:
 
     with subtab2_2:
         if uploaded_files:
+            scatter_list = []
+            curve_list = []
+            name_list = []
             for file in uploaded_files:
                 df_quasi_dynamic = st.session_state.df_quasi_dynamic[file.name]        
                 df_curve_sample = get_power_function_sample(df_quasi_dynamic)
                 st.session_state.df_curve_sample[file.name] = df_curve_sample
+
+                scatter_list.append(df_quasi_dynamic)
+                curve_list.append(df_curve_sample)
+                name_list.append(file.name)  # 图例用
+
                 show_data_expander(f"Quasi Dynamic: {file.name}", df_curve_sample)
                 plot_curve_fitting(
                                     df_scatter=df_quasi_dynamic,
@@ -125,6 +133,15 @@ with tab2:
                                     ncol=3,
                                     nsubfig=6,  # 最多画4张图
                                     )
+            plot_curve_fitting_compare(
+                                        df_scatter_list=scatter_list,
+                                        df_curve_list=curve_list,
+                                        label_list=name_list,
+                                        show_curve=True,
+                                        nrow=2,
+                                        ncol=3,    # 你要 6 张子图
+                                        nsubfig=6
+                                        )
         else:
             st.info("Please upload CSV file(s)")
 

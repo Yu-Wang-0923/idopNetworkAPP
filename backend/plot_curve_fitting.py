@@ -64,3 +64,66 @@ def plot_curve_fitting(
 #     "#C8D7E0",  # 深雾灰蓝
 #     "#C13A3B"   # 深砖红
 # ]
+
+
+def plot_curve_fitting_compare(
+    df_scatter_list, 
+    df_curve_list,
+    label_list,
+    show_curve=True,
+    nrow=2,
+    ncol=2,
+    nsubfig=4,
+):
+    # 配色（自动循环，支持多组）
+    scatter_colors = ['#F9B3AD', '#81B1D9', '#76C2AF', '#E5C68F', '#C59FCE', '#A0D8E7']
+    curve_colors = ['#F8A09B', '#5A9BD3', '#52B793', '#DDB866', '#B488C2', '#79C6DF']
+    
+    # 取第一组数据的列名
+    selected_cols = df_scatter_list[0].columns.tolist()
+    fig, axes = plt.subplots(nrow, ncol, figsize=(8, 5), sharex=True, sharey=True, dpi=300)
+    axes = axes.flatten()
+
+    # 逐个子图绘制
+    for i, col in enumerate(selected_cols[:nsubfig]):
+        ax = axes[i]
+        
+        # 遍历【每一组数据】画在同一张子图上
+        for idx, (df_scatter, df_curve) in enumerate(zip(df_scatter_list, df_curve_list)):
+            color_scatter = scatter_colors[idx % len(scatter_colors)]
+            color_curve = curve_colors[idx % len(curve_colors)]
+            label = label_list[idx]
+
+            # 散点
+            ax.scatter(
+                df_scatter.index, df_scatter[col],
+                alpha=1, s=100, facecolors='none',
+                edgecolors=color_scatter, linewidth=1,
+                label=f"{label} 原始"
+            )
+            # 拟合曲线
+            if show_curve:
+                ax.plot(
+                    df_curve.index, df_curve[col],
+                    color=color_curve, linewidth=3,
+                    label=f"{label} 拟合"
+                )
+        
+        # 子图样式
+        ax.set_title(col, fontsize=11) # fontproperties=font_prop
+        ax.margins(x=0.2, y=0.3)
+        ax.xaxis.set_major_locator(plt.MaxNLocator(5))
+        ax.yaxis.set_major_locator(plt.MaxNLocator(5))
+        
+        # 只在第一个子图标注图例（避免重复）
+        if i == 0:
+            ax.legend(fontsize=7, loc='upper left', frameon=False)
+
+    # 隐藏多余子图
+    for j in range(i + 1, len(axes)):
+        axes[j].set_visible(False)
+
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plt.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
