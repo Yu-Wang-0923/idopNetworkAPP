@@ -20,7 +20,7 @@ def plot_curve_fitting(
     nsubfig=4,  # 总子图数量
 ):
     selected_cols = df_scatter.columns.tolist()
-    fig, axes = plt.subplots(nrow, ncol, figsize=(6, 4), sharex=True, sharey=True, dpi=300)
+    fig, axes = plt.subplots(nrow, ncol, figsize=(6, 3), sharex=True, sharey=True, dpi=300)
     axes = axes.flatten()
     for i, col in enumerate(selected_cols[:nsubfig]):  # 最多画 nsubfig 个
         axes[i].scatter(df_scatter.index, df_scatter[col], alpha=1, s=100, facecolors='none', edgecolors='#F9B3AD', linewidth=1)
@@ -82,7 +82,7 @@ def plot_curve_fitting_compare(
     curve_colors = ['#F8A09B', '#5A9BD3', '#52B793', '#DDB866', '#B488C2', '#79C6DF']
     
     selected_cols = df_scatter_list[0].columns.tolist()
-    fig, axes = plt.subplots(nrow, ncol, figsize=(6, 4), sharex=True, sharey=True, dpi=300)
+    fig, axes = plt.subplots(nrow, ncol, figsize=(6, 3), sharex=True, sharey=True, dpi=300)
     axes = axes.flatten()
 
     # 用来存放所有图例句柄，统一画在顶部
