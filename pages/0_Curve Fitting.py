@@ -35,7 +35,7 @@ st.set_page_config(
     }
 )
 
-# 页面标题
+# 页面标题 
 st.title("Curve Fitting", text_alignment="center")
 
 
