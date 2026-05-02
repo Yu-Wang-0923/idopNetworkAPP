@@ -11,8 +11,8 @@ st.set_page_config(page_title="Curve Fitting", page_icon=None, layout="wide", in
 st.title("Curve Fitting", text_alignment="center")
 
 
-if "data_dict" not in st.session_state:
-    st.session_state.data_dict = {}
+if "df_original" not in st.session_state:
+    st.session_state.df_original = {}
 
 
 
@@ -39,7 +39,7 @@ with tab1:
             for file in uploaded_files:
 
                 df_original = load_csv(file)
-                st.session_state.data_dict[file.name] = df_original
+                st.session_state.df_original[file.name] = df_original
 
                 with st.expander(f"Original Data: {file.name}, Rows: {df_original.shape[0]}, Columns: {df_original.shape[1]}", expanded=False):
                     with st.expander("Original Data Overview", expanded=False):
