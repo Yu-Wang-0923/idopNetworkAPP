@@ -139,24 +139,24 @@ with tab1:
 
             st.divider()
 
-            original_data_session = {}
-            for file in uploaded_files:
-                with st.expander(f"📄 Original Data: {file.name}", expanded=False):
-                    df = load_csv(file)
+            # original_data_session = {}
+            # for file in uploaded_files:
+            #     with st.expander(f"📄 Original Data: {file.name}", expanded=False):
+            #         df = load_csv(file)
 
-                    if st.session_state["use_first_col_as_index"]:
-                        df = df.set_index(df.columns[0])
+            #         if st.session_state["use_first_col_as_index"]:
+            #             df = df.set_index(df.columns[0])
                     
-                    # 缓存, key: 文件名, value: df
-                    original_data_session[file.name] = df
-                    st.session_state["original_data_session"] = original_data_session
+            #         # 缓存, key: 文件名, value: df
+            #         original_data_session[file.name] = df
+            #         st.session_state["original_data_session"] = original_data_session
 
-                    with st.expander(f"📄 Original Data Overview: {file.name}", expanded=False):
-                        st.dataframe(df, use_container_width=True)
-                        st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
+            #         with st.expander(f"📄 Original Data Overview: {file.name}", expanded=False):
+            #             st.dataframe(df, use_container_width=True)
+            #             st.info(f"Rows: {df.shape[0]} | Columns: {df.shape[1]}")
 
-                    with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
-                        st.dataframe(df.describe(),use_container_width=True)
+            #         with st.expander(f"📄 Descriptive Statistics: {file.name}", expanded=False):
+            #             st.dataframe(df.describe(),use_container_width=True)
 
                     # key_id = id(df)
                     # with st.expander("📊 Scatter Plot", expanded=False):
