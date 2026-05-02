@@ -97,8 +97,8 @@ with tab2:
                                     df_curve=df_curve_sample,
                                     show_scatter=True,
                                     nrow=2,
-                                    ncol=2,
-                                    nsubfig=4,  # 最多画4张图
+                                    ncol=3,
+                                    nsubfig=6,  # 最多画4张图
                                     )
         else:
             st.info("Please upload CSV file(s)")
