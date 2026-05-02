@@ -93,7 +93,7 @@ def plot_scatter_matrix(df, use_seq, n_cols, max_plots):
 # ========== Sidebar ==========
 with st.sidebar:
     st.write("To Be Updated")
-    st.info('stpe-1: Uploaded Files')
+    st.info('stpe-1: Uploaded Data')
     st.info('stpe-2: Transformation Data')
 
 
