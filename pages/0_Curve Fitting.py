@@ -297,7 +297,7 @@ def plot_curve_fitting(
     max_plots
 ):
     x = np.arange(1, len(df_quasi_dynamic)+1) if use_seq else df_quasi_dynamic.index
-    a_index = df_quasi_dynamic.index
+    a_index = df_curve_sample.index
     cols = st.columns(n_cols)
     selected_cols = df_quasi_dynamic.columns[:max_plots]
     for i, col in enumerate(selected_cols):
