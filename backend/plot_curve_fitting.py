@@ -32,6 +32,8 @@ def plot_curve_fitting(
         axes[i].yaxis.set_major_locator(plt.MaxNLocator(5))
         for label in axes[i].get_xticklabels():
             label.set_fontproperties(font_prop)
+        for label in axes[i].get_yticklabels():
+            label.set_fontproperties(font_prop)
     # 隐藏多余子图
     for j in range(i + 1, len(axes)):
         axes[j].set_visible(False)
