@@ -169,13 +169,13 @@ with tab2:
                         df_curve = st.session_state.df_curve_sample[file.name]
                         with st.expander(f"Allometric Scaling Law: {file.name}", expanded=False):
                             with st.expander("Data Overview", expanded=False):
-                                st.dataframe(df_quasi_dynamic, use_container_width=True)
+                                st.dataframe(df_quasi, use_container_width=True)
                             with st.expander("Descriptive Statistics", expanded=False):
-                                st.dataframe(df_quasi_dynamic.describe(), use_container_width=True)
+                                st.dataframe(df_quasi.describe(), use_container_width=True)
                             with st.expander("Curve Fitting Plot", expanded=False):
                                 plot_curve_fitting(
-                                            df_scatter=df_quasi_dynamic,
-                                            df_curve=df_curve_sample,
+                                            df_scatter=df_quasi,
+                                            df_curve=df_curve,
                                             show_curve=True,
                                             nrow=2,
                                             ncol=3,
@@ -193,9 +193,9 @@ with tab2:
                             name_list_compare.append(file.name)
                     if scatter_list_compare:
                         plot_curve_fitting_compare(
-                            df_scatter_list=scatter_list,
-                            df_curve_list=curve_list,
-                            label_list=name_list,
+                            df_scatter_list=scatter_list_compare,
+                            df_curve_list=curve_list_compare,
+                            label_list=name_list_compare,
                             show_curve=True,
                             nrow=2,
                             ncol=3,
