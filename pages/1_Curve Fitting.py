@@ -107,7 +107,7 @@ with tab2:
     subtab2_1, subtab2_2, subtab2_3 = st.tabs([
         "Quasi Dynamic", 
         "Allometric Scaling Law", 
-        "To Be Updated...",
+        "Export",
     ])
 
     with subtab2_1:
@@ -205,7 +205,8 @@ with tab2:
             st.info("Please upload CSV file(s)")
 
     with subtab2_3:
-        st.write("To Be Updated...")
+        st.write("Export Result")
+        
 
 with tab3:
     st.write("To Be Updated")
