@@ -13,6 +13,13 @@ if _root not in sys.path:
 from backend.curve_fitting import *
 from backend.plot_curve_fitting import *
 
+# 添加自定义CSS
+def local_css(file_name):
+    with open(file_name) as f:
+        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+
+local_css("static/css/custom_style.css")
+
 
 st.set_page_config(page_title="Curve Fitting", page_icon=None, layout="wide", initial_sidebar_state="auto")
 st.title("Curve Fitting", text_alignment="center")
