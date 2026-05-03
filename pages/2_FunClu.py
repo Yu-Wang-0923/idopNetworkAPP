@@ -52,6 +52,30 @@ with tab1:
                         st.dataframe(df_original.describe(), use_container_width=True)   
         else:
             st.info("Please upload CSV file(s)")
+    
+    with subtab1_2:
+        if uploaded_files:
+            with st.form(key="transform_form"):
+                with st.expander("⚙️ Transform Settings", expanded=False):
+                    scaler_type = st.selectbox("Transform Type", ["none", "rescale_to_0_1", "rescale_to_-1_1", "log1p"],key="transform_data")
+                    submit_transform = st.form_submit_button("Run Transform")
+            if submit_transform:
+                for file in uploaded_files:
+                    df_original = st.session_state.df_original[file.name]
+                    df_transform = data_transformation(df_original, scaler_type)
+                    st.session_state.df_transform[file.name] = df_transform
+                st.success("Success")
+            if st.session_state.df_transform:
+                for file in uploaded_files:
+                    if file.name in st.session_state.df_transform:
+                        df_transform = st.session_state.df_transform[file.name]
+                        with st.expander(f"Transform Data: {file.name}", expanded=False):
+                            with st.expander("Data Overview", expanded=False):
+                                st.dataframe(df_transform, use_container_width=True)
+                            with st.expander("Descriptive Statistics", expanded=False):
+                                st.dataframe(df_transform.describe(), use_container_width=True)
+        else:
+            st.info("Please upload CSV file(s)")
 
 
 # ========== Tab 2 ==========
