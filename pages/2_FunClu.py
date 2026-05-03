@@ -1,14 +1,6 @@
-import sys
-from pathlib import Path
-
 import streamlit as st
 
 st.set_page_config(page_title="Functional Clustering", page_icon=None, layout="wide", initial_sidebar_state="auto")
-
-_APP_ROOT = Path(__file__).resolve().parent.parent
-_root = str(_APP_ROOT)
-if _root not in sys.path:
-    sys.path.insert(0, _root)
 
 import numpy as np
 import pandas as pd
