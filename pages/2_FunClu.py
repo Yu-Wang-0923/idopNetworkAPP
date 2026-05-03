@@ -12,6 +12,16 @@ st.set_page_config(page_title="Functional Clustering", page_icon=None, layout="w
 st.title("Functional Clustering", text_alignment="center")
 
 
+if "df_original" not in st.session_state:
+    st.session_state.df_original = {}
+if "df_transform" not in st.session_state:
+    st.session_state.df_transform = {}
+if "df_quasi_dynamic" not in st.session_state:
+    st.session_state.df_quasi_dynamic = {}
+if "df_curve_sample" not in st.session_state:
+    st.session_state.df_curve_sample = {}
+
+
 # ========== Tabs ==========
 tab1, tab2, tab3 = st.tabs(["Uploaded Data", "BIC功能聚类", "待更新..."])
 
@@ -27,7 +37,7 @@ with tab1:
         label_visibility="visible",
         max_upload_size=500,
     )
-    
+
     subtab1_1, subtab1_2, subtab1_3 = st.tabs(["Data Overview", "Data Transformation", "To Be Updated"])
 
     with subtab1_1:
