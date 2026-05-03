@@ -7,6 +7,6 @@ from sklearn.cluster import KMeans, MiniBatchKMeans
 from curve_fitting import *
 
 
-
+st.write("s")
 
 # def _initialize(self, data: list[pd.DataFrame]):
