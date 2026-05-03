@@ -206,7 +206,8 @@ with tab2:
 
     with subtab2_3:
         st.write("Export Result")
-        
+        st.write(df_original)
+
 
 with tab3:
     st.write("To Be Updated")
