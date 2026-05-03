@@ -206,7 +206,17 @@ with tab2:
 
     with subtab2_3:
         st.write("Export Result")
-        st.write(df_original)
+        if not st.session_state.df_original:
+            st.info("Please upload CSV file(s) first.")
+        else:
+            for fname, df in st.session_state.df_original.items():
+                st.download_button(
+                    label=f"Download original: {fname}",
+                    data=df.to_csv(index=False).encode("utf-8"),
+                    file_name=fname,
+                    mime="text/csv",
+                    key=f"export_original_{fname}",
+                )
 
 
 with tab3:
