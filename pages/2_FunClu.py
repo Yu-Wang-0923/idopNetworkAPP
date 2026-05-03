@@ -3,7 +3,9 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 sys.path.append("..")
+from backend.curve_fitting import *
 from backend.functional_clustering import *
+
 
 # FunClu
 st.set_page_config(page_title="Functional Clustering", page_icon=None, layout="wide", initial_sidebar_state="auto")

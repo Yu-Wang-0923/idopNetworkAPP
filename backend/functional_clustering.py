@@ -1,11 +1,10 @@
-import sys
 import torch
 import numpy as np
 import pandas as pd
 import streamlit as st
 from sklearn.cluster import KMeans, MiniBatchKMeans
 
-from backend.curve_fitting import *
+
 
 
 st.write("s")
