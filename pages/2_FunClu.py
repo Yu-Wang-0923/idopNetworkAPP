@@ -27,6 +27,8 @@ with tab1:
         label_visibility="visible",
         max_upload_size=500,
     )
+    
+    subtab1_1, subtab1_2, subtab1_3 = st.tabs(["Data Overview", "Data Transformation", "To Be Updated"])
 
     with subtab1_1:
         if uploaded_files:     
