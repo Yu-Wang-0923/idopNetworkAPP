@@ -1,22 +1,9 @@
-import io
-import numpy as np
-import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt
-from scipy.optimize import curve_fit
-from sklearn.preprocessing import MinMaxScaler
+
+from backend.utils import setup_matplotlib_chinese
 
 st.set_page_config(page_title="Network Construction", page_icon="📈")
-plt.rcParams["font.sans-serif"] = [
-    "PingFang SC",
-    "Hiragino Sans GB",
-    "Heiti SC",
-    "Microsoft YaHei",
-    "SimHei",
-    "Arial Unicode MS",
-    "DejaVu Sans",
-]
-plt.rcParams["axes.unicode_minus"] = False
+setup_matplotlib_chinese()
 
 st.markdown("<h1 style='text-align: center;'>Network Construction</h1>", unsafe_allow_html=True)
 

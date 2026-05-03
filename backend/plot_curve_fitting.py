@@ -3,12 +3,9 @@ import math
 import numpy as np
 import pandas as pd
 import streamlit as st
-from pathlib import Path
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
 
-font_path = Path(__file__).parent.parent / "static" / "SimHei.ttf"
-font_prop = fm.FontProperties(fname=font_path)
+from backend.utils import font_prop
 
 
 def plot_curve_fitting(

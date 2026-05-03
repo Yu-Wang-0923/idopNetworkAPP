@@ -5,16 +5,16 @@ st.set_page_config(page_title="Curve Fitting", page_icon=None, layout="wide", in
 import numpy as np
 import pandas as pd
 
-from backend.curve_fitting import *
-from backend.plot_curve_fitting import *
+from backend.curve_fitting import (
+    load_csv,
+    data_transformation,
+    get_quasi_dynamic_df,
+    get_power_function_sample,
+)
+from backend.plot_curve_fitting import plot_curve_fitting, plot_curve_fitting_compare
+from backend.utils import load_css
 
-
-def local_css(file_name):
-    with open(file_name) as f:
-        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
-
-
-local_css("static/css/custom_style.css")
+load_css()
 
 st.title("Curve Fitting", text_alignment="center")
 

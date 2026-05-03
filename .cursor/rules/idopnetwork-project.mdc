@@ -1,0 +1,63 @@
+---
+description: idopNetworkAPP 项目技术栈、目录约定与开发规范
+globs:
+alwaysApply: true
+---
+
+# idopNetworkAPP 项目规范
+
+## 技术栈
+- **前端框架**：Streamlit >= 1.32
+- **数值计算**：NumPy、SciPy、pandas
+- **机器学习**：scikit-learn、PyTorch
+- **优化**：CVXPY
+- **可视化**：Matplotlib（中文字体通过 `backend/utils.py` 统一配置）
+- **包管理**：`pyproject.toml` 声明依赖，`requirements.txt` 精确锁版本
+
+## 目录结构
+
+```
+idopNetworkAPP-1/
+├── Home.py                  # Streamlit 首页入口
+├── pages/                   # 各功能页面（Streamlit 多页应用）
+│   ├── 1_Curve Fitting.py
+│   ├── 2_FunClu.py
+│   ├── 3_NetRecon.py
+│   └── 4_NetAnal.py
+├── backend/                 # 后端逻辑包（可被 pip install -e . 安装）
+│   ├── __init__.py
+│   ├── utils.py             # 共享工具：路径常量、CSS 加载、字体配置
+│   ├── curve_fitting.py     # 曲线拟合：数据处理函数
+│   ├── plot_curve_fitting.py
+│   ├── functional_clustering.py
+│   ├── plot_functional_clustering.py
+│   ├── network_construction.py
+│   ├── plot_network_construction.py
+│   ├── network_analysis.py
+│   └── plot_network_analysis.py
+├── static/
+│   ├── SimHei.ttf           # 中文字体（matplotlib 用）
+│   └── css/
+│       └── custom_style.css
+├── pyproject.toml
+└── requirements.txt
+```
+
+## 分层约定
+
+| 层级 | 职责 | 规则 |
+|------|------|------|
+| `pages/` | Streamlit UI，纯展示逻辑 | 不含业务计算；使用具名导入 |
+| `backend/xxx.py` | 数据处理、数值计算 | 不直接调用 `st.*` |
+| `backend/plot_xxx.py` | matplotlib 绘图，调用 `st.pyplot()` | 对应 `xxx.py` 的可视化层 |
+| `backend/utils.py` | 共享常量与辅助函数 | 路径、CSS、字体初始化集中于此 |
+
+## 开发规则
+
+- **具名导入**：所有 `from backend.xxx import *` 均禁止；使用 `from backend.xxx import func_a, func_b`
+- **路径引用**：所有 `static/` 资源路径必须通过 `backend.utils` 中的常量引用（`CSS_PATH`、`FONT_PATH`）
+- **字体配置**：matplotlib 中文字体统一调用 `backend.utils.setup_matplotlib_chinese()` 或使用 `backend.utils.font_prop`
+- **CSS 注入**：页面 CSS 加载统一调用 `backend.utils.load_css()`
+- **缓存**：IO 密集型函数使用 `@st.cache_data`
+- **类型注解**：新增函数必须有类型注解和 docstring
+- **占位文件**：空的后端模块保留文件但不添加无意义代码，待实现时补充

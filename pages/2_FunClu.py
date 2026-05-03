@@ -5,8 +5,8 @@ st.set_page_config(page_title="Functional Clustering", page_icon=None, layout="w
 import numpy as np
 import pandas as pd
 
-from backend.curve_fitting import *
-from backend.functional_clustering import *
+from backend.curve_fitting import load_csv, data_transformation
+from backend import functional_clustering  # noqa: F401  — 待补充具名导入
 
 st.title("Functional Clustering", text_alignment="center")
 
