@@ -1,8 +1,15 @@
 import sys
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import streamlit as st
-sys.path.append("..")
+
+_APP_ROOT = Path(__file__).resolve().parent.parent
+_root = str(_APP_ROOT)
+if _root not in sys.path:
+    sys.path.insert(0, _root)
+
 from backend.curve_fitting import *
 from backend.plot_curve_fitting import *
 
