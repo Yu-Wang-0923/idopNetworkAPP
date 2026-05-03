@@ -28,18 +28,18 @@ with tab1:
         max_upload_size=500,
     )
 
-    with subtab1_1:
-        if uploaded_files:     
-            for file in uploaded_files:
-                df_original = load_csv(file)
-                st.session_state.df_original[file.name] = df_original
-                with st.expander(f"Original Data: {file.name}", expanded=False):
-                    with st.expander("Data Overview", expanded=False):
-                        st.dataframe(df_original, use_container_width=True)
-                    with st.expander("Descriptive Statistics", expanded=False):
-                        st.dataframe(df_original.describe(), use_container_width=True)   
-        else:
-            st.info("Please upload CSV file(s)")
+    # with subtab1_1:
+        # if uploaded_files:     
+        #     for file in uploaded_files:
+        #         df_original = load_csv(file)
+        #         st.session_state.df_original[file.name] = df_original
+        #         with st.expander(f"Original Data: {file.name}", expanded=False):
+        #             with st.expander("Data Overview", expanded=False):
+        #                 st.dataframe(df_original, use_container_width=True)
+        #             with st.expander("Descriptive Statistics", expanded=False):
+        #                 st.dataframe(df_original.describe(), use_container_width=True)   
+        # else:
+        #     st.info("Please upload CSV file(s)")
 
 
 # ========== Tab 2 ==========
