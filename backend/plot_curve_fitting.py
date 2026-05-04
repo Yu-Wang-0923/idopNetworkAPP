@@ -48,7 +48,7 @@ def plot_curve_fitting(
         sharex=True, 
         # sharey=True, 
         dpi=300)
-    axes = axes.flatten()
+    axes = np.array(axes).flatten()
     for i, col in enumerate(selected_cols[:nsubfig]):  # 最多画 nsubfig 个
         if scatter_x == "index":
             x = df_scatter.index
@@ -93,7 +93,8 @@ def plot_curve_fitting(
             label.set_fontproperties(font_prop)
         axes[i].set_facecolor(subfig_background_color)
     # 隐藏多余子图
-    for j in range(i + 1, len(axes)):
+    n_plotted = min(len(selected_cols), nsubfig)
+    for j in range(n_plotted, len(axes)):
         axes[j].set_visible(False)
     plt.subplots_adjust(wspace=0, hspace=0)
     plt.tight_layout()
@@ -116,7 +117,7 @@ def plot_curve_fitting_compare(
     
     selected_cols = df_scatter_list[0].columns.tolist()
     fig, axes = plt.subplots(nrow, ncol, figsize=(6, 3), sharex=True, sharey=True, dpi=300)
-    axes = axes.flatten()
+    axes = np.array(axes).flatten()
 
     # 用来存放所有图例句柄，统一画在顶部
     all_handles = []
@@ -174,7 +175,8 @@ def plot_curve_fitting_compare(
     )
 
     # 隐藏多余子图
-    for j in range(i + 1, len(axes)):
+    n_plotted = min(len(selected_cols), nsubfig)
+    for j in range(n_plotted, len(axes)):
         axes[j].set_visible(False)
 
     plt.subplots_adjust(wspace=0, hspace=0)
