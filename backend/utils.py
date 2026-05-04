@@ -19,7 +19,7 @@ FONT_PATH: Path = STATIC_DIR / "SimHei.ttf"
 
 # matplotlib 字体属性对象（供 plot_*.py 直接使用）
 font_prop: fm.FontProperties = fm.FontProperties(fname=FONT_PATH)
-
+plt.rcParams["axes.unicode_minus"] = False
 
 # ── 辅助函数 ──────────────────────────────────────────────────────────────────
 
@@ -30,15 +30,7 @@ def load_css(path: Path = CSS_PATH) -> None:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 
-def setup_matplotlib_chinese() -> None:
-    """配置 matplotlib 中文字体回退列表与负号显示。"""
-    plt.rcParams["font.sans-serif"] = [
-        "PingFang SC",
-        "Hiragino Sans GB",
-        "Heiti SC",
-        "Microsoft YaHei",
-        "SimHei",
-        "Arial Unicode MS",
-        "DejaVu Sans",
-    ]
-    plt.rcParams["axes.unicode_minus"] = False
+# def setup_matplotlib_chinese() -> None:
+#     """配置 matplotlib 中文字体回退列表与负号显示。"""
+#     plt.rcParams["font.sans-serif"] = ["SimHei"]
+#     plt.rcParams["axes.unicode_minus"] = False

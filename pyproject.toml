@@ -7,14 +7,14 @@ name = "idopnetworkapp"
 version = "0.1.0"
 description = "idopNetwork Streamlit application (backend package)"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.26",
     "pandas>=3.0",
     "scipy>=1.13",
     "scikit-learn>=1.7",
     "matplotlib>=3.8",
-    "streamlit>=1.32",
+    "streamlit>=1.52",
     "cvxpy>=1.6",
     "torch>=2.4",
 ]

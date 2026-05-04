@@ -9,32 +9,93 @@ from backend.utils import font_prop
 
 
 def plot_curve_fitting(
-    df_scatter, 
+    # 数据
+    df_scatter,
     df_curve,
-    show_curve=True,
-    nrow=2,
-    ncol=2,
+    plot_scatter_type="line",
+
+
+    # 布局
+    nrow=4,
+    ncol=3,
     nsubfig=4,
+    scatter_x="sequence",
+    scatter_size=100,
+    scatter_linewidth=2,
+    show_curve=True, # 是否显示曲线
+    margins_x=0.1,
+    margins_y=0.2,
+
+
+
+    # 标签
+    # title="",
+
+    # 颜色
+    color_scatter="#F9B3AD",
+    color_curve="#A06EA5",
+    subfig_background_color="#FFFFFF",
 ):
+    GOLDEN_RATIO = 1.618  # 黄金分割比
+    base_height = 2       # 单行基准高度（英寸）
+    base_width = base_height * GOLDEN_RATIO  # 单列宽度更宽
+    
     selected_cols = df_scatter.columns.tolist()
-    fig, axes = plt.subplots(nrow, ncol, figsize=(6, 3), sharex=True, sharey=True, dpi=300)
+    fig, axes = plt.subplots(
+        nrow, 
+        ncol, 
+        figsize=(base_width * ncol, base_height * nrow),  # 黄金分割
+        sharex=True, 
+        # sharey=True, 
+        dpi=300)
     axes = axes.flatten()
     for i, col in enumerate(selected_cols[:nsubfig]):  # 最多画 nsubfig 个
-        axes[i].scatter(df_scatter.index, df_scatter[col], alpha=0.95, s=100, facecolors='none', edgecolors='#F9B3AD', linewidth=1)
-        if show_curve:
-            axes[i].plot(df_curve.index, df_curve[col], color='#A06EA5', linewidth=4)
+        if scatter_x == "index":
+            x = df_scatter.index
+        elif scatter_x == "sequence":
+            x = np.arange(len(df_scatter))
+        else:
+            x = np.arange(len(df_scatter))  # fallback
+        
+        if plot_scatter_type == "scatter":
+            axes[i].scatter(
+                x, 
+                df_scatter[col], 
+                alpha=0.95, 
+                s=scatter_size, 
+                facecolors='none', 
+                edgecolors=color_scatter, 
+                linewidth=1,
+            )
+        elif plot_scatter_type == "line":
+            axes[i].plot(
+                x, 
+                df_scatter[col], 
+                alpha=0.95,
+                color=color_scatter, 
+                linewidth=scatter_linewidth,
+            )
+
+        if show_curve and df_curve is not None and col in df_curve.columns:
+            axes[i].plot(
+                df_curve.index, 
+                df_curve[col], 
+                color=color_curve, 
+                linewidth=4
+            )
         axes[i].set_title(col, fontsize=11, fontproperties=font_prop)
-        axes[i].margins(x=0.2, y=0.3)
+        axes[i].margins(x=margins_x, y=margins_y)
         axes[i].xaxis.set_major_locator(plt.MaxNLocator(5))
         axes[i].yaxis.set_major_locator(plt.MaxNLocator(5))
         for label in axes[i].get_xticklabels():
             label.set_fontproperties(font_prop)
         for label in axes[i].get_yticklabels():
             label.set_fontproperties(font_prop)
+        axes[i].set_facecolor(subfig_background_color)
     # 隐藏多余子图
     for j in range(i + 1, len(axes)):
         axes[j].set_visible(False)
-    plt.subplots_adjust(wspace=0,hspace=0)
+    plt.subplots_adjust(wspace=0, hspace=0)
     plt.tight_layout()
     st.pyplot(fig)
     plt.close(fig)

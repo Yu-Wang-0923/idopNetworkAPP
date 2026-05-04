@@ -4,6 +4,6 @@ pandas==3.0.1
 scipy==1.13.1
 scikit-learn==1.7.1
 matplotlib==3.8.4
-streamlit==1.32.0
+streamlit==1.57.0
 cvxpy==1.6.6
 torch==2.4.1

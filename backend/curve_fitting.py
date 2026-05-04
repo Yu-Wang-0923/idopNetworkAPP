@@ -42,9 +42,11 @@ def data_transformation(
 def get_quasi_dynamic_df(
     data: pd.DataFrame,
 ) -> pd.DataFrame:
-    row_sum = data.sum(axis=1).sort_values()
-    quasi_dynamic_df = data.loc[row_sum.index].copy()
-    quasi_dynamic_df.index = pd.Index(row_sum.values)
+    row_sum = data.sum(axis=1)
+    # 用位置索引排序，避免原始行标签有重复时 .loc 展开多行导致长度不匹配
+    sort_pos = np.argsort(row_sum.values, kind="stable")
+    quasi_dynamic_df = data.iloc[sort_pos].copy()
+    quasi_dynamic_df.index = pd.Index(row_sum.values[sort_pos])
     return quasi_dynamic_df
 
 

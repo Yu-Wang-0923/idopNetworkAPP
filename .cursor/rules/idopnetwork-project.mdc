@@ -7,7 +7,8 @@ alwaysApply: true
 # idopNetworkAPP 项目规范
 
 ## 技术栈
-- **前端框架**：Streamlit >= 1.32
+- **Python**：>= 3.10（与 Streamlit 1.52+ 一致）
+- **前端框架**：Streamlit >= 1.52
 - **数值计算**：NumPy、SciPy、pandas
 - **机器学习**：scikit-learn、PyTorch
 - **优化**：CVXPY
