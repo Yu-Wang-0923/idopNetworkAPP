@@ -3,30 +3,35 @@ import streamlit as st
 # 1. 基础设置
 st.set_page_config(page_title="idopNetwork", page_icon="TSA.png", layout="wide", initial_sidebar_state="expanded")
 
-# 🌟 终极修复：使用原生 st.logo 将图片放在侧边栏最顶端（导航文字的上方）
-st.logo("TSA.png", icon_image="TSA.png")
+# (删除了死板的 st.logo，我们在下面的 sidebar 里自己画一个大的)
 
-# 2. 核心 CSS 样式（已调浅侧边栏颜色，并增大字号）
+# 2. 核心 CSS 样式（已大幅优化版面结构）
 st.markdown("""
 <style>
 #MainMenu,header,footer{visibility:hidden;} .stApp{background:#f8fafc;}
 
-/* 侧边栏变浅：从原本的 #1e293b 改为更柔和的 #334155 */
+/* 侧边栏底色 */
 [data-testid="stSidebar"] {background-color: #334155 !important;}
 
-/* 侧边栏导航文字增大 */
+/* 🌟 强行把导航菜单往下推，给 Logo 留出宽裕的空间 */
+[data-testid="stSidebarNav"] {margin-top: 1.5rem !important;} 
 [data-testid="stSidebarNav"] span {color: #f8fafc !important; font-size: 1.15rem !important; font-weight: 500;}
 [data-testid="stSidebarNav"] a:hover {background-color: rgba(255,255,255,0.15) !important; border-radius: 6px;}
 
 /* 增加整体的正文字号 */
 p, div {font-size: 1.05rem;}
 
-/* IDOP 静态标签样式（去掉悬停上浮效果，让它看起来不像按钮） */
-.idop-badges {display: flex; gap: 0.8rem; margin-top: 1.5rem; flex-wrap: wrap;}
+/* Logo 圆角与阴影美化 */
+[data-testid="stSidebar"] img {border-radius: 22px; box-shadow: 0 6px 16px rgba(0,0,0,0.25);}
+
+/* 🌟 放大 IDOP 静态标签，填补空白，增加质感 */
+.idop-badges {display: flex; gap: 1rem; margin-top: 2.5rem; flex-wrap: wrap;}
 .badge-item {
-    background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; 
-    padding: 0.4rem 0.9rem; border-radius: 6px; font-size: 0.95rem; 
-    font-weight: 600; cursor: default; /* 鼠标变成默认指针，不是小手 */
+    background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; 
+    padding: 0.65rem 1.4rem; /* 大幅增加内边距让标签变胖 */
+    border-radius: 8px; font-size: 1.1rem; /* 增大字号 */
+    font-weight: 600; cursor: default;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
 }
 
 /* 内容区卡片样式 */
@@ -47,13 +52,22 @@ p, div {font-size: 1.05rem;}
 </style>
 """, unsafe_allow_html=True)
 
-# 3. 首屏横幅区
-col_hero1, col_hero2 = st.columns([1.4, 1], gap="large")
+# 3. 🌟 侧边栏：重新绘制巨大且居中的 Logo
+with st.sidebar:
+    st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True) # 顶部留白
+    # 用 1:3.5:1 的比例，让中间的 Logo 足够大且完美居中
+    col1, col2, col3 = st.columns([1, 3.5, 1])
+    with col2:
+        st.image("TSA.png", use_container_width=True)
+
+# 4. 首屏横幅区
+col_hero1, col_hero2 = st.columns([1.3, 1], gap="large")
 with col_hero1: 
-    st.markdown("<h1 style='color:#0f172a;margin-top:1.5rem;font-size:2.8rem;'>idopNetwork：下一代数据分析平台</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#475569;font-size:1.15rem;line-height:1.7;margin-top:1rem;'>一个面向复杂系统数据的可视化分析工作台，支持从静态数据出发构建动态推演与全景网络洞察。</p>", unsafe_allow_html=True)
+    # 加大标题和副标题字号与行距
+    st.markdown("<h1 style='color:#0f172a;margin-top:2rem;font-size:3.2rem;'>idopNetwork：下一代数据分析平台</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#475569;font-size:1.2rem;line-height:1.8;margin-top:1.5rem;'>一个面向复杂系统数据的可视化分析工作台，支持从静态数据出发构建动态推演与全景网络洞察。</p>", unsafe_allow_html=True)
     
-    # 静态标签，不再像按钮
+    # 放大的饱满静态标签
     st.markdown("""
     <div class="idop-badges">
         <div class="badge-item">💡 Informative</div>
@@ -64,19 +78,18 @@ with col_hero1:
     """, unsafe_allow_html=True)
 
 with col_hero2: 
-    # 使用嵌套的 columns 来给图片加“隐形边距”，让图片变小且居中，缩放更自然
     _, img_col, _ = st.columns([1, 6, 1])
     with img_col:
-        st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
         st.image("IDOP.png", use_container_width=True)
 
 st.divider()
 
-# 4. 核心内容区 (功能模块 + 论文区)
-col_left, col_right = st.columns([1.6, 1], gap="large")
+# 5. 核心内容区 (功能模块 + 论文区)
+# 🌟 优化比例，从 1.6:1 调整为 1.15:1，让左右更加匀称
+col_left, col_right = st.columns([1.15, 1], gap="large")
 
 with col_left:
-    # 将“应用场景”替换为“平台核心工作流”，完美呼应你侧边栏的工具！
     st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>平台核心工作流</h4>", unsafe_allow_html=True)
     
     st.markdown("""
@@ -109,7 +122,6 @@ with col_left:
 with col_right:
     st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>代表性学术成果</h4>", unsafe_allow_html=True)
     
-    # 结构化渲染所有的参考文献，带有可点击跳转的 DOI 链接
     papers_html = """
     <div class='scroll-box'>
         <div class="paper-item">
