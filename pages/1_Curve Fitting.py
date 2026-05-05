@@ -46,6 +46,8 @@ if "allometric_show_data" not in st.session_state:
     st.session_state.allometric_show_data = {}
 if "allometric_plot_params" not in st.session_state:
     st.session_state.allometric_plot_params = {}
+if "allometric_show_curve_params" not in st.session_state:
+    st.session_state.allometric_show_curve_params = {}
 if "allometric_compare_params" not in st.session_state:
     st.session_state.allometric_compare_params = None
 
@@ -368,8 +370,10 @@ with tab2:
                             # 曲线参数
                             with tab_al_params:
                                 if st.button("View Curve Parameters", key=f"allometric_params_view_{file.name}"):
-                                    st.session_state.df_curve_params[file.name] = not st.session_state.df_curve_params.get(file.name)
-                                if st.session_state.df_curve_params.get(file.name):
+                                    st.session_state.allometric_show_curve_params[file.name] = (
+                                        not st.session_state.allometric_show_curve_params.get(file.name, False)
+                                    )
+                                if st.session_state.allometric_show_curve_params.get(file.name):
                                     st.dataframe(st.session_state.df_curve_params[file.name], use_container_width=True)
                 with st.expander("Allometric Scaling Law Compare", expanded=False):
                     scatter_list_compare = [
