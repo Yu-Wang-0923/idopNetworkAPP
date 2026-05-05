@@ -402,7 +402,6 @@ with tab2:
                             if submit_compare_plot:
                                 st.session_state.allometric_compare_params = dict(
                                     show_curve=True,
-                                    scatter_x = "index",
                                     nrow=nrow_cmp,
                                     ncol=ncol_cmp,
                                     nsubfig=nrow_cmp * ncol_cmp,
