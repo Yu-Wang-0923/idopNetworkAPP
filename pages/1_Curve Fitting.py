@@ -477,14 +477,6 @@ with tab2:
                         mime="application/zip",
                         key="export_curve_fitting_zip",
                     )
-            for fname, df in st.session_state.df_original.items():
-                st.download_button(
-                    label=f"Download original: {fname}",
-                    data=df.to_csv(index=False).encode("utf-8"),
-                    file_name=fname,
-                    mime="text/csv",
-                    key=f"export_original_{fname}",
-                )
 
 
 with tab3:
