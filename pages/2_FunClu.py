@@ -20,11 +20,14 @@ if "df_quasi_dynamic" not in st.session_state:
 if "df_curve_sample" not in st.session_state:
     st.session_state.df_curve_sample = {}
 
-uploaded_files = st.file_uploader(
-        label="Please upload your files",
-        type=["csv"],
-        accept_multiple_files=True,
-        help="Supports CSV, multiple files allowed",
+uploaded_file = st.file_uploader(
+        label="Please upload your file",
+        type=["zip"],
+        accept_multiple_files=False,
+        help=(
+            "Upload the ZIP from Curve Fitting: Export Result → "
+            "Export ZIP → Download curve_fitting_export.zip (one file)."
+        ),
         label_visibility="visible",
         max_upload_size=500,
     )
