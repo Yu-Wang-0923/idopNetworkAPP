@@ -22,7 +22,7 @@ st.markdown("""
 
 # 3. 侧边栏：你的专属导航 (带一点点小图标增加专业感)
 with st.sidebar:
-    st.image("tsa_logo.png", width=120)
+    st.image("TSA.png", width=120)
     st.markdown("<br>", unsafe_allow_html=True) # 留点空隙
     st.button("🏠 Home", use_container_width=True)
     st.button("📈 Curve Fitting", use_container_width=True)
