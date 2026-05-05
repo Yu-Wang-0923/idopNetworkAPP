@@ -332,7 +332,7 @@ with tab2:
                                             col1, col2 = st.columns(2)
                                             with col1:
                                                 color_scatter = st.color_picker("Data Color", value="#F9B3AD", key=f"allometric_color_{file.name}")
-                                                color_curve = st.color_picker("Data Color", value="#F9B3AD", key=f"allometric_color_curve_{file.name}")
+                                                color_curve = st.color_picker("Curve Color", value="#F9B3AD", key=f"allometric_color_curve_{file.name}")
                                             with col2:
                                                 subfig_bg = st.color_picker("Subfig Background Color", value="#FFFFFF", key=f"allometric_bg_{file.name}")
                                     submit_allometric_plot = st.form_submit_button("Run Curve Fitting Plot")
