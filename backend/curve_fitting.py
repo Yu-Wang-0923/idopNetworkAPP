@@ -60,6 +60,7 @@ def power_equation(
 
 
 # 拟合幂函数参数 a_j, b_j
+@st.cache_data
 def get_power_function_params(
     quasi_dynamic_df: pd.DataFrame,
 ) -> pd.DataFrame:
