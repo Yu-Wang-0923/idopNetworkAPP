@@ -118,7 +118,7 @@ with tab1:
                                     ncol=ncol,
                                     nsubfig=nsubfig,
                                     scatter_size=scatter_size,
-                                    scatter_x="index",
+                                    scatter_x="sequence",
                                     scatter_linewidth=scatter_linewidth,
                                     color_scatter=color_scatter,
                                     subfig_background_color=subfig_background_color,
