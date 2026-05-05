@@ -328,6 +328,7 @@ with tab2:
                                             with col3:
                                                 scatter_size = st.number_input("Scatter Size", value=100, min_value=1, max_value=1000, step=1, key=f"allometric_scatter_size_{file.name}")
                                                 scatter_linewidth = st.number_input("Line Size", value=1, min_value=1, max_value=10, step=1, key=f"allometric_scatter_lw_{file.name}")
+                                        # 幂函数拟合图配色
                                         with tab_color:
                                             col1, col2 = st.columns(2)
                                             with col1:
