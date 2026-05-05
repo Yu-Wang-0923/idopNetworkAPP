@@ -1,9 +1,11 @@
 import io
+from typing import Tuple
+
 import numpy as np
 import pandas as pd
 import streamlit as st
+from scipy import stats
 from sklearn.preprocessing import MinMaxScaler
-from scipy.optimize import curve_fit
 
 
 # 数据加载
@@ -76,7 +78,65 @@ def power_equation(
     return a * np.power(x, b)
 
 
-# 拟合幂函数参数 a_j, b_j
+def fit_power_loglinear(
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    clip_a: Tuple[float, float] = (1e-8, np.inf),
+    clip_b: Tuple[float, float] = (-np.inf, np.inf),
+) -> Tuple[float, float]:
+    """以双对数线性回归（log-log OLS）拟合幂律 ``y = a * x^b``。
+
+    异速生长律（Huxley, 1932）的标准做法：在 log-log 空间做最小二乘等价于
+    假设乘性（对数正态）噪声，对跨量级的生物学数据更合理；同时具有闭式解，
+    数值稳定、不依赖优化器初值。
+
+    自动过滤 ``x_i <= 0 / y_i <= 0 / 非有限`` 的样本对（``log`` 不能取非正）。
+    若过滤后有效样本数不足 2，或 ``log x`` 方差为 0，回退到 ``(a, b) = (1.0, 0.5)``。
+
+    Args:
+        x: 一维数组。
+        y: 与 ``x`` 等长的一维数组。
+        clip_a: 对 ``a`` 的 ``(lo, hi)`` 裁剪范围，默认 ``(1e-8, +inf)``，
+            防止数值上为零或负。
+        clip_b: 对 ``b`` 的 ``(lo, hi)`` 裁剪范围，默认不裁剪。
+
+    Returns:
+        ``(a, b)`` 两个 Python ``float``。
+
+    Raises:
+        ValueError: ``x`` 与 ``y`` 长度不一致。
+    """
+    x_arr = np.asarray(x, dtype=np.float64).ravel()
+    y_arr = np.asarray(y, dtype=np.float64).ravel()
+    if x_arr.shape != y_arr.shape:
+        raise ValueError(
+            f"x, y 长度不一致: x.shape={x_arr.shape}, y.shape={y_arr.shape}"
+        )
+
+    mask = (x_arr > 0) & (y_arr > 0) & np.isfinite(x_arr) & np.isfinite(y_arr)
+    if int(mask.sum()) < 2:
+        return 1.0, 0.5
+
+    log_x = np.log(x_arr[mask])
+    log_y = np.log(y_arr[mask])
+    try:
+        result = stats.linregress(log_x, log_y)
+        slope = float(result.slope)
+        intercept = float(result.intercept)
+    except Exception:
+        return 1.0, 0.5
+    if not (np.isfinite(slope) and np.isfinite(intercept)):
+        return 1.0, 0.5
+
+    a = float(np.exp(intercept))
+    b = slope
+    a = float(np.clip(a, clip_a[0], clip_a[1]))
+    b = float(np.clip(b, clip_b[0], clip_b[1]))
+    return a, b
+
+
+# 拟合幂函数参数 a_j, b_j（双对数线性回归；与 FunClu 初始化共用底层）
 @st.cache_data
 def get_power_function_params(
     quasi_dynamic_df: pd.DataFrame,
@@ -85,10 +145,7 @@ def get_power_function_params(
     for col in quasi_dynamic_df.columns:
         x = quasi_dynamic_df.index.values.astype(float)
         y = quasi_dynamic_df[col].values.astype(float)
-        mask = (x > 0) & (y > 0)
-        x = x[mask]
-        y = y[mask]
-        a_hat, b_hat = curve_fit(power_equation, x, y, maxfev=50_000)[0]
+        a_hat, b_hat = fit_power_loglinear(x, y)
         results[col] = [a_hat, b_hat]
     return pd.DataFrame(results, index=["a", "b"]).T
 
