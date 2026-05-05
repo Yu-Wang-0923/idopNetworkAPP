@@ -155,7 +155,7 @@ def plot_curve_fitting_compare(
         
         # 样式
         ax.set_title(col, fontsize=11, fontproperties=font_prop)
-        ax.margins(x=0.1, y=0.1)
+        ax.margins(x=0.1, y=0.3)
         ax.xaxis.set_major_locator(plt.MaxNLocator(5))
         ax.yaxis.set_major_locator(plt.MaxNLocator(5))
         for label in ax.get_xticklabels():
