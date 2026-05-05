@@ -1,53 +1,59 @@
 import streamlit as st
+
+# 1. 基础设置
 st.set_page_config(page_title="idopNetwork", page_icon="TSA.png", layout="wide", initial_sidebar_state="expanded")
 
-from backend.utils import load_css
+# 🌟 终极修复：使用原生 st.logo 将图片放在侧边栏最顶端（导航文字的上方）
+st.logo("TSA.png", icon_image="TSA.png")
 
-load_css()
-
-
-# 2. 核心 CSS 样式
+# 2. 核心 CSS 样式（已调浅侧边栏颜色，并增大字号）
 st.markdown("""
 <style>
 #MainMenu,header,footer{visibility:hidden;} .stApp{background:#f8fafc;}
-[data-testid="stSidebar"] {background-color: #2D3748 !important;}
 
-/* 侧边栏导航文字颜色和 Hover 效果 */
-[data-testid="stSidebarNav"] span {color: #f8fafc !important; font-size: 1.05rem; font-weight: 500;}
-[data-testid="stSidebarNav"] a:hover {background-color: rgba(255,255,255,0.1) !important; border-radius: 6px;}
+/* 侧边栏变浅：从原本的 #1e293b 改为更柔和的 #334155 */
+[data-testid="stSidebar"] {background-color: #334155 !important;}
 
-/* Logo 圆角美化 */
-[data-testid="stSidebar"] img {border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);}
+/* 侧边栏导航文字增大 */
+[data-testid="stSidebarNav"] span {color: #f8fafc !important; font-size: 1.15rem !important; font-weight: 500;}
+[data-testid="stSidebarNav"] a:hover {background-color: rgba(255,255,255,0.15) !important; border-radius: 6px;}
 
-/* 新增：Hero区域的 IDOP 小标签样式 */
-.idop-badges {display: flex; gap: 0.8rem; margin-top: 1.5rem;}
-.badge-item {background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.85rem; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: 0.2s;}
-.badge-item:hover {background: #3b82f6; color: white; transform: translateY(-1px);}
+/* 增加整体的正文字号 */
+p, div {font-size: 1.05rem;}
+
+/* IDOP 静态标签样式（去掉悬停上浮效果，让它看起来不像按钮） */
+.idop-badges {display: flex; gap: 0.8rem; margin-top: 1.5rem; flex-wrap: wrap;}
+.badge-item {
+    background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; 
+    padding: 0.4rem 0.9rem; border-radius: 6px; font-size: 0.95rem; 
+    font-weight: 600; cursor: default; /* 鼠标变成默认指针，不是小手 */
+}
 
 /* 内容区卡片样式 */
-.card {background:#fff; padding:1.2rem; border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02); height:100%; transition:0.3s;}
-.card:hover {border-color:#3b82f6; box-shadow:0 4px 8px rgba(59,130,246,0.12); transform: translateY(-2px);}
-.scroll-box {height:360px; overflow-y:auto; background:#fff; padding:1.2rem; border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02);}
+.card {background:#fff; padding:1.4rem; border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02); height:100%; transition:0.3s;}
+.card:hover {border-color:#3b82f6; box-shadow:0 4px 8px rgba(59,130,246,0.12);}
 
-/* 应用场景的标题和小图标 */
-.app-title {font-size: 1.05rem; font-weight: bold; color: #0f172a; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.5rem;}
-.app-desc {font-size: 0.9rem; color: #64748b; line-height: 1.6;}
+/* 论文滚动框调整 */
+.scroll-box {height:450px; overflow-y:auto; background:#fff; padding:1.2rem; border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02);}
+.paper-item {margin-bottom: 1.2rem;}
+.paper-title {font-weight: bold; color: #0f172a; font-size: 1rem;}
+.paper-authors {color: #64748b; font-size: 0.9rem; line-height: 1.5;}
+.paper-link {color: #3b82f6; font-size: 0.9rem; text-decoration: none; font-weight: 500;}
+.paper-link:hover {text-decoration: underline;}
+
+/* 功能模块的标题和小图标 */
+.app-title {font-size: 1.15rem; font-weight: bold; color: #0f172a; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;}
+.app-desc {font-size: 0.95rem; color: #64748b; line-height: 1.6;}
 </style>
 """, unsafe_allow_html=True)
 
-# 3. 侧边栏
-with st.sidebar:
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 2.5, 1])
-    with col2:
-        st.image("TSA.png", use_container_width=True)
-
-# 4. 首屏横幅区
-col_hero1, col_hero2 = st.columns([1.5, 1], gap="large")
+# 3. 首屏横幅区
+col_hero1, col_hero2 = st.columns([1.4, 1], gap="large")
 with col_hero1: 
-    st.markdown("<h1 style='color:#0f172a;margin-top:1rem;font-size:2.6rem;'>idopNetwork：下一代数据分析平台</h1><p style='color:#475569;font-size:1.1rem;line-height:1.7;'>一个面向复杂系统数据的可视化分析工作台，支持从静态数据出发构建动态推演与全景网络洞察。</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='color:#0f172a;margin-top:1.5rem;font-size:2.8rem;'>idopNetwork：下一代数据分析平台</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#475569;font-size:1.15rem;line-height:1.7;margin-top:1rem;'>一个面向复杂系统数据的可视化分析工作台，支持从静态数据出发构建动态推演与全景网络洞察。</p>", unsafe_allow_html=True)
     
-    # 用精致的徽章替换掉原来的大按钮
+    # 静态标签，不再像按钮
     st.markdown("""
     <div class="idop-badges">
         <div class="badge-item">💡 Informative</div>
@@ -58,58 +64,102 @@ with col_hero1:
     """, unsafe_allow_html=True)
 
 with col_hero2: 
-    # 这里直接调用你新上传的 IDOP 图片
-    # 注意：如果你的图片后缀是 .jpg，请把下面的 .png 改成 .jpg
-    st.image("IDOP.png", use_container_width=True)
+    # 使用嵌套的 columns 来给图片加“隐形边距”，让图片变小且居中，缩放更自然
+    _, img_col, _ = st.columns([1, 6, 1])
+    with img_col:
+        st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
+        st.image("IDOP.png", use_container_width=True)
 
 st.divider()
 
-# 5. 核心内容区
+# 4. 核心内容区 (功能模块 + 论文区)
 col_left, col_right = st.columns([1.6, 1], gap="large")
 
 with col_left:
-    st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;'>多学科交叉应用场景</h4>", unsafe_allow_html=True)
+    # 将“应用场景”替换为“平台核心工作流”，完美呼应你侧边栏的工具！
+    st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>平台核心工作流</h4>", unsafe_allow_html=True)
     
-    # 第一个场景：生态与环境
     st.markdown("""
-    <div class='card' style='margin-bottom: 0.8rem;'>
-        <div class='app-title'>🌱 宏观生态与环境驱动</div>
+    <div class='card' style='margin-bottom: 1rem;'>
+        <div class='app-title'>🧩 曲线拟合与特征聚类 (Curve Fitting & FunClu)</div>
         <div class='app-desc'>
-            突破传统相关性分析的局限，精确量化多重环境因子对生态系统（如荒漠草原碳通量）的<b>方向性依赖 (Directional Dependence)</b>。结合 qdODE 推演环境驱动力在不同时空尺度下的动态演化机制。
+            内置高精度拟合算法，针对多源时间序列或纵向观测数据进行特征提取。通过函数型聚类 (Functional Clustering) 降维，识别系统内部具有相似演化轨迹的核心变量模块。
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    # 第二个场景：临床与分子医学
     st.markdown("""
-    <div class='card' style='margin-bottom: 0.8rem;'>
-        <div class='app-title'>🧬 临床疾病推演与分子靶点</div>
-        <div class='card-content app-desc'>
-            深度融合多源组学与高维临床特征，构建单样本特异性网络。支持复杂退行性疾病或免疫系统疾病（如 SLET）的动态轨迹重构，为发掘关键致病模块与个性化诊疗提供计算生物学证据。
+    <div class='card' style='margin-bottom: 1rem;'>
+        <div class='app-title'>🕸️ 全景网络重构 (NetRecon)</div>
+        <div class='app-desc'>
+            突破传统相关性局限，构建带符号的加权有向图。精准量化复杂系统内部的<b>方向性依赖 (Directional Dependence)</b>，支持跨时空、多层级数据的全息互作网络重构。
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # 第三个场景：生理信号与时间序列
     st.markdown("""
     <div class='card'>
-        <div class='app-title'>🧠 复杂纵向生理信号拓扑</div>
+        <div class='app-title'>📊 动态推演与个性化解析 (NetAnal)</div>
         <div class='app-desc'>
-            针对高维、纵向观测的时序生理数据（如 fMRI 脑网络信号、长程心电图序列），构建具有时空一致性的全息网络视图，解析系统状态突变的前兆网络特征。
+            依托 qdODEs 理论模型，将静态拓扑映射为动态演化轨迹。支持突破群体统计平均的局限，生成单样本特异性网络，为精准调控与个性化决策提供数理依据。
         </div>
     </div>
     """, unsafe_allow_html=True)
 
 with col_right:
-    st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;'>已发表的研究论文</h4>", unsafe_allow_html=True)
-    st.markdown("""
+    st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>代表性学术成果</h4>", unsafe_allow_html=True)
+    
+    # 结构化渲染所有的参考文献，带有可点击跳转的 DOI 链接
+    papers_html = """
     <div class='scroll-box'>
-        <b style='color:#0f172a;'>多源组学数据融合的 SLET 动态推演模型</b><br><span style='color:#64748b;font-size:0.85rem;'>2026, 核心期刊</span><hr style='border:none;border-top:1px solid #f1f5f9;margin:0.8rem 0;'>
-        <b style='color:#0f172a;'>复杂系统特征信息的方向性依赖网络分析</b><br><span style='color:#64748b;font-size:0.85rem;'>2025, 国际顶级会议</span><hr style='border:none;border-top:1px solid #f1f5f9;margin:0.8rem 0;'>
-        <b style='color:#0f172a;'>基于 ST-HGNN 的纵向生理数据演化研究</b><br><span style='color:#64748b;font-size:0.85rem;'>2024, 医学信息学期刊</span><hr style='border:none;border-top:1px solid #f1f5f9;margin:0.8rem 0;'>
-        <b style='color:#0f172a;'>基于 qdODE 的环境碳通量时空预测方法</b><br><span style='color:#64748b;font-size:0.85rem;'>2024, 生态学报</span>
+        <div class="paper-item">
+            <div class="paper-title">IdopNetwork as a genomic predictor of drug response.</div>
+            <div class="paper-authors">Che, J., Jin, Y., Gragnoli, C., Yau, S.-T., & Wu, R. (2025). <i>Drug Discovery Today</i>. <br>
+            <a class="paper-link" href="https://doi.org/10.1016/j.drudis.2024.104252" target="_blank">🔗 点击跳转原文</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">Hypernetwork modeling and topology of high-order interactions for complex systems.</div>
+            <div class="paper-authors">Feng, L., Gong, H., Zhang, S., et al. (2024). <i>PNAS</i>. <br>
+            <a class="paper-link" href="https://doi.org/10.1073/pnas.2412220121" target="_blank">🔗 点击跳转原文</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">Network modeling and topology of aging.</div>
+            <div class="paper-authors">Feng, L., Yang, D., Wu, S., et al. (2025). <i>Physics Reports</i>. <br>
+            <a class="paper-link" href="https://doi.org/10.1016/j.physrep.2024.10.006" target="_blank">🔗 点击跳转原文</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">idopNetwork: A network tool to dissect spatial community ecology.</div>
+            <div class="paper-authors">Dong, A., Wu, S., Che, J., Wang, Y., & Wu, R. (2023). <i>Methods in Ecology and Evolution</i>. <br>
+            <a class="paper-link" href="https://doi.org/10.1111/2041-210X.14172" target="_blank">🔗 点击跳转原文</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">The metabolomic physics of complex diseases.</div>
+            <div class="paper-authors">Wu, S., Liu, X., Dong, A., et al. (2023). <i>PNAS</i>. <br>
+            <a class="paper-link" href="https://doi.org/10.1073/pnas.2308496120" target="_blank">🔗 点击跳转原文</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">Graph statistics theory of individualized quantitative genetics under haplotype-resolved genome assembly.</div>
+            <div class="paper-authors">Sun, L., Bian, Y., Yang, D., et al. (2026). <i>PNAS</i>. <br>
+            <a class="paper-link" href="https://doi.org/10.1073/pnas.2600004123" target="_blank">🔗 点击跳转原文</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">Recovering dynamic networks in big static datasets.</div>
+            <div class="paper-authors">Wu, R., & Jiang, L. (2021). <i>Physics Reports</i>. <br>
+            <a class="paper-link" href="https://doi.org/10.1016/j.physrep.2021.01.003" target="_blank">🔗 点击跳转原文</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">Complex network approaches to nonlinear time series analysis.</div>
+            <div class="paper-authors">Zou, Y., Donner, R. V., Marwan, N., Donges, J. F., & Kurths, J. (2019). <i>Physics Reports</i>. <br>
+            <a class="paper-link" href="https://doi.org/10.1016/j.physrep.2018.10.005" target="_blank">🔗 点击跳转原文</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">Topological change of soil microbiota networks for forest resilience under global warming.</div>
+            <div class="paper-authors">Gong, H., Wang, H., Wang, Y., et al. (2024). <i>Physics of Life Reviews</i>. <br>
+            <a class="paper-link" href="https://doi.org/10.1016/j.plrev.2024.08.001" target="_blank">🔗 点击跳转原文</a></div>
+        </div>
     </div>
-    """, unsafe_allow_html=True)
+    """
+    st.markdown(papers_html, unsafe_allow_html=True)
 
 
 
