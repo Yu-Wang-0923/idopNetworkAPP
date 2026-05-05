@@ -260,6 +260,7 @@ with tab2:
                                     st.session_state.quasi_show_data[file.name] = True
                                 if st.session_state.quasi_show_data.get(file.name):
                                     st.dataframe(df_quasi, use_container_width=True)
+                            # 绘制 quasi-dynamic 散点图
                             with tab_qd_plot:
                                 with st.form(key=f"quasi_plot_{file.name}"):
                                     with st.expander("⚙️ Scatter Plot Settings", expanded=False):
