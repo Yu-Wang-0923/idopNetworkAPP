@@ -95,16 +95,15 @@ with tab1:
                                     with col2:
                                         plot_scatter_type = st.selectbox("Plot Type", ["line","scatter"], key=f"plot_scatter_type_{file.name}")
                                     with col3:
-                                        scatter_size = st.number_input("Scatter Size", value=100, min_value=1, max_value=1000, step=1)
+                                        scatter_size = st.number_input("Scatter Size", value=10, min_value=1, max_value=1000, step=1)
                                         scatter_linewidth = st.number_input("Line Size", value=1, min_value=1, max_value=10, step=1)
                                    
                                     nsubfig = nrow * ncol
-                               
                                 # 颜色
                                 with tab_color:
                                     col1, col2 = st.columns(2)
                                     with col1:
-                                        color_scatter = st.color_picker("Data Color", value="#F9B3AD")
+                                        color_scatter = st.color_picker("Data Color", value="#FF7678")
                                         # color_curve = st.color_picker("Curve Color", value="#A06EA5")
                                     with col2:
                                         subfig_background_color = st.color_picker("Subfig Background Color", value="#FFFFFF")
@@ -176,6 +175,13 @@ with tab1:
                                             with col3:
                                                 scatter_size = st.number_input("Scatter Size", value=100, min_value=1, max_value=1000, step=1)
                                                 scatter_linewidth = st.number_input("Line Size", value=1, min_value=1, max_value=10, step=1)
+                                        with tab_color:
+                                            col1, col2 = st.columns(2)
+                                            with col1:
+                                                color_scatter = st.color_picker("Data Color", value="#FF7678")
+                                                # color_curve = st.color_picker("Curve Color", value="#A06EA5")
+                                            with col2:
+                                                subfig_background_color = st.color_picker("Subfig Background Color", value="#FFFFFF")
                                     submit_transform_data_plot = st.form_submit_button("Run Transform Data Plot")
                                     if submit_transform_data_plot:
                                         nsubfig = nrow * ncol
@@ -247,7 +253,7 @@ with tab2:
                                                 nrow = st.number_input("Rows", value=2, min_value=1, max_value=10, step=1, key=f"quasi_nrow_{file.name}")
                                                 ncol = st.number_input("Cols", value=3, min_value=1, max_value=10, step=1, key=f"quasi_ncol_{file.name}")
                                             with col2:
-                                                plot_scatter_type = st.selectbox("Plot Type", ["line", "scatter"], key=f"quasi_scatter_type_{file.name}")
+                                                plot_scatter_type = st.selectbox("Plot Type", ["scatter", "line"], key=f"quasi_scatter_type_{file.name}")
                                             with col3:
                                                 scatter_size = st.number_input("Scatter Size", value=100, min_value=1, max_value=1000, step=1, key=f"quasi_scatter_size_{file.name}")
                                                 scatter_linewidth = st.number_input("Line Size", value=1, min_value=1, max_value=10, step=1, key=f"quasi_scatter_lw_{file.name}")
@@ -318,7 +324,7 @@ with tab2:
                                                 nrow = st.number_input("Rows", value=2, min_value=1, max_value=10, step=1, key=f"allometric_nrow_{file.name}")
                                                 ncol = st.number_input("Cols", value=3, min_value=1, max_value=10, step=1, key=f"allometric_ncol_{file.name}")
                                             with col2:
-                                                plot_scatter_type = st.selectbox("Plot Type", ["line", "scatter"], key=f"allometric_scatter_type_{file.name}")
+                                                plot_scatter_type = st.selectbox("Plot Type", ["scatter", "line"], key=f"allometric_scatter_type_{file.name}")
                                             with col3:
                                                 scatter_size = st.number_input("Scatter Size", value=100, min_value=1, max_value=1000, step=1, key=f"allometric_scatter_size_{file.name}")
                                                 scatter_linewidth = st.number_input("Line Size", value=1, min_value=1, max_value=10, step=1, key=f"allometric_scatter_lw_{file.name}")
