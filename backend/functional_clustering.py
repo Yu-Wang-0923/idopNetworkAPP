@@ -157,7 +157,9 @@ class FunClu:
            ``kmeans_minibatch_threshold`` 自动切换）并跑一次。
         3. 把簇中心按 ``n_t_i`` 切回每个 ``(k, i)`` 的"子中心"。
         4. 对每个 ``(k, i)`` 用双对数线性回归拟合 ``y = a · t^b`` →
-           ``params_mu[k, i] = (a, b)``。
+           ``params_mu[k, i] = (a, b)``，并把结果裁剪到
+           ``a ∈ [1e-8, ∞)`` 与 ``b ∈ [-10, 10]``（允许衰减型 ``b < 0``，
+           同时给极端值兜底）。
         5. 估计 SAD1 的 ``(phi, gamma)``：对该簇所有特征求残差均值序列
            ``r̄ = mean(X_ki - μ_ki)``；``phi`` 取一阶自相关并夹紧到
            ``[-0.99, 0.99]``；``gamma = sqrt(var(r̄) · (1 - phi²) + 1e-6)``。
@@ -263,7 +265,7 @@ class FunClu:
                     t,
                     y_center,
                     clip_a=(1e-8, np.inf),
-                    clip_b=(0.01, 10.0),
+                    clip_b=(-10.0, 10.0),
                 )
                 params_mu_np[k, i, 0] = a
                 params_mu_np[k, i, 1] = b

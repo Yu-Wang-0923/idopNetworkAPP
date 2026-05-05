@@ -168,7 +168,7 @@ def plot_initialization_grid(
                     zorder=1,
                 )
 
-            # 2) 子中心散点
+            # 2) 子中心散点（zorder=4，置于拟合曲线之上，避免被覆盖）
             ax.scatter(
                 t,
                 center,
@@ -176,7 +176,7 @@ def plot_initialization_grid(
                 color=ctr_c,
                 edgecolors="white",
                 linewidths=0.6,
-                zorder=2,
+                zorder=4,
                 label="KMeans center" if not legend_drawn else None,
             )
 
