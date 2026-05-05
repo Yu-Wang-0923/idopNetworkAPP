@@ -12,6 +12,19 @@ def load_csv(file):
     return pd.read_csv(file, index_col=0)
 
 
+def _numeric_frame_for_transform(data: pd.DataFrame) -> pd.DataFrame:
+    """将列转为 float；非数值列无法解析时抛出明确错误，避免 sklearn 在 object 上失败。"""
+    if data.empty:
+        return data.copy()
+    try:
+        return data.apply(pd.to_numeric, errors="raise").astype(np.float64)
+    except ValueError as e:
+        raise ValueError(
+            "数据变换要求所有数据列为可解析数值（object/文本列无法缩放或取 log1p）。"
+            "请检查 CSV：仅将应作为行索引的一列放在首列，其余列应为数值。"
+        ) from e
+
+
 # 数据变换
 @st.cache_data
 def data_transformation(
@@ -21,13 +34,17 @@ def data_transformation(
     if scaler_type == "none":
         return data.copy()
     if scaler_type == "rescale_to_-1_1":
-        scaled = MinMaxScaler(feature_range=(-1, 1)).fit_transform(data)
+        num = _numeric_frame_for_transform(data)
+        scaled = MinMaxScaler(feature_range=(-1, 1)).fit_transform(num)
     elif scaler_type == "rescale_to_0_1":
-        scaled = MinMaxScaler(feature_range=(0, 1)).fit_transform(data)
+        num = _numeric_frame_for_transform(data)
+        scaled = MinMaxScaler(feature_range=(0, 1)).fit_transform(num)
     elif scaler_type == "log1p":
-        if (data < -1).any().any():
+        num = _numeric_frame_for_transform(data)
+        if (num < -1).any().any():
             raise ValueError("log1p 变换要求所有数值列数据均大于等于 -1。")
-        scaled = data.apply(np.log1p, axis=0)
+        scaled = num.apply(np.log1p, axis=0)
+        return pd.DataFrame(scaled, columns=data.columns, index=data.index)
     else:
         raise ValueError(f"不支持的数据变换类型: {scaler_type}")
     return pd.DataFrame(scaled, columns=data.columns, index=data.index)

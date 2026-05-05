@@ -437,33 +437,8 @@ with tab2:
                 fname in dq and fname in ds and fname in dp
                 for fname in st.session_state.df_original
             )
-            if all_ready:
-                buf = io.BytesIO()
-                with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-                    for fname in st.session_state.df_original:
-                        sub = _safe_zip_subdir(fname)
-                        prefix = f"{sub}/"
-                        zf.writestr(
-                            f"{prefix}quasi_dynamic.csv",
-                            dq[fname].to_csv(index=True).encode("utf-8"),
-                        )
-                        zf.writestr(
-                            f"{prefix}curve_sample.csv",
-                            ds[fname].to_csv(index=True).encode("utf-8"),
-                        )
-                        zf.writestr(
-                            f"{prefix}curve_params.csv",
-                            dp[fname].to_csv(index=True).encode("utf-8"),
-                        )
-                buf.seek(0)
-                st.download_button(
-                    label="Download all curve-fitting tables (ZIP, with index)",
-                    data=buf.getvalue(),
-                    file_name="curve_fitting_export.zip",
-                    mime="application/zip",
-                    key="export_curve_fitting_zip",
-                )
-            else:
+            if not all_ready:
+                st.session_state.pop("curve_fitting_export_zip", None)
                 missing = [
                     fname
                     for fname in st.session_state.df_original
@@ -474,6 +449,34 @@ with tab2:
                     "curve sample, and curve parameter tables. Not ready for: "
                     + ", ".join(missing)
                 )
+            else:
+                if st.button("Export ZIP", key="curve_fitting_build_export_zip"):
+                    buf = io.BytesIO()
+                    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                        for fname in st.session_state.df_original:
+                            sub = _safe_zip_subdir(fname)
+                            prefix = f"{sub}/"
+                            zf.writestr(
+                                f"{prefix}quasi_dynamic.csv",
+                                dq[fname].to_csv(index=True).encode("utf-8"),
+                            )
+                            zf.writestr(
+                                f"{prefix}curve_sample.csv",
+                                ds[fname].to_csv(index=True).encode("utf-8"),
+                            )
+                            zf.writestr(
+                                f"{prefix}curve_params.csv",
+                                dp[fname].to_csv(index=True).encode("utf-8"),
+                            )
+                    st.session_state["curve_fitting_export_zip"] = buf.getvalue()
+                if st.session_state.get("curve_fitting_export_zip"):
+                    st.download_button(
+                        label="Download curve_fitting_export.zip",
+                        data=st.session_state["curve_fitting_export_zip"],
+                        file_name="curve_fitting_export.zip",
+                        mime="application/zip",
+                        key="export_curve_fitting_zip",
+                    )
             for fname, df in st.session_state.df_original.items():
                 st.download_button(
                     label=f"Download original: {fname}",
