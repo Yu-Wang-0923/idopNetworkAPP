@@ -37,7 +37,7 @@ def plot_curve_fitting(
     subfig_background_color="#FFFFFF",
 ):
     GOLDEN_RATIO = 1.618  # 黄金分割比
-    base_height = 1       # 单行基准高度（英寸）
+    base_height = 10       # 单行基准高度（英寸）
     base_width = base_height * GOLDEN_RATIO  # 单列宽度更宽
     
     selected_cols = df_scatter.columns.tolist()
