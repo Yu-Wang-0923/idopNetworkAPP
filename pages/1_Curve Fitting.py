@@ -109,7 +109,7 @@ with tab1:
                                         subfig_background_color = st.color_picker("Subfig Background Color", value="#FFFFFF")
   
                             submit_original_data_plot = st.form_submit_button("Run Original Data Plot")
-
+                            # 原始数据绘图区
                             if submit_original_data_plot:
                                 st.session_state.original_plot_params[file.name] = dict(
                                     plot_scatter_type=plot_scatter_type,
