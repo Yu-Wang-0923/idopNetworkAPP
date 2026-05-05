@@ -48,7 +48,7 @@ def plot_initialization_grid(
     cluster_label_prefix: str = "M",
     layout: str = "k_by_l",
     figsize_per_panel: Tuple[float, float] = (3.0, 2.2),
-    member_alpha: float = 0.25,
+    member_alpha: float = 0.75,
     member_lw: float = 0.8,
     center_marker_size: float = 28.0,
     fit_lw: float = 2.0,
