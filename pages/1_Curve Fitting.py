@@ -10,6 +10,7 @@ from backend.curve_fitting import (
     data_transformation,
     get_quasi_dynamic_df,
     get_power_function_sample,
+    get_power_function_params,
 )
 from backend.plot_curve_fitting import plot_curve_fitting, plot_curve_fitting_compare
 from backend.utils import load_css
@@ -27,6 +28,8 @@ if "df_quasi_dynamic" not in st.session_state:
     st.session_state.df_quasi_dynamic = {}
 if "df_curve_sample" not in st.session_state:
     st.session_state.df_curve_sample = {}
+if "df_curve_params" not in st.session_state:
+    st.session_state.df_curve_params = {}
 if "original_plot_params" not in st.session_state:
     st.session_state.original_plot_params = {}
 if "transform_plot_params" not in st.session_state:
@@ -227,6 +230,7 @@ with tab2:
             if submit_quasi:
                 for file in uploaded_files:
                     if file.name in st.session_state.df_transform:
+                        # 加载并缓存 quasi-dynamic DataFrame df_quasi_dynamic
                         df_transform = st.session_state.df_transform[file.name]
                         df_quasi_dynamic = get_quasi_dynamic_df(df_transform)
                         st.session_state.df_quasi_dynamic[file.name] = df_quasi_dynamic
@@ -234,6 +238,7 @@ with tab2:
             if st.session_state.df_quasi_dynamic:
                 for file in uploaded_files:
                     if file.name in st.session_state.df_quasi_dynamic:
+                        # 加载并缓存 quasi-dynamic DataFrame df_quasi
                         df_quasi = st.session_state.df_quasi_dynamic[file.name]
                         with st.expander(f"Quasi Dynamic: {file.name}", expanded=False):
                             tab_qd_data, tab_qd_plot = st.tabs([
@@ -296,8 +301,12 @@ with tab2:
                 for file in uploaded_files:
                     if file.name in st.session_state.df_quasi_dynamic:
                         df_quasi_dynamic = st.session_state.df_quasi_dynamic[file.name]
+                        # 加载并缓存幂函数拟合曲线采样值 df_curve_sample
                         df_curve_sample = get_power_function_sample(df_quasi_dynamic)
                         st.session_state.df_curve_sample[file.name] = df_curve_sample
+                        # 加载并缓存幂函数拟合曲线参数 df_curve_params
+                        df_curve_params = get_power_function_params(df_quasi_dynamic)
+                        st.session_state.df_curve_params[file.name] = df_curve_params
                 st.success("Success")
             if st.session_state.df_curve_sample:
                 for file in uploaded_files:
@@ -305,8 +314,8 @@ with tab2:
                         df_quasi = st.session_state.df_quasi_dynamic[file.name]
                         df_curve = st.session_state.df_curve_sample[file.name]
                         with st.expander(f"Allometric Scaling Law: {file.name}", expanded=False):
-                            tab_al_data, tab_al_plot = st.tabs([
-                                "Data Overview", "Curve Fitting Plot"
+                            tab_al_data, tab_al_plot, tab_al_params = st.tabs([
+                                "Data Overview", "Curve Fitting Plot","Curve Parameters"
                             ])
                             with tab_al_data:
                                 if st.button("View Data", key=f"allometric_view_{file.name}"):
@@ -356,7 +365,9 @@ with tab2:
                                         df_curve=df_curve,
                                         **st.session_state.allometric_plot_params[file.name],
                                     )
-
+                            # 曲线参数
+                            with tab_al_params:
+                                st.dataframe(df_curve_params, use_container_width=True)
                 with st.expander("Allometric Scaling Law Compare", expanded=False):
                     scatter_list_compare = [
                         st.session_state.df_quasi_dynamic[f.name]
