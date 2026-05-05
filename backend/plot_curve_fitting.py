@@ -24,7 +24,7 @@ def plot_curve_fitting(
     scatter_linewidth=2,
     show_curve=True, # 是否显示曲线
     margins_x=0.1,
-    margins_y=0.2,
+    margins_y=0.5,
 
 
 
