@@ -305,16 +305,14 @@ with tab2:
                         df_quasi = st.session_state.df_quasi_dynamic[file.name]
                         df_curve = st.session_state.df_curve_sample[file.name]
                         with st.expander(f"Allometric Scaling Law: {file.name}", expanded=False):
-                            tab_al_data, tab_al_desc, tab_al_plot = st.tabs([
-                                "Data Overview", "Descriptive Statistics", "Curve Fitting Plot"
+                            tab_al_data, tab_al_plot = st.tabs([
+                                "Data Overview", "Curve Fitting Plot"
                             ])
                             with tab_al_data:
                                 if st.button("View Data", key=f"allometric_view_{file.name}"):
                                     st.session_state.allometric_show_data[file.name] = True
                                 if st.session_state.allometric_show_data.get(file.name):
                                     st.dataframe(df_quasi, use_container_width=True)
-                            with tab_al_desc:
-                                st.dataframe(df_quasi.describe(), use_container_width=True)
                             with tab_al_plot:
                                 with st.form(key=f"allometric_plot_{file.name}"):
                                     with st.expander("⚙️ Curve Fitting Plot Settings", expanded=False):
