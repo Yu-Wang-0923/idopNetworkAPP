@@ -2,7 +2,7 @@
 /* 1. 整个Streamlit应用根容器样式   c8d8e8 */ 
 .stApp {
     /* 背景：紫蓝色渐变 */
-    background: linear-gradient(135deg, #f0f4f8 0%, #a74d1a 100%) !important;
+    background: linear-gradient(135deg, #f0f4f8 0%, #c8d8e8 100%) !important;
     /* 全局统一字体 */
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
 }
