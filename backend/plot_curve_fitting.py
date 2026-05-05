@@ -13,6 +13,7 @@ def plot_curve_fitting(
     df_scatter,
     df_curve,
     plot_scatter_type="line",
+    show_curve=True, # 是否显示曲线
 
 
     # 布局
@@ -22,10 +23,9 @@ def plot_curve_fitting(
     scatter_x="sequence",
     scatter_size=100,
     scatter_linewidth=2,
-    show_curve=True, # 是否显示曲线
+    
     margins_x=0.1,
     margins_y=0.2,
-
 
 
     # 标签
@@ -37,7 +37,7 @@ def plot_curve_fitting(
     subfig_background_color="#FFFFFF",
 ):
     GOLDEN_RATIO = 1.618  # 黄金分割比
-    base_height = 2       # 单行基准高度（英寸）
+    base_height = 1       # 单行基准高度（英寸）
     base_width = base_height * GOLDEN_RATIO  # 单列宽度更宽
     
     selected_cols = df_scatter.columns.tolist()
