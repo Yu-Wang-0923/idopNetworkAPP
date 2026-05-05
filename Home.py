@@ -1,5 +1,5 @@
 import streamlit as st
-st.set_page_config(page_title="idopNetwork",page_icon="<(*￣▽￣*)/",layout="wide",initial_sidebar_state="expanded")
+st.set_page_config(page_title="idopNetwork", page_icon="TSA.png", layout="wide", initial_sidebar_state="expanded")
 
 from backend.utils import load_css
 
@@ -330,7 +330,6 @@ st.markdown(
     <div class="affiliation">
         复杂系统拓扑统计理论及应用北京市重点实验室<br/>
         北京雁栖湖应用数学研究院
-        郭佳泽 王宇
     </div>
     """,
     unsafe_allow_html=True,
