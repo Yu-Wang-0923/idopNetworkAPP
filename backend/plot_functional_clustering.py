@@ -175,7 +175,8 @@ def plot_initialization_grid(
                 s=center_marker_size,
                 color=ctr_c,
                 edgecolors="black",
-                linewidths=0.6,
+                linewidths=0.3,
+                alpha=0.25,
                 zorder=4,
                 label="KMeans center" if not legend_drawn else None,
             )
