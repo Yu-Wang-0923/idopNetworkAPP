@@ -367,7 +367,8 @@ with tab2:
                                     )
                             # 曲线参数
                             with tab_al_params:
-                                st.dataframe(df_curve_params, use_container_width=True)
+                                if file.name in st.session_state.df_curve_params:
+                                    st.dataframe(st.session_state.df_curve_params[file.name], use_container_width=True)
                 with st.expander("Allometric Scaling Law Compare", expanded=False):
                     scatter_list_compare = [
                         st.session_state.df_quasi_dynamic[f.name]
