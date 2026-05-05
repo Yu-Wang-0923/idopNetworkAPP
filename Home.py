@@ -3,9 +3,7 @@ import streamlit as st
 # 1. 基础设置
 st.set_page_config(page_title="idopNetwork", page_icon="TSA.png", layout="wide", initial_sidebar_state="expanded")
 
-# (删除了死板的 st.logo，我们在下面的 sidebar 里自己画一个大的)
-
-# 2. 核心 CSS 样式（已大幅优化版面结构）
+# 2. 核心 CSS 样式（包含布局优化与原生导航隐藏）
 st.markdown("""
 <style>
 #MainMenu,header,footer{visibility:hidden;} .stApp{background:#f8fafc;}
@@ -13,61 +11,68 @@ st.markdown("""
 /* 侧边栏底色 */
 [data-testid="stSidebar"] {background-color: #334155 !important;}
 
-/* 🌟 强行把导航菜单往下推，给 Logo 留出宽裕的空间 */
-[data-testid="stSidebarNav"] {margin-top: 1.5rem !important;} 
-[data-testid="stSidebarNav"] span {color: #f8fafc !important; font-size: 1.15rem !important; font-weight: 500;}
-[data-testid="stSidebarNav"] a:hover {background-color: rgba(255,255,255,0.15) !important; border-radius: 6px;}
-
-/* 增加整体的正文字号 */
-p, div {font-size: 1.05rem;}
+/* 🌟 隐藏 Streamlit 默认的丑陋导航栏，我们下面自己写一个带图标的！ */
+[data-testid="stSidebarNav"] {display: none !important;}
 
 /* Logo 圆角与阴影美化 */
 [data-testid="stSidebar"] img {border-radius: 22px; box-shadow: 0 6px 16px rgba(0,0,0,0.25);}
 
-/* 🌟 放大 IDOP 静态标签，填补空白，增加质感 */
-.idop-badges {display: flex; gap: 1rem; margin-top: 2.5rem; flex-wrap: wrap;}
+/* 自定义侧边栏导航链接的样式 */
+.stPageLink a {text-decoration: none !important; padding: 0.2rem 0; transition: all 0.2s;}
+.stPageLink a p {color: #f8fafc !important; font-size: 1.15rem !important; font-weight: 500;}
+.stPageLink:hover {background-color: rgba(255,255,255,0.15) !important; border-radius: 6px;}
+
+/* 增加整体的正文字号 */
+p, div {font-size: 1.05rem;}
+
+/* IDOP 静态标签 */
+.idop-badges {display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap;}
 .badge-item {
     background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; 
-    padding: 0.65rem 1.4rem; /* 大幅增加内边距让标签变胖 */
-    border-radius: 8px; font-size: 1.1rem; /* 增大字号 */
-    font-weight: 600; cursor: default;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+    padding: 0.65rem 1.4rem; border-radius: 8px; font-size: 1.1rem; 
+    font-weight: 600; cursor: default; box-shadow: 0 2px 4px rgba(0,0,0,0.03);
 }
 
-/* 内容区卡片样式 */
-.card {background:#fff; padding:1.4rem; border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02); height:100%; transition:0.3s;}
-.card:hover {border-color:#3b82f6; box-shadow:0 4px 8px rgba(59,130,246,0.12);}
+/* 🌟 可点击的内容区卡片样式 */
+.card-link {text-decoration: none !important;}
+.card {background:#fff; padding:1.2rem; border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02); margin-bottom: 0.8rem; transition:0.3s;}
+.card:hover {border-color:#3b82f6; box-shadow:0 4px 12px rgba(59,130,246,0.15); transform: translateY(-2px);}
+.card-title {font-size: 1.1rem; font-weight: bold; color: #0f172a; margin-bottom: 0.4rem; display: flex; align-items: center; justify-content: space-between;}
+.card-desc {font-size: 0.95rem; color: #64748b; line-height: 1.5; margin-bottom:0;}
 
 /* 论文滚动框调整 */
-.scroll-box {height:450px; overflow-y:auto; background:#fff; padding:1.2rem; border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02);}
-.paper-item {margin-bottom: 1.2rem;}
-.paper-title {font-weight: bold; color: #0f172a; font-size: 1rem;}
-.paper-authors {color: #64748b; font-size: 0.9rem; line-height: 1.5;}
-.paper-link {color: #3b82f6; font-size: 0.9rem; text-decoration: none; font-weight: 500;}
+.scroll-box {height:480px; overflow-y:auto; background:#fff; padding:1.2rem; border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02);}
+.paper-item {margin-bottom: 1.2rem; padding-bottom: 0.8rem; border-bottom: 1px dashed #e2e8f0;}
+.paper-item:last-child {border-bottom: none;}
+.paper-title {font-weight: 600; color: #0f172a; font-size: 1.05rem; display: flex; gap: 0.4rem;}
+.paper-authors {color: #475569; font-size: 0.9rem; line-height: 1.5; margin-top: 0.3rem;}
+.paper-link {color: #3b82f6; font-size: 0.85rem; text-decoration: none; font-weight: 500;}
 .paper-link:hover {text-decoration: underline;}
-
-/* 功能模块的标题和小图标 */
-.app-title {font-size: 1.15rem; font-weight: bold; color: #0f172a; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;}
-.app-desc {font-size: 0.95rem; color: #64748b; line-height: 1.6;}
 </style>
 """, unsafe_allow_html=True)
 
-# 3. 🌟 侧边栏：重新绘制巨大且居中的 Logo
+# 3. 🌟 完美侧边栏：大 Logo 在上，导航按钮在下
 with st.sidebar:
-    st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True) # 顶部留白
-    # 用 1:3.5:1 的比例，让中间的 Logo 足够大且完美居中
+    st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True) 
     col1, col2, col3 = st.columns([1, 3.5, 1])
     with col2:
         st.image("TSA.png", use_container_width=True)
+    
+    st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
+    # 利用 Streamlit 原生组件构建侧边栏路由
+    st.page_link("Home.py", label="Home", icon="🏠")
+    st.page_link("pages/1_Curve Fitting.py", label="Curve Fitting", icon="📈")
+    st.page_link("pages/2_FunClu.py", label="FunClu", icon="🧩")
+    st.page_link("pages/3_NetRecon.py", label="NetRecon", icon="🕸️")
+    st.page_link("pages/4_NetAnal.py", label="NetAnal", icon="📊")
 
-# 4. 首屏横幅区
+# 4. 首屏横幅区 (标题上移)
 col_hero1, col_hero2 = st.columns([1.3, 1], gap="large")
 with col_hero1: 
-    # 加大标题和副标题字号与行距
-    st.markdown("<h1 style='color:#0f172a;margin-top:2rem;font-size:3.2rem;'>idopNetwork：下一代数据分析平台</h1>", unsafe_allow_html=True)
+    # 缩小了 margin-top，让标题靠上
+    st.markdown("<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>idopNetwork：下一代数据分析平台</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color:#475569;font-size:1.2rem;line-height:1.8;margin-top:1.5rem;'>一个面向复杂系统数据的可视化分析工作台，支持从静态数据出发构建动态推演与全景网络洞察。</p>", unsafe_allow_html=True)
     
-    # 放大的饱满静态标签
     st.markdown("""
     <div class="idop-badges">
         <div class="badge-item">💡 Informative</div>
@@ -80,113 +85,258 @@ with col_hero1:
 with col_hero2: 
     _, img_col, _ = st.columns([1, 6, 1])
     with img_col:
-        st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
         st.image("IDOP.png", use_container_width=True)
 
 st.divider()
 
-# 5. 核心内容区 (功能模块 + 论文区)
-# 🌟 优化比例，从 1.6:1 调整为 1.15:1，让左右更加匀称
+# 5. 核心内容区 (1.15:1 比例)
 col_left, col_right = st.columns([1.15, 1], gap="large")
 
 with col_left:
     st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>平台核心工作流</h4>", unsafe_allow_html=True)
     
+    # 将 4 个模块拆分开，并加入 <a> 标签实现点击跳转
+    # 注意：href 里的链接与 Streamlit 默认的 URL 路由规则对应
     st.markdown("""
-    <div class='card' style='margin-bottom: 1rem;'>
-        <div class='app-title'>🧩 曲线拟合与特征聚类 (Curve Fitting & FunClu)</div>
-        <div class='app-desc'>
-            内置高精度拟合算法，针对多源时间序列或纵向观测数据进行特征提取。通过函数型聚类 (Functional Clustering) 降维，识别系统内部具有相似演化轨迹的核心变量模块。
+    <a href="1_Curve_Fitting" target="_self" class="card-link">
+        <div class='card'>
+            <div class='card-title'><span>📈 曲线拟合 (Curve Fitting)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 ➔</span></div>
+            <div class='card-desc'>内置高精度拟合算法，针对多源时间序列或纵向观测数据进行特征提取与降噪。</div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class='card' style='margin-bottom: 1rem;'>
-        <div class='app-title'>🕸️ 全景网络重构 (NetRecon)</div>
-        <div class='app-desc'>
-            突破传统相关性局限，构建带符号的加权有向图。精准量化复杂系统内部的<b>方向性依赖 (Directional Dependence)</b>，支持跨时空、多层级数据的全息互作网络重构。
+    </a>
+    <a href="2_FunClu" target="_self" class="card-link">
+        <div class='card'>
+            <div class='card-title'><span>🧩 特征聚类 (FunClu)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 ➔</span></div>
+            <div class='card-desc'>通过函数型聚类 (Functional Clustering) 降维，识别系统内部具有相似演化轨迹的核心变量模块。</div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("""
-    <div class='card'>
-        <div class='app-title'>📊 动态推演与个性化解析 (NetAnal)</div>
-        <div class='app-desc'>
-            依托 qdODEs 理论模型，将静态拓扑映射为动态演化轨迹。支持突破群体统计平均的局限，生成单样本特异性网络，为精准调控与个性化决策提供数理依据。
+    </a>
+    <a href="3_NetRecon" target="_self" class="card-link">
+        <div class='card'>
+            <div class='card-title'><span>🕸️ 全景网络重构 (NetRecon)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 ➔</span></div>
+            <div class='card-desc'>突破传统相关性局限，构建带符号的加权有向图。精准量化复杂系统内部的方向性依赖 (Directional Dependence)。</div>
         </div>
-    </div>
+    </a>
+    <a href="4_NetAnal" target="_self" class="card-link">
+        <div class='card'>
+            <div class='card-title'><span>📊 动态推演与解析 (NetAnal)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 ➔</span></div>
+            <div class='card-desc'>依托 qdODEs 理论模型，将静态拓扑映射为动态演化轨迹，生成单样本特异性网络并提供全息解析。</div>
+        </div>
+    </a>
     """, unsafe_allow_html=True)
 
 with col_right:
     st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>代表性学术成果</h4>", unsafe_allow_html=True)
     
+    # 46 篇论文全收录，按年份降序，年份加粗，期刊斜体，带 📄 图标
     papers_html = """
     <div class='scroll-box'>
         <div class="paper-item">
-            <div class="paper-title">IdopNetwork as a genomic predictor of drug response.</div>
-            <div class="paper-authors">Che, J., Jin, Y., Gragnoli, C., Yau, S.-T., & Wu, R. (2025). <i>Drug Discovery Today</i>. <br>
-            <a class="paper-link" href="https://doi.org/10.1016/j.drudis.2024.104252" target="_blank">🔗 点击跳转原文</a></div>
+            <div class="paper-title">📄 Graph statistics theory of individualized quantitative genetics under haplotype-resolved genome assembly.</div>
+            <div class="paper-authors">Sun, L., Bian, Y., Yang, D., et al. (<b>2026</b>). <i>Proceedings of the National Academy of Sciences</i>.<br><a class="paper-link" href="https://doi.org/10.1073/pnas.2600004123" target="_blank">🔗 doi: 10.1073/pnas.2600004123</a></div>
         </div>
         <div class="paper-item">
-            <div class="paper-title">Hypernetwork modeling and topology of high-order interactions for complex systems.</div>
-            <div class="paper-authors">Feng, L., Gong, H., Zhang, S., et al. (2024). <i>PNAS</i>. <br>
-            <a class="paper-link" href="https://doi.org/10.1073/pnas.2412220121" target="_blank">🔗 点击跳转原文</a></div>
+            <div class="paper-title">📄 A statistical mechanics model to decode tissue crosstalk during graft formation.</div>
+            <div class="paper-authors">Dong, A., Meng, Y., Yau, S. S.-T., et al. (<b>2026</b>). <i>Advanced Science</i>.<br><a class="paper-link" href="https://doi.org/10.1002/advs.202523373" target="_blank">🔗 doi: 10.1002/advs.202523373</a></div>
         </div>
         <div class="paper-item">
-            <div class="paper-title">Network modeling and topology of aging.</div>
-            <div class="paper-authors">Feng, L., Yang, D., Wu, S., et al. (2025). <i>Physics Reports</i>. <br>
-            <a class="paper-link" href="https://doi.org/10.1016/j.physrep.2024.10.006" target="_blank">🔗 点击跳转原文</a></div>
+            <div class="paper-title">📄 An omnigenic interactome model to chart the genetic architecture of individual plants.</div>
+            <div class="paper-authors">Fa, C., Wang, G., Pan, W., et al. (<b>2026</b>). <i>Horticulture Research</i>.<br><a class="paper-link" href="https://doi.org/10.1093/hr/uhaf345" target="_blank">🔗 doi: 10.1093/hr/uhaf345</a></div>
         </div>
         <div class="paper-item">
-            <div class="paper-title">idopNetwork: A network tool to dissect spatial community ecology.</div>
-            <div class="paper-authors">Dong, A., Wu, S., Che, J., Wang, Y., & Wu, R. (2023). <i>Methods in Ecology and Evolution</i>. <br>
-            <a class="paper-link" href="https://doi.org/10.1111/2041-210X.14172" target="_blank">🔗 点击跳转原文</a></div>
+            <div class="paper-title">📄 Network stress: A wiring diagram of whole stress genes.</div>
+            <div class="paper-authors">Wang, Y., & Wu, R. (<b>2026</b>). <i>Horticulture Research</i>.<br><a class="paper-link" href="https://doi.org/10.1093/hr/uhaf302" target="_blank">🔗 doi: 10.1093/hr/uhaf302</a></div>
         </div>
         <div class="paper-item">
-            <div class="paper-title">The metabolomic physics of complex diseases.</div>
-            <div class="paper-authors">Wu, S., Liu, X., Dong, A., et al. (2023). <i>PNAS</i>. <br>
-            <a class="paper-link" href="https://doi.org/10.1073/pnas.2308496120" target="_blank">🔗 点击跳转原文</a></div>
+            <div class="paper-title">📄 Statistical learning of stochastic complex systems via the yau-yau nonlinear filter.</div>
+            <div class="paper-authors">Xu, S., Wang, Y., Wu, S., et al. (<b>2026</b>). <i>The Innovation</i>.<br><a class="paper-link" href="https://doi.org/10.1016/j.xinn.2026.101267" target="_blank">🔗 doi: 10.1016/j.xinn.2026.101267</a></div>
+        </div>
+
+        <div class="paper-item">
+            <div class="paper-title">📄 IdopNetwork as a genomic predictor of drug response.</div>
+            <div class="paper-authors">Che, J., Jin, Y., Gragnoli, C., et al. (<b>2025</b>). <i>Drug Discovery Today</i>.<br><a class="paper-link" href="https://doi.org/10.1016/j.drudis.2024.104252" target="_blank">🔗 doi: 10.1016/j.drudis.2024.104252</a></div>
         </div>
         <div class="paper-item">
-            <div class="paper-title">Graph statistics theory of individualized quantitative genetics under haplotype-resolved genome assembly.</div>
-            <div class="paper-authors">Sun, L., Bian, Y., Yang, D., et al. (2026). <i>PNAS</i>. <br>
-            <a class="paper-link" href="https://doi.org/10.1073/pnas.2600004123" target="_blank">🔗 点击跳转原文</a></div>
+            <div class="paper-title">📄 High-order interaction modeling of tumor-microenvironment crosstalk for tumor growth.</div>
+            <div class="paper-authors">Che, J., Wang, Y., Feng, L., et al. (<b>2025</b>). <i>Physics of Life Reviews</i>.<br><a class="paper-link" href="https://doi.org/10.1016/j.plrev.2025.05.007" target="_blank">🔗 doi: 10.1016/j.plrev.2025.05.007</a></div>
         </div>
         <div class="paper-item">
-            <div class="paper-title">Recovering dynamic networks in big static datasets.</div>
-            <div class="paper-authors">Wu, R., & Jiang, L. (2021). <i>Physics Reports</i>. <br>
-            <a class="paper-link" href="https://doi.org/10.1016/j.physrep.2021.01.003" target="_blank">🔗 点击跳转原文</a></div>
+            <div class="paper-title">📄 Network modeling and topology of aging.</div>
+            <div class="paper-authors">Feng, L., Yang, D., Wu, S., et al. (<b>2025</b>). <i>Physics Reports</i>.<br><a class="paper-link" href="https://doi.org/10.1016/j.physrep.2024.10.006" target="_blank">🔗 doi: 10.1016/j.physrep.2024.10.006</a></div>
         </div>
         <div class="paper-item">
-            <div class="paper-title">Complex network approaches to nonlinear time series analysis.</div>
-            <div class="paper-authors">Zou, Y., Donner, R. V., Marwan, N., Donges, J. F., & Kurths, J. (2019). <i>Physics Reports</i>. <br>
-            <a class="paper-link" href="https://doi.org/10.1016/j.physrep.2018.10.005" target="_blank">🔗 点击跳转原文</a></div>
+            <div class="paper-title">📄 idopNetwork analysis of salt-responsive transcriptomes reveals hub regulatory modules and genes in populus euphratica.</div>
+            <div class="paper-authors">Wu, S., Pan, W., & Dong, A. (<b>2025</b>). <i>International Journal of Molecular Sciences</i>.<br><a class="paper-link" href="https://doi.org/10.3390/ijms26094091" target="_blank">🔗 doi: 10.3390/ijms26094091</a></div>
         </div>
         <div class="paper-item">
-            <div class="paper-title">Topological change of soil microbiota networks for forest resilience under global warming.</div>
-            <div class="paper-authors">Gong, H., Wang, H., Wang, Y., et al. (2024). <i>Physics of Life Reviews</i>. <br>
-            <a class="paper-link" href="https://doi.org/10.1016/j.plrev.2024.08.001" target="_blank">🔗 点击跳转原文</a></div>
+            <div class="paper-title">📄 Disentangling complex systems: IdopNetwork meets GLMY homology theory.</div>
+            <div class="paper-authors">Wu, S., & Zhang, M. (<b>2025</b>). <i>Data Analytics and Topology</i>.</div>
+        </div>
+
+        <div class="paper-item">
+            <div class="paper-title">📄 Hypernetwork modeling and topology of high-order interactions for complex systems.</div>
+            <div class="paper-authors">Feng, L., Gong, H., Zhang, S., et al. (<b>2024</b>). <i>Proceedings of the National Academy of Sciences</i>.<br><a class="paper-link" href="https://doi.org/10.1073/pnas.2412220121" target="_blank">🔗 doi: 10.1073/pnas.2412220121</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 Topological change of soil microbiota networks for forest resilience under global warming.</div>
+            <div class="paper-authors">Gong, H., Wang, H., Wang, Y., et al. (<b>2024</b>). <i>Physics of Life Reviews</i>.<br><a class="paper-link" href="https://doi.org/10.1016/j.plrev.2024.08.001" target="_blank">🔗 doi: 10.1016/j.plrev.2024.08.001</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 Genome-wide network analysis of above- and below-ground Co-growth in populus euphratica.</div>
+            <div class="paper-authors">Lu, K., Gong, H., Yang, D., et al. (<b>2024</b>). <i>Plant Phenomics</i>.<br><a class="paper-link" href="https://doi.org/10.34133/plantphenomics.0131" target="_blank">🔗 doi: 10.34133/plantphenomics.0131</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 Mapping the influence of light intensity on the transgenerational genetic architecture of arabidopsis thaliana.</div>
+            <div class="paper-authors">Mei, J., Che, J., Shi, Y., et al. (<b>2024</b>). <i>Current Issues in Molecular Biology</i>.<br><a class="paper-link" href="https://doi.org/10.3390/cimb46080482" target="_blank">🔗 doi: 10.3390/cimb46080482</a></div>
+        </div>
+
+        <div class="paper-item">
+            <div class="paper-title">📄 idopNetwork: A network tool to dissect spatial community ecology.</div>
+            <div class="paper-authors">Dong, A., Wu, S., Che, J., et al. (<b>2023</b>). <i>Methods in Ecology and Evolution</i>.<br><a class="paper-link" href="https://doi.org/10.1111/2041-210X.14172" target="_blank">🔗 doi: 10.1111/2041-210X.14172</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 A personalized pharmaco-epistatic network model of precision medicine.</div>
+            <div class="paper-authors">Feng, L., Yang, W., Ding, M., et al. (<b>2023</b>). <i>Drug Discovery Today</i>.<br><a class="paper-link" href="https://doi.org/10.1016/j.drudis.2023.103608" target="_blank">🔗 doi: 10.1016/j.drudis.2023.103608</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 Competition-cooperation mechanism between escherichia coli and staphylococcus aureus based on systems mapping.</div>
+            <div class="paper-authors">Li, C., Yin, L., He, X., et al. (<b>2023</b>). <i>Frontiers in Microbiology</i>.<br><a class="paper-link" href="https://doi.org/10.3389/fmicb.2023.1192574" target="_blank">🔗 doi: 10.3389/fmicb.2023.1192574</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 The genetic architecture of trait covariation in populus euphratica, a desert tree.</div>
+            <div class="paper-authors">Lu, K., Wang, X., Gong, H., et al. (<b>2023</b>). <i>Frontiers in Plant Science</i>.<br><a class="paper-link" href="https://doi.org/10.3389/fpls.2023.1149879" target="_blank">🔗 doi: 10.3389/fpls.2023.1149879</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 The genomic physics of tumor–microenvironment crosstalk.</div>
+            <div class="paper-authors">Sang, M., Feng, L., Dong, A., et al. (<b>2023</b>). <i>Physics Reports</i>.<br><a class="paper-link" href="https://doi.org/10.1016/j.physrep.2023.07.006" target="_blank">🔗 doi: 10.1016/j.physrep.2023.07.006</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 A pleiotropic–epistatic entangelement model of drug response.</div>
+            <div class="paper-authors">Wang, Y., Sang, M., Feng, L., et al. (<b>2023</b>). <i>Drug Discovery Today</i>.<br><a class="paper-link" href="https://doi.org/10.1016/j.drudis.2023.103790" target="_blank">🔗 doi: 10.1016/j.drudis.2023.103790</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 The metabolomic physics of complex diseases.</div>
+            <div class="paper-authors">Wu, S., Liu, X., Dong, A., et al. (<b>2023</b>). <i>Proceedings of the National Academy of Sciences</i>.<br><a class="paper-link" href="https://doi.org/10.1073/pnas.2308496120" target="_blank">🔗 doi: 10.1073/pnas.2308496120</a></div>
+        </div>
+
+        <div class="paper-item">
+            <div class="paper-title">📄 Modeling spatial interaction networks of the gut microbiota.</div>
+            <div class="paper-authors">Cao, X., Dong, A., Kang, G., et al. (<b>2022</b>). <i>Gut Microbes</i>.<br><a class="paper-link" href="https://doi.org/10.1080/19490976.2022.2106103" target="_blank">🔗 doi: 10.1080/19490976.2022.2106103</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 An eco-evo-devo genetic network model of stress response.</div>
+            <div class="paper-authors">Feng, L., Dong, T., Jiang, P., et al. (<b>2022</b>). <i>Horticulture Research</i>.<br><a class="paper-link" href="https://doi.org/10.1093/hr/uhac135" target="_blank">🔗 doi: 10.1093/hr/uhac135</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 Disentangling leaf-microbiome interactions in arabidopsis thaliana by network mapping.</div>
+            <div class="paper-authors">Li, K., Cheng, K., Wang, H., et al. (<b>2022</b>). <i>Frontiers in Plant Science</i>.<br><a class="paper-link" href="https://doi.org/10.3389/fpls.2022.996121" target="_blank">🔗 doi: 10.3389/fpls.2022.996121</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 A graph model of combination therapies.</div>
+            <div class="paper-authors">Sang, M., Dong, A., Wu, S., et al. (<b>2022</b>). <i>Drug Discovery Today</i>.<br><a class="paper-link" href="https://doi.org/10.1016/j.drudis.2022.02.001" target="_blank">🔗 doi: 10.1016/j.drudis.2022.02.001</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 A single-cell omics network model of cell crosstalk during the formation of primordial follicles.</div>
+            <div class="paper-authors">Wang, Q., Dong, A., Jiang, L., et al. (<b>2022</b>). <i>Cells</i>.<br><a class="paper-link" href="https://doi.org/10.3390/cells11030332" target="_blank">🔗 doi: 10.3390/cells11030332</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 Vaginal microbiota networks as a mechanistic predictor of aerobic vaginitis.</div>
+            <div class="paper-authors">Wang, Q., Dong, A., Zhao, J., et al. (<b>2022</b>). <i>Frontiers in Microbiology</i>.<br><a class="paper-link" href="https://doi.org/10.3389/fmicb.2022.998813" target="_blank">🔗 doi: 10.3389/fmicb.2022.998813</a></div>
+        </div>
+
+        <div class="paper-item">
+            <div class="paper-title">📄 FunGraph: A statistical protocol to reconstruct omnigenic multilayer interactome networks for complex traits.</div>
+            <div class="paper-authors">Dong, A., Feng, L., Yang, D., et al. (<b>2021</b>). <i>STAR Protocols</i>.<br><a class="paper-link" href="https://doi.org/10.1016/j.xpro.2021.100985" target="_blank">🔗 doi: 10.1016/j.xpro.2021.100985</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 The genomic physics of COVID-19 pathogenesis and spread.</div>
+            <div class="paper-authors">Dong, A., Zhao, J., Griffin, C., & Wu, R. (<b>2021</b>). <i>Cells</i>.<br><a class="paper-link" href="https://doi.org/10.3390/cells11010080" target="_blank">🔗 doi: 10.3390/cells11010080</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 Genetic dissection of growth trajectories in forest trees: From FunMap to FunGraph.</div>
+            <div class="paper-authors">Feng, L., Jiang, P., Li, C., et al. (<b>2021</b>). <i>Forestry Research</i>.<br><a class="paper-link" href="https://doi.org/10.48130/FR-2021-0019" target="_blank">🔗 doi: 10.48130/FR-2021-0019</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 Genetic architecture of multiphasic growth covariation as revealed by a nonlinear mixed mapping framework.</div>
+            <div class="paper-authors">Gong, H., Zhang, X.-Y., Zhu, S., et al. (<b>2021</b>). <i>Frontiers in Plant Science</i>.<br><a class="paper-link" href="https://doi.org/10.3389/fpls.2021.711219" target="_blank">🔗 doi: 10.3389/fpls.2021.711219</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 A multilayer interactome network constructed in a forest poplar population mediates the pleiotropic control of complex traits.</div>
+            <div class="paper-authors">Gong, H., Zhu, S., Zhu, X., et al. (<b>2021</b>). <i>Frontiers in Genetics</i>.<br><a class="paper-link" href="https://doi.org/10.3389/fgene.2021.769688" target="_blank">🔗 doi: 10.3389/fgene.2021.769688</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 Network mapping of root–microbe interactions in arabidopsis thaliana.</div>
+            <div class="paper-authors">He, X., Zhang, Q., Li, B., et al. (<b>2021</b>). <i>Npj Biofilms and Microbiomes</i>.<br><a class="paper-link" href="https://doi.org/10.1038/s41522-021-00241-4" target="_blank">🔗 doi: 10.1038/s41522-021-00241-4</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 A behavioral model for mapping the genetic architecture of gut-microbiota networks.</div>
+            <div class="paper-authors">Jiang, L., Liu, X., He, X., et al. (<b>2021</b>). <i>Gut Microbes</i>.<br><a class="paper-link" href="https://doi.org/10.1080/19490976.2020.1820847" target="_blank">🔗 doi: 10.1080/19490976.2020.1820847</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 Adaptive sparse group LASSO in quantile regression.</div>
+            <div class="paper-authors">Mendez-Civieta, A., Aguilera-Morillo, M. C., & Lillo, R. E. (<b>2021</b>). <i>Advances in Data Analysis and Classification</i>.<br><a class="paper-link" href="https://doi.org/10.1007/s11634-020-00413-8" target="_blank">🔗 doi: 10.1007/s11634-020-00413-8</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 Statistical mechanics of clock gene networks underlying circadian rhythms.</div>
+            <div class="paper-authors">Sun, L., Dong, A., Griffin, C., & Wu, R. (<b>2021</b>). <i>Applied Physics Reviews</i>.<br><a class="paper-link" href="https://doi.org/10.1063/5.0029993" target="_blank">🔗 doi: 10.1063/5.0029993</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 Modeling genome-wide by environment interactions through omnigenic interactome networks.</div>
+            <div class="paper-authors">Wang, H., Ye, M., Fu, Y., et al. (<b>2021</b>). <i>Cell Reports</i>.<br><a class="paper-link" href="https://doi.org/10.1016/j.celrep.2021.109114" target="_blank">🔗 doi: 10.1016/j.celrep.2021.109114</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 Recovering dynamic networks in big static datasets.</div>
+            <div class="paper-authors">Wu, R., & Jiang, L. (<b>2021</b>). <i>Physics Reports</i>.<br><a class="paper-link" href="https://doi.org/10.1016/j.physrep.2021.01.003" target="_blank">🔗 doi: 10.1016/j.physrep.2021.01.003</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 Inferring multilayer interactome networks shaping phenotypic plasticity and evolution.</div>
+            <div class="paper-authors">Yang, D., Jin, Y., He, X., et al. (<b>2021</b>). <i>Nature Communications</i>.<br><a class="paper-link" href="https://doi.org/10.1038/s41467-021-25086-5" target="_blank">🔗 doi: 10.1038/s41467-021-25086-5</a></div>
+        </div>
+
+        <div class="paper-item">
+            <div class="paper-title">📄 SEGN: Inferring real-time gene networks mediating phenotypic plasticity.</div>
+            <div class="paper-authors">Jiang, L., Griffin, C. H., & Wu, R. (<b>2020</b>). <i>Computational and Structural Biotechnology Journal</i>.<br><a class="paper-link" href="https://doi.org/10.1016/j.csbj.2020.08.029" target="_blank">🔗 doi: 10.1016/j.csbj.2020.08.029</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 Computational identification of gene networks as a biomarker of neuroblastoma risk.</div>
+            <div class="paper-authors">Sun, L., Jiang, L., Grant, C. N., et al. (<b>2020</b>). <i>Cancers</i>.<br><a class="paper-link" href="https://doi.org/10.3390/cancers12082086" target="_blank">🔗 doi: 10.3390/cancers12082086</a></div>
+        </div>
+
+        <div class="paper-item">
+            <div class="paper-title">📄 An omnidirectional visualization model of personalized gene regulatory networks.</div>
+            <div class="paper-authors">Chen, C., Jiang, L., Fu, G., et al. (<b>2019</b>). <i>Npj Systems Biology and Applications</i>.<br><a class="paper-link" href="https://doi.org/10.1038/s41540-019-0116-1" target="_blank">🔗 doi: 10.1038/s41540-019-0116-1</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 A drive to driven model of mapping intraspecific interaction networks.</div>
+            <div class="paper-authors">Jiang, L., Xu, J., Sang, M., et al. (<b>2019</b>). <i>iScience</i>.<br><a class="paper-link" href="https://doi.org/10.1016/j.isci.2019.11.002" target="_blank">🔗 doi: 10.1016/j.isci.2019.11.002</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 Interrogation of internal workings in microbial community assembly: Play a game through a behavioral network?</div>
+            <div class="paper-authors">Wang, Q., Liu, X., Jiang, L., et al. (<b>2019</b>). <i>mSystems</i>.<br><a class="paper-link" href="https://doi.org/10.1128/mSystems.00550-19" target="_blank">🔗 doi: 10.1128/mSystems.00550-19</a></div>
+        </div>
+        <div class="paper-item">
+            <div class="paper-title">📄 Complex network approaches to nonlinear time series analysis.</div>
+            <div class="paper-authors">Zou, Y., Donner, R. V., Marwan, N., et al. (<b>2019</b>). <i>Physics Reports</i>.<br><a class="paper-link" href="https://doi.org/10.1016/j.physrep.2018.10.005" target="_blank">🔗 doi: 10.1016/j.physrep.2018.10.005</a></div>
+        </div>
+
+        <div class="paper-item">
+            <div class="paper-title">📄 A computational-experimental framework for mapping plant coexistence.</div>
+            <div class="paper-authors">Jiang, L., Shi, C., Ye, M., et al. (<b>2018</b>). <i>Methods in Ecology and Evolution</i>.<br><a class="paper-link" href="https://doi.org/10.1111/2041-210X.12981" target="_blank">🔗 doi: 10.1111/2041-210X.12981</a></div>
         </div>
     </div>
     """
     st.markdown(papers_html, unsafe_allow_html=True)
 
-
-
-
-
-
-
 st.divider()
+
+# 🌟 底部淡化、居中
 st.markdown(
     """
-    <div class="affiliation">
+    <div style="text-align:center; color:#94a3b8; font-size:0.9rem; line-height:1.8; margin-top: 2rem; margin-bottom: 2rem;">
         复杂系统拓扑统计理论及应用北京市重点实验室<br/>
-        北京雁栖湖应用数学研究院
+        北京雁栖湖应用数学研究院<br>
+        <span style='font-size:0.85rem; opacity: 0.8;'>idopNetwork v2.0</span>
     </div>
     """,
     unsafe_allow_html=True,
 )
-st.markdown("<p class='home-footer'>idopNetwork v2.0</p>", unsafe_allow_html=True)
