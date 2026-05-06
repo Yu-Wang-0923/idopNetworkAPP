@@ -1,26 +1,20 @@
-/* ===================== 🌟 全局样式优化 ===================== */
-/* 隐藏 Streamlit 默认的自带导航栏、Header和Footer */
-#MainMenu, header, footer, [data-testid="stSidebarNav"] {
-    display: none !important;
-}
+/* ===================== 全局样式优化 ===================== */
+/* 隐藏顶部白边 */
+header, footer { visibility: hidden; }
 
-/* 移除侧边栏默认的顶部内边距，让它更紧凑 */
-[data-testid="stSidebar"] {
-    padding-top: 0rem;
-}
-
-/* Logo 圆角与阴影美化 */
+/* Logo 边框美化：因为你的 TSA Logo 是白底的，加上圆角和阴影会像个高级 App 图标 */
 [data-testid="stSidebar"] img {
-    border-radius: 22px; 
-    box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+    border-radius: 20px; 
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    background-color: #ffffff;
 }
 
-/* 自定义侧边栏导航链接的样式 */
-.stPageLink a {
-    text-decoration: none !important; 
-    padding: 0.2rem 0; 
-    transition: all 0.2s;
-}
+/* ===================== 自定义侧边栏导航链接样式 ===================== */
+/* 让侧边栏紧凑一点 */
+[data-testid="stSidebar"] { padding-top: 1rem; }
+
+/* 强制我们写的路由按钮文字变成亮白色 */
+.stPageLink a { text-decoration: none !important; padding: 0.25rem 0; transition: all 0.2s; }
 .stPageLink a p {
     color: #f8fafc !important; 
     font-size: 1.15rem !important; 
@@ -31,45 +25,26 @@
     border-radius: 6px;
 }
 
-/* IDOP 静态标签 */
-.idop-badges {
-    display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap;
-}
+/* ===================== 主页 IDOP 标签 & 卡片 & 论文样式 ===================== */
+.idop-badges { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; }
 .badge-item {
     background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; 
     padding: 0.65rem 1.4rem; border-radius: 8px; font-size: 1.1rem; 
     font-weight: 600; cursor: default; box-shadow: 0 2px 4px rgba(0,0,0,0.03);
 }
 
-/* 内容区卡片与超链接样式 */
 .card-link {text-decoration: none !important;}
 .card {
-    background:#fff; padding:1.2rem; border-radius:8px; 
-    border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02); 
-    margin-bottom: 0.8rem; transition:0.3s;
+    background:#fff; padding:1.2rem; border-radius:8px; border:1px solid #e2e8f0; 
+    box-shadow:0 2px 4px rgba(0,0,0,0.02); margin-bottom: 0.8rem; transition:0.3s;
 }
-.card:hover {
-    border-color:#3b82f6; box-shadow:0 4px 12px rgba(59,130,246,0.15); 
-    transform: translateY(-2px);
-}
-.card-title {
-    font-size: 1.1rem; font-weight: bold; color: #0f172a; 
-    margin-bottom: 0.4rem; display: flex; align-items: center; justify-content: space-between;
-}
-.card-desc {
-    font-size: 0.95rem; color: #64748b; line-height: 1.5; margin-bottom:0;
-}
+.card:hover { border-color:#3b82f6; box-shadow:0 4px 12px rgba(59,130,246,0.15); transform: translateY(-2px); }
+.card-title { font-size: 1.1rem; font-weight: bold; color: #0f172a; margin-bottom: 0.4rem; display: flex; align-items: center; justify-content: space-between; }
+.card-desc { font-size: 0.95rem; color: #64748b; line-height: 1.5; margin-bottom:0; }
 
-/* 论文滚动框调整 */
-.scroll-box {
-    height:480px; overflow-y:auto; background:#fff; padding:1.2rem; 
-    border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02);
-}
-.paper-item {
-    margin-bottom: 1.2rem; padding-bottom: 0.8rem; border-bottom: 1px dashed #e2e8f0;
-}
+.scroll-box { height:480px; overflow-y:auto; background:#fff; padding:1.2rem; border-radius:8px; border:1px solid #e2e8f0; }
+.paper-item { margin-bottom: 1.2rem; padding-bottom: 0.8rem; border-bottom: 1px dashed #e2e8f0; }
 .paper-item:last-child {border-bottom: none;}
-.paper-title {font-weight: 600; color: #0f172a; font-size: 1.05rem;}
+.paper-title {font-weight: 600; color: #0f172a; font-size: 1.05rem; display: flex; gap: 0.4rem;}
 .paper-authors {color: #475569; font-size: 0.9rem; line-height: 1.5; margin-top: 0.3rem;}
 .paper-link {color: #3b82f6; font-size: 0.85rem; text-decoration: none; font-weight: 500;}
-.paper-link:hover {text-decoration: underline;}

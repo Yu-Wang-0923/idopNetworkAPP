@@ -1,11 +1,14 @@
 [theme]
+# 强制基础主题为浅色，防止你的电脑系统深色模式干扰
+base = "light"
+
 # 主色调 (按钮颜色)
 primaryColor = "#3b82f6"
 
-# 页面主背景色 (浅灰白)
+# 页面主背景色 (纯净浅灰白)
 backgroundColor = "#f8fafc"
 
-# 侧边栏背景色 (深灰蓝)
+# 侧边栏背景色 (高级深灰蓝，只要生效了，侧边栏一出来就是深的！)
 secondaryBackgroundColor = "#334155"
 
 # 全局文字颜色
@@ -13,3 +16,8 @@ textColor = "#0f172a"
 
 # 全局字体
 font = "sans serif"
+
+[client]
+# 🌟 神仙指令：在底层直接关闭原生的左侧导航栏！
+# 这样就不需要用 CSS 去隐藏它，彻底消灭网页加载时的闪烁和卡顿！
+showSidebarNavigation = false
