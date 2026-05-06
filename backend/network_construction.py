@@ -5,45 +5,21 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from scipy.integrate import cumulative_trapezoid
-from scipy.interpolate import BSpline
 from scipy.special import eval_laguerre, eval_legendre
 
-SUPPORTED_BASIS_KINDS = ("legendre", "laguerre", "bspline")
-
-
-def _bspline_basis_matrix(x_flat: np.ndarray, max_order: int, degree: int) -> np.ndarray:
-    """在 [-1, 1] 上构建 clamped uniform B-spline 基矩阵，列数恰为 max_order。
-
-    节点向量：t = [-1]*(k+1) + interior + [1]*(k+1)，其中 interior 等距分布于 (-1, 1)，
-    个数 = max_order - degree - 1。max_order < degree+1 时自动降阶到 max_order-1。
-    """
-    if max_order <= 0:
-        raise ValueError("max_order 必须为正整数")
-    k = int(min(max(degree, 1), max(max_order - 1, 1)))
-    n_interior = max_order - k - 1
-    if n_interior > 0:
-        interior = np.linspace(-1.0, 1.0, n_interior + 2)[1:-1]
-    else:
-        interior = np.empty(0, dtype=float)
-    t = np.concatenate(
-        [np.full(k + 1, -1.0), interior, np.full(k + 1, 1.0)]
-    )
-    x_clipped = np.clip(x_flat.astype(float), -1.0, 1.0)
-    design = BSpline.design_matrix(x_clipped, t, k, extrapolate=False)
-    return np.asarray(design.todense()) if hasattr(design, "todense") else np.asarray(design)
+SUPPORTED_BASIS_KINDS = ("legendre", "laguerre", "polynomial")
 
 
 def polynomial_basis_expansion(
     data: pd.DataFrame,
     max_order: int,
     kind: str = "legendre",
-    bspline_degree: int = 3,
 ) -> pd.DataFrame:
-    """对每个特征做基展开（1..max_order 阶/列），可选 legendre / laguerre / bspline。
+    """对每个特征做基展开（1..max_order 列），可选 legendre / laguerre / polynomial。
 
     - legendre：scipy.eval_legendre，输入域期望为 [-1, 1]。
     - laguerre：scipy.eval_laguerre，输入域期望为 -1 to 1。
-    - bspline：clamped uniform B-spline 基（列数 = max_order，B 样条次数 bspline_degree）。
+    - polynomial：普通幂基，列为 x^2, x^3, ..., x^(max_order + 1)。
     """
     if kind not in SUPPORTED_BASIS_KINDS:
         raise ValueError(
@@ -59,14 +35,14 @@ def polynomial_basis_expansion(
         per_order = [eval_laguerre(order, values) for order in range(1, max_order + 1)]
         basis_arr = np.stack(per_order, axis=0).transpose(1, 2, 0)
     else:
-        per_feature = [
-            _bspline_basis_matrix(values[:, j], max_order, bspline_degree)
-            for j in range(n_features)
+        per_order = [
+            np.power(values, power) for power in range(2, max_order + 2)
         ]
-        basis_arr = np.stack(per_feature, axis=1)
+        basis_arr = np.stack(per_order, axis=0).transpose(1, 2, 0)
 
+    order_offset = 2 if kind == "polynomial" else 1
     columns = [
-        f"{data.columns[i]}_o({order + 1})"
+        f"{data.columns[i]}_o({order + order_offset})"
         for i in range(n_features)
         for order in range(max_order)
     ]
@@ -400,7 +376,7 @@ def _asgl_multi_task(
 
 
 def _build_groups(n_features: int, max_order: int) -> list[np.ndarray]:
-    """构建分组列表：[截距组] + [每个源变量的 max_order 个 Legendre 积分列]。"""
+    """构建分组列表：[截距组] + [每个源变量的 max_order 个基函数列]。"""
     groups: list[np.ndarray] = [np.array([0])]
     for k in range(n_features):
         start = 1 + k * max_order
@@ -454,7 +430,6 @@ class IDOPRegressor:
         multi_task: bool = False,
         basis_type: str = "integral",
         basis_kind: str = "legendre",
-        bspline_degree: int = 3,
         ebic_gamma: float = 0.0,
     ):
         if basis_kind not in SUPPORTED_BASIS_KINDS:
@@ -473,7 +448,6 @@ class IDOPRegressor:
         self.multi_task = multi_task
         self.basis_type = basis_type
         self.basis_kind = basis_kind
-        self.bspline_degree = bspline_degree
         self.ebic_gamma = ebic_gamma
         self.coef_: pd.DataFrame | None = None
         self.mse_: float | None = None
@@ -483,7 +457,6 @@ class IDOPRegressor:
             power_function_sample_df,
             self.max_order,
             kind=self.basis_kind,
-            bspline_degree=self.bspline_degree,
         )
         if self.basis_type == "derivative":
             basis = basis_raw

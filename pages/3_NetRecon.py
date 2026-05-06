@@ -126,27 +126,14 @@ with tab1:
                     )
                     basis_kind = st.selectbox(
                         "basis_kind",
-                        options=["legendre", "laguerre", "bspline"],
+                        options=["legendre", "laguerre", "polynomial"],
                         index=0,
                         help=(
                             "Basis family for per-feature expansion. "
-                            "legendre/laguerre: orthogonal polynomials (laguerre is "
-                            "internally remapped to [0, max_order]). "
-                            "bspline: clamped uniform B-spline with `bspline_degree` "
-                            "knots, column count still equals max_order."
+                            "legendre/laguerre: orthogonal polynomials on [-1, 1]. "
+                            "polynomial: powers x^2, x^3, ..., with column count "
+                            "still equals max_order."
                         ),
-                    )
-                    bspline_degree = st.number_input(
-                        "bspline_degree",
-                        min_value=1,
-                        max_value=10,
-                        value=3,
-                        step=1,
-                        help=(
-                            "B-spline degree (only used when basis_kind == 'bspline'). "
-                            "Auto-clamped to max_order - 1 if too large."
-                        ),
-                        disabled=(basis_kind != "bspline"),
                     )
                 with c2:
                     alpha = st.number_input(
@@ -178,8 +165,8 @@ with tab1:
 
         if submit_run:
             try:
-                # Legendre 基要求自变量 ∈ [-1, 1]，curve_sample 通常超出该域，
-                # 必须先做 rescale_to_-1_1 才能保证数值稳定
+                # 基函数输入统一使用 [-1, 1] 域，curve_sample 通常超出该域，
+                # 必须先做 rescale_to_-1_1 才能保证数值稳定。
                 curve_sample_scaled = data_transformation(
                     curve_sample_df, "rescale_to_-1_1"
                 )
@@ -191,7 +178,6 @@ with tab1:
                     nonneg_self=bool(nonneg_self),
                     max_interactions=int(top_k),
                     basis_kind=str(basis_kind),
-                    bspline_degree=int(bspline_degree),
                 )
                 # 响应 Y 必须与设计矩阵 X 共享同一 index（curve_sample 的 Chebyshev 节点）
                 # quasi_dynamic 的 τ 索引与 curve_sample 不同域，仅用于后续可视化散点
@@ -248,8 +234,6 @@ with tab1:
                     }
 
                 _basis_label = model_dbg.basis_kind.capitalize()
-                if model_dbg.basis_kind == "bspline":
-                    _basis_label = f"B-spline(k={model_dbg.bspline_degree})"
                 summary_rows = [
                     _summary("curve_sample (raw)", cs_raw),
                     _summary("curve_sample (scaled to [-1,1])", cs_scl),
