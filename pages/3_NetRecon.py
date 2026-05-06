@@ -7,17 +7,18 @@ from backend.utils import load_css
 
 load_css()
 
+# NetworkConstruction
 st.title("Network Construction", text_alignment="center")
 
 
 # ========== Tabs ==========
-tab1, tab2, tab3 = st.tabs(["单层Idop网络", "多层Idop网络", "待更新..."])
+tab1, tab2, tab3 = st.tabs(["IdopNetwork", "Multi-Layer IdopNetwork", "To Be Updated..."])
 
 
 # ========== Tab 1 ==========
 with tab1:
-    st.write("待更新...")
+    st.write("To Be Updated...")
 
 # ========== Tab 2 ==========
 with tab2:
-    st.write("待更新...")
+    st.write("To Be Updated...")
