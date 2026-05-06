@@ -58,6 +58,8 @@ def plot_initialization_grid(
     show_legend: bool = True,
     dpi: int = 200,
     show_in_streamlit: bool = True,
+    share_x: bool = False,
+    share_y: bool = False,
 ) -> Figure:
     """绘制 KMeans 初始化的诊断网格图。
 
@@ -124,8 +126,8 @@ def plot_initialization_grid(
         n_rows,
         n_cols,
         figsize=(sw * n_cols, sh * n_rows),
-        sharex=False,
-        sharey=False,
+        sharex=share_x,
+        sharey=share_y,
         dpi=dpi,
     )
     if n_rows == 1 and n_cols == 1:

@@ -293,6 +293,12 @@ with tab1:
                     use_log_x = st.checkbox(
                         "log-scale X", value=False, key="funclu_grid_log_x"
                     )
+                    share_x = st.checkbox(
+                        "Share X", value=True, key="funclu_grid_share_x"
+                    )
+                    share_y = st.checkbox(
+                        "Share Y", value=True, key="funclu_grid_share_y"
+                    )
                 plot_initialization_grid(
                     X_list=X_list,
                     times_list=model.times_list,
@@ -303,6 +309,8 @@ with tab1:
                     layout=layout_choice,
                     use_semilogy=bool(use_log_y),
                     use_semilogx=bool(use_log_x),
+                    share_x=share_x,
+                    share_y=share_y,
                 )
 
     with tab1_3:
