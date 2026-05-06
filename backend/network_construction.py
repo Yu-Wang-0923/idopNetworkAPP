@@ -8,6 +8,7 @@ from scipy.integrate import cumulative_trapezoid
 from scipy.special import eval_laguerre, eval_legendre
 
 SUPPORTED_BASIS_KINDS = ("legendre", "laguerre", "polynomial")
+SUPPORTED_SOLVERS = ("ols", "lasso", "asgl")
 
 
 def polynomial_basis_expansion(
@@ -59,80 +60,6 @@ def polynomial_basis_expansion_integral(basis_expansion: pd.DataFrame) -> pd.Dat
     return pd.DataFrame(
         integral_values, index=basis_expansion.index, columns=new_columns
     )
-
-
-def _adsiht_col(
-    Xv: np.ndarray,
-    y: np.ndarray,
-    groups: list[np.ndarray],
-    kappa: float = 0.999,
-    ic_coef: float = 10.0,
-    protected_ids: set[int] | None = None,
-    max_iter: int = 500,
-    tol: float = 1e-6,
-) -> np.ndarray:
-    """单目标列的 ADSIHT（Group Iterative Hard Thresholding + BIC 稀疏度选择）。"""
-    if protected_ids is None:
-        protected_ids = set()
-    n, p = Xv.shape
-    XtX = Xv.T @ Xv
-    Xty = Xv.T @ y
-    L = float(np.linalg.norm(XtX, ord=2))
-    if L == 0:
-        return np.zeros(p)
-    step = kappa / L
-
-    intercept_grp = groups[0]
-    penalizable: list[tuple[int, np.ndarray]] = [
-        (gi, g) for gi, g in enumerate(groups[1:], start=1) if gi not in protected_ids
-    ]
-    always_on: list[tuple[int, np.ndarray]] = [
-        (gi, g) for gi, g in enumerate(groups[1:], start=1) if gi in protected_ids
-    ]
-    n_pen = len(penalizable)
-    grp_size = len(penalizable[0][1]) if n_pen > 0 else 0
-
-    best_w = np.zeros(p)
-    best_ic = np.inf
-
-    for s in range(n_pen + 1):
-        w = np.zeros(p)
-
-        if s == 0 and not always_on:
-            Xi = Xv[:, intercept_grp]
-            w[intercept_grp] = np.linalg.lstsq(Xi, y, rcond=None)[0]
-        else:
-            for _ in range(max_iter):
-                w_prev = w.copy()
-                w_half = w - step * (XtX @ w - Xty)
-                w_new = np.zeros(p)
-                w_new[intercept_grp] = w_half[intercept_grp]
-                for _, g in always_on:
-                    w_new[g] = w_half[g]
-                if s > 0:
-                    scores = np.array([np.linalg.norm(w_half[g]) for _gi, g in penalizable])
-                    top_idx = np.argpartition(scores, -s)[-s:]
-                    for idx in top_idx:
-                        g = penalizable[idx][1]
-                        w_new[g] = w_half[g]
-                w = w_new
-                if np.linalg.norm(w - w_prev) < tol:
-                    break
-
-        residual = y - Xv @ w
-        rss = float(residual @ residual)
-        always_df = sum(len(g) for _, g in always_on)
-        df = len(intercept_grp) + always_df + s * grp_size
-        if rss <= 0 or n <= df:
-            ic = -np.inf
-        else:
-            ic = n * np.log(rss / n) + ic_coef * df * np.log(n)
-
-        if ic < best_ic:
-            best_ic = ic
-            best_w = w.copy()
-
-    return best_w
 
 
 def _project_nonneg_self(
@@ -414,7 +341,7 @@ def _lasso_cd_col(
 
 
 class IDOPRegressor:
-    """多输出线性回归：支持 OLS、Ridge、Lasso、ASGL、ADSIHT。"""
+    """多输出线性回归：支持 OLS、Lasso、ASGL。"""
 
     def __init__(
         self,
@@ -435,6 +362,10 @@ class IDOPRegressor:
             raise ValueError(
                 f"basis_kind 必须为 {SUPPORTED_BASIS_KINDS} 之一，实际收到 {basis_kind!r}"
             )
+        if solver not in SUPPORTED_SOLVERS:
+            raise ValueError(
+                f"solver 必须为 {SUPPORTED_SOLVERS} 之一，实际收到 {solver!r}"
+            )
         self.max_order = max_order
         self.solver = solver
         self.alpha = alpha
@@ -450,6 +381,8 @@ class IDOPRegressor:
         self.ebic_gamma = ebic_gamma
         self.coef_: pd.DataFrame | None = None
         self.mse_: float | None = None
+        self.bic_order_path_: pd.DataFrame | None = None
+        self.bic_alpha_path_: pd.DataFrame | None = None
 
     def _design(self, power_function_sample_df: pd.DataFrame) -> pd.DataFrame:
         basis_raw = polynomial_basis_expansion(
@@ -481,6 +414,7 @@ class IDOPRegressor:
 
         upper = min(user_max_order, 20)
         best_order, best_order_bic = 1, np.inf
+        order_rows: list[dict[str, float | int | bool]] = []
         for order_c in range(1, upper + 1):
             self.max_order = order_c
             X_c = self._design(power_function_sample_df)
@@ -508,6 +442,16 @@ class IDOPRegressor:
 
             rss = float(np.sum((Y_c - Xv_c @ W_c) ** 2))
             if rss <= 0:
+                order_rows.append(
+                    {
+                        "max_order": order_c,
+                        "bic": np.nan,
+                        "rss": rss,
+                        "df": (p_c - 1) * n_t,
+                        "n_obs": n_obs,
+                        "n_targets": n_t,
+                    }
+                )
                 continue
             df_total = (p_c - 1) * n_t
             bic = n_obs * n_t * np.log(rss / (n_obs * n_t)) + df_total * np.log(n_obs)
@@ -520,6 +464,16 @@ class IDOPRegressor:
                     bic += self.ebic_gamma * 2 * (
                         _lg(_p_total + 1) - _lg(_d + 1) - _lg(_p_total - _d + 1)
                     )
+            order_rows.append(
+                {
+                    "max_order": order_c,
+                    "bic": float(bic),
+                    "rss": rss,
+                    "df": df_total,
+                    "n_obs": n_obs,
+                    "n_targets": n_t,
+                }
+            )
             if bic < best_order_bic:
                 best_order_bic = bic
                 best_order = order_c
@@ -575,6 +529,7 @@ class IDOPRegressor:
         best_bic = np.inf
         best_lam, best_mix = 1.0, 0.5
         best_W: np.ndarray | None = None
+        alpha_rows: list[dict[str, float | int | bool]] = []
 
         for mc in mix_cands:
             lam_max = 0.0
@@ -646,12 +601,14 @@ class IDOPRegressor:
                 tb = 0.0
                 valid = True
                 rss_floor = 1e-12 * n
+                df_model = 0
                 _total_active_groups = 0
                 _total_pen_groups = 0
                 for j in range(n_targets):
                     r = Y[:, j] - Xv @ Wc[:, j]
                     rss_j = max(float(r @ r), rss_floor)
                     df_j = int(np.sum(np.abs(Wc[:, j]) > 1e-10))
+                    df_model += df_j
                     if n <= df_j:
                         valid = False
                         break
@@ -676,6 +633,15 @@ class IDOPRegressor:
                             - _lg(_total_pen_groups - _d + 1)
                         )
 
+                alpha_rows.append(
+                    {
+                        "alpha": float(lc),
+                        "mix": float(mc),
+                        "bic": float(tb) if valid else np.nan,
+                        "df": df_model,
+                        "active_groups": _total_active_groups,
+                    }
+                )
                 if tb < best_bic:
                     best_bic = tb
                     best_lam = lc
@@ -689,6 +655,16 @@ class IDOPRegressor:
 
         self.alpha = best_lam
         self.mix = best_mix
+        self.bic_order_path_ = pd.DataFrame(order_rows)
+        if self.bic_order_path_ is not None and not self.bic_order_path_.empty:
+            self.bic_order_path_["selected"] = (
+                self.bic_order_path_["max_order"] == self.max_order
+            )
+        self.bic_alpha_path_ = pd.DataFrame(alpha_rows)
+        if self.bic_alpha_path_ is not None and not self.bic_alpha_path_.empty:
+            self.bic_alpha_path_["selected"] = (
+                self.bic_alpha_path_["alpha"] == self.alpha
+            ) & (self.bic_alpha_path_["mix"] == self.mix)
 
         if best_W is None:
             best_W = np.zeros((p, n_targets))
@@ -732,6 +708,8 @@ class IDOPRegressor:
         quasi_dynamic_df: pd.DataFrame,
         intercept_values: np.ndarray | None = None,
     ) -> "IDOPRegressor":
+        self.bic_order_path_ = None
+        self.bic_alpha_path_ = None
         X = self._design(power_function_sample_df)
         Y = quasi_dynamic_df.reindex(X.index).values.astype(float)
         Xv = X.values.astype(float)
@@ -740,10 +718,6 @@ class IDOPRegressor:
 
         n_feat = (p - 1) // self.max_order
         groups = _build_groups(n_feat, self.max_order)
-        XtX = Xv.T @ Xv
-
-        def _self_protected(j: int) -> set[int]:
-            return {j + 1} if self.protect_self else set()
 
         if self.solver == "asgl":
             return self._fit_asgl_bic(
@@ -756,21 +730,7 @@ class IDOPRegressor:
             else Y[0, :].copy()
         )
 
-        if self.solver == "ridge":
-            Xv_body = Xv[:, 1:]
-            XtX_body = Xv_body.T @ Xv_body
-            W = np.zeros((p, n_targets))
-            for j in range(n_targets):
-                W[0, j] = y0[j]
-                Y_adj = Y[:, j] - y0[j]
-                diag_vals = np.full(p - 1, self.alpha)
-                if self.protect_self:
-                    diag_vals[groups[j + 1] - 1] = 0.0
-                W[1:, j] = np.linalg.solve(
-                    XtX_body + np.diag(diag_vals), Xv_body.T @ Y_adj
-                )
-
-        elif self.solver == "lasso":
+        if self.solver == "lasso":
             if not self.protect_self and not self.nonneg_self:
                 from sklearn.linear_model import Lasso
 
@@ -797,22 +757,6 @@ class IDOPRegressor:
                 )
                 for j in range(n_targets):
                     W[0, j] = y0[j]
-
-        elif self.solver == "adsiht":
-            W = np.column_stack(
-                [
-                    _adsiht_col(
-                        Xv,
-                        Y[:, j],
-                        groups,
-                        ic_coef=self.alpha,
-                        protected_ids=_self_protected(j),
-                    )
-                    for j in range(n_targets)
-                ]
-            )
-            for j in range(n_targets):
-                W[0, j] = y0[j]
 
         else:
             Xv_body = Xv[:, 1:]

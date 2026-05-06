@@ -114,15 +114,20 @@ with tab1:
                 with c1:
                     solver = st.selectbox(
                         "Solver",
-                        options=["ols", "ridge", "lasso", "asgl", "adsiht"],
+                        options=["ols", "lasso", "asgl"],
                         index=0,
                     )
                     max_order = st.number_input(
-                        "max_order",
+                        "max_order_upper (BIC)" if solver == "asgl" else "max_order",
                         min_value=1,
                         max_value=100,
                         value=6,
                         step=1,
+                        help=(
+                            "ASGL uses BIC to select max_order from 1..this value."
+                            if solver == "asgl"
+                            else "Fixed basis order for this solver."
+                        ),
                     )
                     basis_kind = st.selectbox(
                         "basis_kind",
@@ -136,22 +141,19 @@ with tab1:
                         ),
                     )
                 with c2:
-                    alpha = st.number_input(
-                        "alpha",
-                        min_value=0.0,
-                        value=0.001,
-                        step=0.001,
-                        format="%.4f",
-                        help="ridge/lasso/asgl/adsiht regularization strength",
-                    )
-               
-                    mix = st.slider(
-                        "mix (ASGL only)",
-                        min_value=0.0,
-                        max_value=1.0,
-                        value=0.5,
-                        step=0.05,
-                    )
+                    if solver == "lasso":
+                        alpha = st.number_input(
+                            "alpha",
+                            min_value=0.0,
+                            value=0.001,
+                            step=0.001,
+                            format="%.4f",
+                            help="lasso regularization strength",
+                        )
+                    else:
+                        alpha = 1.0
+                    if solver == "asgl":
+                        st.caption("ASGL: max_order and alpha are selected by BIC.")
                 with c3:
                     nonneg_self = st.checkbox("nonneg_self", value=True)
                     top_k = st.number_input(
@@ -174,7 +176,8 @@ with tab1:
                     max_order=int(max_order),
                     solver=str(solver),
                     alpha=float(alpha),
-                    mix=float(mix),
+                    mix=0.5,
+                    fix_mix=(solver == "asgl"),
                     nonneg_self=bool(nonneg_self),
                     max_interactions=int(top_k),
                     basis_kind=str(basis_kind),
@@ -273,6 +276,51 @@ with tab1:
                     else:
                         st.caption("没有可绘制的矩阵列。")
 
+                def _plot_bic_curve(
+                    df: pd.DataFrame | None,
+                    title: str,
+                    x_col: str,
+                    x_label: str,
+                    log_x: bool = False,
+                ) -> None:
+                    if df is None or df.empty:
+                        st.caption("没有可用的 BIC 搜索轨迹。")
+                        return
+                    plot_df = (
+                        df.replace([np.inf, -np.inf], np.nan)
+                        .dropna(subset=[x_col, "bic"])
+                        .sort_values(x_col)
+                    )
+                    if plot_df.empty:
+                        st.caption("没有可绘制的 BIC 点。")
+                        return
+                    fig, ax = plt.subplots(figsize=(6, 3.6))
+                    ax.plot(
+                        plot_df[x_col].to_numpy(dtype=float, copy=False),
+                        plot_df["bic"].to_numpy(dtype=float, copy=False),
+                        marker="o",
+                        linewidth=1.4,
+                    )
+                    if "selected" in plot_df.columns:
+                        selected = plot_df[plot_df["selected"].astype(bool)]
+                        if not selected.empty:
+                            ax.scatter(
+                                selected[x_col].to_numpy(dtype=float, copy=False),
+                                selected["bic"].to_numpy(dtype=float, copy=False),
+                                color="red",
+                                s=50,
+                                zorder=3,
+                            )
+                    if log_x:
+                        ax.set_xscale("log")
+                    ax.set_xlabel(x_label, fontproperties=font_prop)
+                    ax.set_ylabel("BIC", fontproperties=font_prop)
+                    ax.set_title(title, fontproperties=font_prop)
+                    ax.grid(True, alpha=0.35)
+                    fig.tight_layout()
+                    st.pyplot(fig, use_container_width=True)
+                    plt.close(fig)
+
                 _basis_label = model_dbg.basis_kind.capitalize()
                 summary_rows = [
                     _summary("curve_sample (raw)", cs_raw),
@@ -293,6 +341,25 @@ with tab1:
                     f"`basis_kind` = **{model_dbg.basis_kind}** &nbsp; | &nbsp; "
                     f"`mse_` = **{model_dbg.mse_}**"
                 )
+                if model_dbg.solver == "asgl":
+                    bic_left, bic_right = st.columns(2)
+                    with bic_left:
+                        st.markdown("**BIC vs max_order**")
+                        _plot_bic_curve(
+                            model_dbg.bic_order_path_,
+                            "BIC 选择 max_order",
+                            "max_order",
+                            "max_order",
+                        )
+                    with bic_right:
+                        st.markdown("**BIC vs alpha**")
+                        _plot_bic_curve(
+                            model_dbg.bic_alpha_path_,
+                            "BIC 选择 alpha",
+                            "alpha",
+                            "alpha",
+                            log_x=True,
+                        )
 
                 st.markdown("**curve_sample (raw) — head**")
                 st.dataframe(cs_raw.head(), use_container_width=True)
