@@ -42,8 +42,7 @@ def polynomial_basis_expansion(
     """对每个特征做基展开（1..max_order 阶/列），可选 legendre / laguerre / bspline。
 
     - legendre：scipy.eval_legendre，输入域期望为 [-1, 1]。
-    - laguerre：scipy.eval_laguerre，内部把 x ∈ [-1, 1] 映射到 [0, max_order]，
-      让前 n 阶 Laguerre 多项式的零点（O(n) 量级）能覆盖数据范围。
+    - laguerre：scipy.eval_laguerre，输入域期望为 -1 to 1。
     - bspline：clamped uniform B-spline 基（列数 = max_order，B 样条次数 bspline_degree）。
     """
     if kind not in SUPPORTED_BASIS_KINDS:
@@ -57,8 +56,7 @@ def polynomial_basis_expansion(
         per_order = [eval_legendre(order, values) for order in range(1, max_order + 1)]
         basis_arr = np.stack(per_order, axis=0).transpose(1, 2, 0)
     elif kind == "laguerre":
-        u = (values + 1.0) * (max_order / 2.0)
-        per_order = [eval_laguerre(order, u) for order in range(1, max_order + 1)]
+        per_order = [eval_laguerre(order, values) for order in range(1, max_order + 1)]
         basis_arr = np.stack(per_order, axis=0).transpose(1, 2, 0)
     else:
         per_feature = [
