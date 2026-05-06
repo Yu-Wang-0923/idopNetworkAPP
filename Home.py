@@ -1,70 +1,38 @@
 import streamlit as st
 
+import streamlit as st
+from backend.utils import load_css, setup_sidebar
+
 # 1. 基础设置
 st.set_page_config(page_title="idopNetwork", page_icon="TSA.png", layout="wide", initial_sidebar_state="expanded")
 
-# 2. 核心 CSS 样式（包含布局优化与原生导航隐藏）
+# 一键加载全局样式和统一侧边栏！
+load_css()
+setup_sidebar()
+
+# 2. 主页专属 CSS（负责卡片和论文滚动框）
 st.markdown("""
 <style>
-#MainMenu,header,footer{visibility:hidden;} .stApp{background:#f8fafc;}
-
-/* 侧边栏底色 */
-[data-testid="stSidebar"] {background-color: #334155 !important;}
-
-/* 🌟 隐藏 Streamlit 默认的丑陋导航栏，我们下面自己写一个带图标的！ */
-[data-testid="stSidebarNav"] {display: none !important;}
-
-/* Logo 圆角与阴影美化 */
-[data-testid="stSidebar"] img {border-radius: 22px; box-shadow: 0 6px 16px rgba(0,0,0,0.25);}
-
-/* 自定义侧边栏导航链接的样式 */
-.stPageLink a {text-decoration: none !important; padding: 0.2rem 0; transition: all 0.2s;}
-.stPageLink a p {color: #f8fafc !important; font-size: 1.15rem !important; font-weight: 500;}
-.stPageLink:hover {background-color: rgba(255,255,255,0.15) !important; border-radius: 6px;}
-
-/* 增加整体的正文字号 */
-p, div {font-size: 1.05rem;}
-
 /* IDOP 静态标签 */
-.idop-badges {display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap;}
-.badge-item {
-    background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; 
-    padding: 0.65rem 1.4rem; border-radius: 8px; font-size: 1.1rem; 
-    font-weight: 600; cursor: default; box-shadow: 0 2px 4px rgba(0,0,0,0.03);
-}
+.idop-badges { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; }
+.badge-item { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 0.65rem 1.4rem; border-radius: 8px; font-size: 1.1rem; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
 
-/* 🌟 可点击的内容区卡片样式 */
+/* 工作流卡片样式 */
 .card-link {text-decoration: none !important;}
-.card {background:#fff; padding:1.2rem; border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02); margin-bottom: 0.8rem; transition:0.3s;}
-.card:hover {border-color:#3b82f6; box-shadow:0 4px 12px rgba(59,130,246,0.15); transform: translateY(-2px);}
-.card-title {font-size: 1.1rem; font-weight: bold; color: #0f172a; margin-bottom: 0.4rem; display: flex; align-items: center; justify-content: space-between;}
-.card-desc {font-size: 0.95rem; color: #64748b; line-height: 1.5; margin-bottom:0;}
+.card { background:#fff; padding:1.2rem; border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02); margin-bottom: 0.8rem; transition:0.3s; }
+.card:hover { border-color:#3b82f6; box-shadow:0 4px 12px rgba(59,130,246,0.15); transform: translateY(-2px); }
+.card-title { font-size: 1.1rem; font-weight: bold; color: #0f172a; margin-bottom: 0.4rem; display: flex; justify-content: space-between; }
+.card-desc { font-size: 0.95rem; color: #64748b; line-height: 1.5; margin-bottom:0; }
 
-/* 论文滚动框调整 */
-.scroll-box {height:480px; overflow-y:auto; background:#fff; padding:1.2rem; border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02);}
-.paper-item {margin-bottom: 1.2rem; padding-bottom: 0.8rem; border-bottom: 1px dashed #e2e8f0;}
+/* 论文滚动框样式 */
+.scroll-box { height:480px; overflow-y:auto; background:#fff; padding:1.2rem; border-radius:8px; border:1px solid #e2e8f0; }
+.paper-item { margin-bottom: 1.2rem; padding-bottom: 0.8rem; border-bottom: 1px dashed #e2e8f0; }
 .paper-item:last-child {border-bottom: none;}
-.paper-title {font-weight: 600; color: #0f172a; font-size: 1.05rem; display: flex; gap: 0.4rem;}
+.paper-title {font-weight: 600; color: #0f172a; font-size: 1.05rem;}
 .paper-authors {color: #475569; font-size: 0.9rem; line-height: 1.5; margin-top: 0.3rem;}
-.paper-link {color: #3b82f6; font-size: 0.85rem; text-decoration: none; font-weight: 500;}
-.paper-link:hover {text-decoration: underline;}
+.paper-link {color: #3b82f6; font-size: 0.85rem; text-decoration: none;}
 </style>
 """, unsafe_allow_html=True)
-
-# 3. 🌟 完美侧边栏：大 Logo 在上，导航按钮在下
-with st.sidebar:
-    st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True) 
-    col1, col2, col3 = st.columns([1, 3.5, 1])
-    with col2:
-        st.image("TSA.png", use_container_width=True)
-    
-    st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
-    # 利用 Streamlit 原生组件构建侧边栏路由
-    st.page_link("Home.py", label="Home", icon="🏠")
-    st.page_link("pages/1_Curve Fitting.py", label="Curve Fitting", icon="📈")
-    st.page_link("pages/2_FunClu.py", label="FunClu", icon="🧩")
-    st.page_link("pages/3_NetRecon.py", label="NetRecon", icon="🕸️")
-    st.page_link("pages/4_NetAnal.py", label="NetAnal", icon="📊")
 
 # 4. 首屏横幅区 (标题上移)
 col_hero1, col_hero2 = st.columns([1.3, 1], gap="large")

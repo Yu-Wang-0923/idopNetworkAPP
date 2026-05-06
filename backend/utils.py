@@ -5,47 +5,48 @@
 初始化均集中于此，避免各页面/模块重复硬编码。
 """
 
-from pathlib import Path
-
-import matplotlib.font_manager as fm
-import matplotlib.pyplot as plt
 import streamlit as st
 
-# ── 路径常量 ──────────────────────────────────────────────────────────────────
+def load_css():
+    """强制注入的全局核心样式，彻底解决闪烁和颜色失效问题"""
+    st.markdown("""
+    <style>
+    /* 1. 强制页面主背景色为浅灰白 */
+    .stApp { background-color: #f8fafc !important; }
 
-STATIC_DIR: Path = Path(__file__).parent.parent / "static"
-CSS_PATH: Path = STATIC_DIR / "css" / "custom_style.css"
-FONT_PATH: Path = STATIC_DIR / "SimHei.ttf"
+    /* 2. 暴力隐藏自带的顶部白边和丑陋的默认导航栏 (解决菜单重复问题) */
+    header, footer, [data-testid="stSidebarNav"] { display: none !important; }
 
-# matplotlib 字体属性对象（供 plot_*.py 直接使用）
-font_prop: fm.FontProperties = fm.FontProperties(fname=FONT_PATH)
-plt.rcParams["axes.unicode_minus"] = False
+    /* 3. 强制侧边栏变成高级深灰蓝！ */
+    [data-testid="stSidebar"] {
+        background-color: #334155 !important;
+        background-image: none !important;
+        padding-top: 1rem !important;
+    }
 
-# ── 辅助函数 ──────────────────────────────────────────────────────────────────
+    /* 4. 让侧边栏我们自定义的链接变成亮白色，且悬停有发光效果 */
+    .stPageLink a { text-decoration: none !important; padding: 0.25rem 0; transition: all 0.2s;}
+    .stPageLink a p { color: #f8fafc !important; font-size: 1.15rem !important; font-weight: 500; }
+    .stPageLink:hover { background-color: rgba(255,255,255,0.15) !important; border-radius: 6px; }
 
-
-def load_css(path: Path = CSS_PATH) -> None:
-    """将自定义 CSS 文件注入 Streamlit 页面。"""
-    with open(path) as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-
-
-# def setup_matplotlib_chinese() -> None:
-#     """配置 matplotlib 中文字体回退列表与负号显示。"""
-#     plt.rcParams["font.sans-serif"] = ["SimHei"]
-#     plt.rcParams["axes.unicode_minus"] = False
-
+    /* 5. TSA Logo 圆角及阴影美化 */
+    [data-testid="stSidebar"] img {
+        border-radius: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        background-color: #ffffff;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 def setup_sidebar():
     """全局统一的侧边栏组件"""
     with st.sidebar:
         # 1. 放置统一的 Logo
-        st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True) 
         col1, col2, col3 = st.columns([1, 3.5, 1])
         with col2:
             st.image("TSA.png", use_container_width=True)
         
-        # 2. 放置统一的导航按钮
+        # 2. 放置我们自己写的带图标导航按钮
         st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
         st.page_link("Home.py", label="Home", icon="🏠")
         st.page_link("pages/1_Curve Fitting.py", label="Curve Fitting", icon="📈")
