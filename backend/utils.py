@@ -34,3 +34,21 @@ def load_css(path: Path = CSS_PATH) -> None:
 #     """配置 matplotlib 中文字体回退列表与负号显示。"""
 #     plt.rcParams["font.sans-serif"] = ["SimHei"]
 #     plt.rcParams["axes.unicode_minus"] = False
+
+
+def setup_sidebar():
+    """全局统一的侧边栏组件"""
+    with st.sidebar:
+        # 1. 放置统一的 Logo
+        st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True) 
+        col1, col2, col3 = st.columns([1, 3.5, 1])
+        with col2:
+            st.image("TSA.png", use_container_width=True)
+        
+        # 2. 放置统一的导航按钮
+        st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
+        st.page_link("Home.py", label="Home", icon="🏠")
+        st.page_link("pages/1_Curve Fitting.py", label="Curve Fitting", icon="📈")
+        st.page_link("pages/2_FunClu.py", label="FunClu", icon="🧩")
+        st.page_link("pages/3_NetRecon.py", label="NetRecon", icon="🕸️")
+        st.page_link("pages/4_NetAnal.py", label="NetAnal", icon="📊")
