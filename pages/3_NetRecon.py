@@ -120,8 +120,8 @@ with tab1:
                 with c2:
                     alpha = st.number_input(
                         "alpha",
-                        min_value=0.0,
-                        value=1.0,
+                        min_value=0.000,
+                        value=1.000,
                         step=0.001,
                         help="ridge/lasso/asgl/adsiht regularization strength",
                     )
