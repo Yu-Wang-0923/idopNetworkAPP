@@ -66,8 +66,8 @@ if "allometric_compare_params" not in st.session_state:
     st.session_state.allometric_compare_params = None
 
 
-with st.sidebar:
-    st.write("To Be Updated...")
+#with st.sidebar:
+    #st.write("To Be Updated...")
     # st.divider()
 
 tab1, tab2, tab3 = st.tabs(["Uploaded Data", "Static Data", "Dynamic Data"])

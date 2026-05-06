@@ -101,3 +101,13 @@ def setup_sidebar():
         st.page_link("pages/2_FunClu.py", label="FunClu", icon="🧩")
         st.page_link("pages/3_NetRecon.py", label="NetRecon", icon="🕸️")
         st.page_link("pages/4_NetAnal.py", label="NetAnal", icon="📊")
+
+        /* ======================================================== */
+    /* 🌟 7. 修复文件上传组件里的深色小字 🌟 */
+    /* ======================================================== */
+    [data-testid="stFileUploader"] div, 
+    [data-testid="stFileUploader"] small,
+    [data-testid="stFileUploader"] span {
+        color: #f8fafc !important;
+        -webkit-text-fill-color: #f8fafc !important;
+    }
