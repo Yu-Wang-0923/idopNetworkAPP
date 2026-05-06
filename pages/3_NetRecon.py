@@ -1,6 +1,7 @@
 import io
 import zipfile
 
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -161,6 +162,8 @@ with tab1:
                 predicted_df = model.predict(curve_sample_scaled)
                 effect_df_list = model.effect(curve_sample_scaled)
                 adj_df = model.adjacency_matrix(curve_sample_scaled)
+                design_X = model._design(curve_sample_scaled)
+                response_Y = quasi_dynamic_df.reindex(design_X.index)
             except Exception as e:
                 st.error(f"IdopNetwork 运行失败：{e}")
                 st.session_state.netrecon_result = None
@@ -170,6 +173,9 @@ with tab1:
                     "model": model,
                     "quasi_dynamic_df": quasi_dynamic_df,
                     "curve_sample_df": curve_sample_df,
+                    "curve_sample_scaled": curve_sample_scaled,
+                    "design_X": design_X,
+                    "response_Y": response_Y,
                     "predicted_df": predicted_df,
                     "effect_df_list": effect_df_list,
                     "adj_df": adj_df,
@@ -178,6 +184,63 @@ with tab1:
 
         result = st.session_state.netrecon_result
         if result is not None:
+            with st.expander("Debug: design matrix, response, coefficients", expanded=True):
+                model_dbg: IDOPRegressor = result["model"]
+                X_dbg: pd.DataFrame = result["design_X"]
+                Y_dbg: pd.DataFrame = result["response_Y"]
+                cs_raw = result["curve_sample_df"]
+                cs_scl = result["curve_sample_scaled"]
+                pred = result["predicted_df"]
+                coef = model_dbg.coef_
+
+                def _summary(name: str, df: pd.DataFrame) -> dict:
+                    arr = df.to_numpy(dtype=float, copy=False)
+                    finite = np.isfinite(arr)
+                    finite_arr = arr[finite] if finite.any() else np.array([np.nan])
+                    return {
+                        "name": name,
+                        "shape": str(arr.shape),
+                        "n_nan": int(np.isnan(arr).sum()),
+                        "n_inf": int(np.isinf(arr).sum()),
+                        "min": float(np.min(finite_arr)) if finite.any() else float("nan"),
+                        "max": float(np.max(finite_arr)) if finite.any() else float("nan"),
+                        "abs_max": float(np.max(np.abs(finite_arr))) if finite.any() else float("nan"),
+                        "mean": float(np.mean(finite_arr)) if finite.any() else float("nan"),
+                        "std": float(np.std(finite_arr)) if finite.any() else float("nan"),
+                        "n_zero": int((arr == 0).sum()),
+                    }
+
+                summary_rows = [
+                    _summary("curve_sample (raw)", cs_raw),
+                    _summary("curve_sample (scaled to [-1,1])", cs_scl),
+                    _summary("design X = [intercept | Legendre integral]", X_dbg),
+                    _summary("response Y = quasi_dynamic", Y_dbg),
+                    _summary("coef_", coef),
+                    _summary("predicted", pred),
+                ]
+                st.markdown("**Numeric summary**")
+                st.dataframe(pd.DataFrame(summary_rows), use_container_width=True)
+
+                st.markdown(
+                    f"`max_order` = **{model_dbg.max_order}** &nbsp; | &nbsp; "
+                    f"`solver` = **{model_dbg.solver}** &nbsp; | &nbsp; "
+                    f"`alpha` = **{model_dbg.alpha}** &nbsp; | &nbsp; "
+                    f"`mse_` = **{model_dbg.mse_}**"
+                )
+
+                st.markdown("**curve_sample (raw) — head**")
+                st.dataframe(cs_raw.head(), use_container_width=True)
+                st.markdown("**curve_sample (scaled) — head**")
+                st.dataframe(cs_scl.head(), use_container_width=True)
+                st.markdown("**design matrix X — head (first 8 cols)**")
+                st.dataframe(X_dbg.iloc[:5, :8], use_container_width=True)
+                st.markdown("**response Y — head**")
+                st.dataframe(Y_dbg.head(), use_container_width=True)
+                st.markdown("**coef_**")
+                st.dataframe(coef, use_container_width=True)
+                st.markdown("**predicted — head**")
+                st.dataframe(pred.head(), use_container_width=True)
+
             st.markdown("### Fitting vs Prediction")
             plot_curve_fitting(
                 df_scatter=result["quasi_dynamic_df"],
