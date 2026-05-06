@@ -1,6 +1,7 @@
 import io
 import zipfile
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -19,7 +20,7 @@ from backend.plot_curve_fitting import plot_curve_fitting
 from backend.plot_network_construction import plot_effect, plot_network
 
 # 🌟 修改 2：导入 setup_sidebar
-from backend.utils import load_css, setup_sidebar
+from backend.utils import font_prop, load_css, setup_sidebar
 
 # 🌟 修改 3：一键加载
 load_css()
@@ -274,6 +275,48 @@ with tab1:
                 st.dataframe(cs_scl.head(), use_container_width=True)
                 st.markdown("**design matrix X — head (first 8 cols)**")
                 st.dataframe(X_dbg.iloc[:5, :8], use_container_width=True)
+                st.markdown("**design matrix X — 沿 index 折线图（不含 intercept）**")
+                _basis_cols_only = [c for c in X_dbg.columns if c != "intercept"]
+                _default_n = min(8, len(_basis_cols_only))
+                _default_sel = (
+                    _basis_cols_only[:_default_n] if _default_n > 0 else []
+                )
+                sel_x_cols = st.multiselect(
+                    "选择要绘制的列",
+                    options=_basis_cols_only,
+                    default=_default_sel,
+                    key="netrecon_design_x_line_cols",
+                )
+                if sel_x_cols:
+                    fig, ax = plt.subplots(figsize=(12, 4.5))
+                    try:
+                        x_idx = X_dbg.index.astype(float).to_numpy(dtype=float, copy=False)
+                        if not np.all(np.isfinite(x_idx)):
+                            raise ValueError("non-finite float index")
+                    except (TypeError, ValueError):
+                        x_idx = np.arange(len(X_dbg), dtype=float)
+                    for col in sel_x_cols:
+                        ax.plot(
+                            x_idx,
+                            X_dbg[col].to_numpy(dtype=float, copy=False),
+                            label=col,
+                            linewidth=1.2,
+                        )
+                    ax.set_xlabel("design_X.index", fontproperties=font_prop)
+                    ax.set_ylabel("列取值", fontproperties=font_prop)
+                    ax.set_title("设计矩阵 X（按列，不含 intercept）", fontproperties=font_prop)
+                    ax.grid(True, alpha=0.35)
+                    ax.legend(
+                        bbox_to_anchor=(1.02, 1.0),
+                        loc="upper left",
+                        fontsize="small",
+                        prop=font_prop,
+                    )
+                    fig.tight_layout()
+                    st.pyplot(fig, use_container_width=True)
+                    plt.close(fig)
+                else:
+                    st.caption("请至少选择一列以绘制折线图。")
                 st.markdown("**response Y — head**")
                 st.dataframe(Y_dbg.head(), use_container_width=True)
                 st.markdown("**coef_**")
