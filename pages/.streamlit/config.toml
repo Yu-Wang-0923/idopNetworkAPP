@@ -1,0 +1,15 @@
+[theme]
+# 主色调 (按钮颜色)
+primaryColor = "#3b82f6"
+
+# 页面主背景色 (浅灰白)
+backgroundColor = "#f8fafc"
+
+# 侧边栏背景色 (深灰蓝)
+secondaryBackgroundColor = "#334155"
+
+# 全局文字颜色
+textColor = "#0f172a"
+
+# 全局字体
+font = "sans serif"
