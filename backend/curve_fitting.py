@@ -82,7 +82,7 @@ def fit_power_loglinear(
     x: np.ndarray,
     y: np.ndarray,
     *,
-    clip_a: Tuple[float, float] = (1e-8, np.inf),
+    clip_a: Tuple[float, float] = (-np.inf, np.inf),
     clip_b: Tuple[float, float] = (-np.inf, np.inf),
 ) -> Tuple[float, float]:
     """以双对数线性回归（log-log OLS）拟合幂律 ``y = a * x^b``。
