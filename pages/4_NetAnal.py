@@ -1,11 +1,11 @@
 import streamlit as st
 
-from backend.utils import setup_matplotlib_chinese
+st.set_page_config(page_title="Network Analysis", page_icon=None, layout="wide", initial_sidebar_state="auto")
 
-st.set_page_config(page_title="Network Analysis", page_icon="📈")
-setup_matplotlib_chinese()
+from backend.utils import load_css
+load_css()
 
-st.markdown("<h1 style='text-align: center;'>Network Analysis</h1>", unsafe_allow_html=True)
+st.title("Network Analysis", text_alignment="center")
 
 
 # ========== Tabs ==========
