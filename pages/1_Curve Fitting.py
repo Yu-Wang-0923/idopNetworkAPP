@@ -3,7 +3,8 @@ import zipfile
 
 import streamlit as st
 
-st.set_page_config(page_title="Curve Fitting", page_icon=None, layout="wide", initial_sidebar_state="auto")
+# 🌟 修改 1：换上统一的小图标，保持侧边栏默认展开
+st.set_page_config(page_title="Curve Fitting", page_icon="TSA.png", layout="wide", initial_sidebar_state="expanded")
 
 import numpy as np
 import pandas as pd
@@ -16,9 +17,13 @@ from backend.curve_fitting import (
     get_power_function_params,
 )
 from backend.plot_curve_fitting import plot_curve_fitting, plot_curve_fitting_compare
-from backend.utils import load_css
 
+# 🌟 修改 2：把 setup_sidebar 导进来
+from backend.utils import load_css, setup_sidebar
+
+# 🌟 修改 3：一键加载全局样式和统一侧边栏！
 load_css()
+setup_sidebar()
 
 
 def _safe_zip_subdir(fname: str) -> str:
