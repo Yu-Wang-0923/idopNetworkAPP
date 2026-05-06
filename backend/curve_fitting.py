@@ -97,7 +97,7 @@ def fit_power_loglinear(
     Args:
         x: 一维数组。
         y: 与 ``x`` 等长的一维数组。
-        clip_a: 对 ``a`` 的 ``(lo, hi)`` 裁剪范围，默认 ``(1e-8, +inf)``，
+        clip_a: 对 ``a`` 的 ``(lo, hi)`` 裁剪范围，默认 ``(-inf, +inf)``，
             防止数值上为零或负。
         clip_b: 对 ``b`` 的 ``(lo, hi)`` 裁剪范围，默认不裁剪。
 
