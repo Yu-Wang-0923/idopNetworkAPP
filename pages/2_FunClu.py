@@ -248,20 +248,6 @@ with tab1:
                     st.markdown(r"**cov_params (phi, gamma)** — SAD1")
                     st.dataframe(pd.DataFrame(em_cov_rows), use_container_width=True)
 
-                # 模型规模 / NLL / n_params
-                m_a, m_b, m_c = st.columns(3)
-                m_a.metric("n_features (N)", em_model.n_features)
-                m_b.metric(
-                    "n_params (p)",
-                    em_model.n_params if em_model.n_params is not None else "—",
-                )
-                m_c.metric(
-                    "neg log-lik",
-                    f"{em_model.neg_log_likelihood:.4g}"
-                    if em_model.neg_log_likelihood is not None
-                    else "—",
-                )
-
                 # 绘图区
                 st.markdown("**Convergence curve**")
                 plot_loglik_history(em_model.loglik_history)
@@ -270,7 +256,7 @@ with tab1:
                 opts_col, _ = st.columns([1, 3])
                 with opts_col:
                     em_use_log_y = st.checkbox(
-                        "log-scale Y", value=True, key="funclu_em_log_y"
+                        "log-scale Y", value=False, key="funclu_em_log_y"
                     )
                     em_use_log_x = st.checkbox(
                         "log-scale X", value=False, key="funclu_em_log_x"
