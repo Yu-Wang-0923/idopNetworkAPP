@@ -4,6 +4,7 @@ import zipfile
 import pandas as pd
 import streamlit as st
 
+from backend.curve_fitting import data_transformation
 from backend.network_construction import IDOPRegressor
 from backend.plot_curve_fitting import plot_curve_fitting
 from backend.plot_network_construction import plot_effect, plot_network
@@ -143,6 +144,11 @@ with tab1:
 
         if submit_run:
             try:
+                # Legendre 基要求自变量 ∈ [-1, 1]，curve_sample 通常超出该域，
+                # 必须先做 rescale_to_-1_1 才能保证数值稳定
+                curve_sample_scaled = data_transformation(
+                    curve_sample_df, "rescale_to_-1_1"
+                )
                 model = IDOPRegressor(
                     max_order=int(max_order),
                     solver=str(solver),
@@ -151,10 +157,10 @@ with tab1:
                     nonneg_self=bool(nonneg_self),
                     max_interactions=int(top_k),
                 )
-                model.fit(curve_sample_df, quasi_dynamic_df)
-                predicted_df = model.predict(curve_sample_df)
-                effect_df_list = model.effect(curve_sample_df)
-                adj_df = model.adjacency_matrix(curve_sample_df)
+                model.fit(curve_sample_scaled, quasi_dynamic_df)
+                predicted_df = model.predict(curve_sample_scaled)
+                effect_df_list = model.effect(curve_sample_scaled)
+                adj_df = model.adjacency_matrix(curve_sample_scaled)
             except Exception as e:
                 st.error(f"IdopNetwork 运行失败：{e}")
                 st.session_state.netrecon_result = None
