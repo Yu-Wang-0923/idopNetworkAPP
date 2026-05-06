@@ -158,12 +158,14 @@ with tab1:
                     nonneg_self=bool(nonneg_self),
                     max_interactions=int(top_k),
                 )
-                model.fit(curve_sample_scaled, quasi_dynamic_df)
+                # 响应 Y 必须与设计矩阵 X 共享同一 index（curve_sample 的 Chebyshev 节点）
+                # quasi_dynamic 的 τ 索引与 curve_sample 不同域，仅用于后续可视化散点
+                model.fit(curve_sample_scaled, curve_sample_df)
                 predicted_df = model.predict(curve_sample_scaled)
                 effect_df_list = model.effect(curve_sample_scaled)
                 adj_df = model.adjacency_matrix(curve_sample_scaled)
                 design_X = model._design(curve_sample_scaled)
-                response_Y = quasi_dynamic_df.reindex(design_X.index)
+                response_Y = curve_sample_df.reindex(design_X.index)
             except Exception as e:
                 st.error(f"IdopNetwork 运行失败：{e}")
                 st.session_state.netrecon_result = None
@@ -214,7 +216,7 @@ with tab1:
                     _summary("curve_sample (raw)", cs_raw),
                     _summary("curve_sample (scaled to [-1,1])", cs_scl),
                     _summary("design X = [intercept | Legendre integral]", X_dbg),
-                    _summary("response Y = quasi_dynamic", Y_dbg),
+                    _summary("response Y = curve_sample (raw)", Y_dbg),
                     _summary("coef_", coef),
                     _summary("predicted", pred),
                 ]
