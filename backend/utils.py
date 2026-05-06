@@ -4,21 +4,21 @@
 所有 static/ 资源的路径引用、页面 CSS 加载以及 matplotlib 中文字体
 初始化均集中于此，避免各页面/模块重复硬编码。
 """
-
+"""
+共享工具模块：路径常量、CSS 注入、matplotlib 中文字体配置。
+"""
 from pathlib import Path
-
 import matplotlib.font_manager as fm
 import matplotlib.pyplot as plt
 import streamlit as st
 
 # ── 路径常量 ──────────────────────────────────────────────────────────────────
-
-STATIC_DIR: Path = Path(__file__).parent.parent / "static"
-CSS_PATH: Path = STATIC_DIR / "css" / "custom_style.css"
-FONT_PATH: Path = STATIC_DIR / "SimHei.ttf"
+STATIC_DIR = Path(__file__).parent.parent / "static"
+CSS_PATH = STATIC_DIR / "css" / "custom_style.css"
+FONT_PATH = STATIC_DIR / "SimHei.ttf"
 
 # matplotlib 字体属性对象（供 plot_*.py 直接使用）
-font_prop: fm.FontProperties = fm.FontProperties(fname=FONT_PATH)
+font_prop = fm.FontProperties(fname=FONT_PATH)
 plt.rcParams["axes.unicode_minus"] = False
 
 # ── 辅助函数 ──────────────────────────────────────────────────────────────────
@@ -52,34 +52,29 @@ def load_css():
         background-color: #ffffff;
     }
 
-    /* ======================================================== */
-    /* 🌟 6. 终极优化：全局字体放大 & 输入框精准白字 🌟 */
-    /* ======================================================== */
-    
-    /* 【字体放大】全局的正文、列表字体稍微放大，提升阅读舒适度 */
+    /* 6. 全局字体放大 & 输入框精准白字 */
     p, li, .stMarkdown {
         font-size: 1.1rem !important; 
         line-height: 1.6 !important;
     }
 
-    /* 【颜色保护】精准定位深色输入框的内部文字变成纯白，绝对不影响外部！ */
     div[data-baseweb="select"] > div, 
     div[data-baseweb="base-input"] > input, 
     .stTextInput input {
         color: #ffffff !important;
-        -webkit-text-fill-color: #ffffff !important; /* 兼容 Safari/Chrome */
+        -webkit-text-fill-color: #ffffff !important; 
     }
     
-    /* 修复下拉菜单展开后的深色背景和白字 */
-    ul[data-baseweb="menu"] {
-        background-color: #334155 !important;
-    }
-    ul[data-baseweb="menu"] li {
-        color: #ffffff !important;
-        font-size: 1.05rem !important; /* 下拉菜单里的字也顺便放大一点 */
-    }
-    ul[data-baseweb="menu"] li:hover {
-        background-color: #475569 !important; /* 鼠标悬停时的亮色反馈 */
+    ul[data-baseweb="menu"] { background-color: #334155 !important; }
+    ul[data-baseweb="menu"] li { color: #ffffff !important; font-size: 1.05rem !important; }
+    ul[data-baseweb="menu"] li:hover { background-color: #475569 !important; }
+
+    /* 🌟 7. 修复：强制文件上传框里的小字变白 🌟 */
+    [data-testid="stFileUploader"] div, 
+    [data-testid="stFileUploader"] small,
+    [data-testid="stFileUploader"] span {
+        color: #f8fafc !important;
+        -webkit-text-fill-color: #f8fafc !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -101,13 +96,3 @@ def setup_sidebar():
         st.page_link("pages/2_FunClu.py", label="FunClu", icon="🧩")
         st.page_link("pages/3_NetRecon.py", label="NetRecon", icon="🕸️")
         st.page_link("pages/4_NetAnal.py", label="NetAnal", icon="📊")
-
-        /* ======================================================== */
-    /* 🌟 7. 修复文件上传组件里的深色小字 🌟 */
-    /* ======================================================== */
-    [data-testid="stFileUploader"] div, 
-    [data-testid="stFileUploader"] small,
-    [data-testid="stFileUploader"] span {
-        color: #f8fafc !important;
-        -webkit-text-fill-color: #f8fafc !important;
-    }
