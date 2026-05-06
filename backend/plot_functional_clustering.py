@@ -4,7 +4,6 @@
 
 - ``plot_initialization_grid``：给 ``FunClu._initialize`` 的初值做诊断网格图，
   支持 ``"k_by_l"``（K 行 × L 列）与 ``"l_by_k"``（L 行 × K 列）两种布局。
-- ``plot_loglik_history``：EM 收敛曲线（``log-likelihood`` vs iteration）。
 - ``plot_cluster_profiles``：EM 拟合完成后，按簇绘制各 condition 的成员
   曲线 + 加权均值幂律拟合曲线 + 可选 CI 带。
 
@@ -250,55 +249,6 @@ def plot_initialization_grid(
     if show_in_streamlit:
         st.pyplot(fig, use_container_width=True)
 
-    return fig
-
-
-def plot_loglik_history(
-    history: Sequence[float],
-    *,
-    figsize: Tuple[float, float] = (5.0, 2.6),
-    dpi: int = 200,
-    show_in_streamlit: bool = True,
-    title: str = "EM convergence",
-    color: str = "#2E86C1",
-) -> Figure:
-    """绘制 EM 主循环的 ``log-likelihood`` 收敛曲线。
-
-    Args:
-        history: 长度 ``T`` 的 ``log-likelihood`` 序列（``FunClu.loglik_history``）。
-        figsize: 画布尺寸（英寸）。
-        dpi: 分辨率。
-        show_in_streamlit: 是否直接 ``st.pyplot``。
-        title: 图标题。
-        color: 折线颜色。
-
-    Returns:
-        ``matplotlib.figure.Figure``。
-    """
-    fig, ax = plt.subplots(1, 1, figsize=figsize, dpi=dpi)
-    if not history:
-        ax.text(
-            0.5,
-            0.5,
-            "no iterations",
-            ha="center",
-            va="center",
-            transform=ax.transAxes,
-            fontsize=10,
-            fontproperties=font_prop,
-        )
-    else:
-        xs = np.arange(1, len(history) + 1)
-        ax.plot(xs, np.asarray(history, dtype=np.float64), "-o", color=color, lw=1.5, ms=3.5)
-        ax.set_xlabel("iteration", fontproperties=font_prop)
-        ax.set_ylabel("log-likelihood", fontproperties=font_prop)
-    ax.set_title(title, fontsize=10, fontproperties=font_prop)
-    ax.grid(True, ls=":", alpha=0.5)
-    _set_chinese_axes(ax)
-    fig.tight_layout()
-
-    if show_in_streamlit:
-        st.pyplot(fig, use_container_width=True)
     return fig
 
 

@@ -9,10 +9,7 @@ import numpy as np
 import pandas as pd
 
 from backend.functional_clustering import FunClu
-from backend.plot_functional_clustering import (
-    plot_cluster_profiles,
-    plot_loglik_history,
-)
+from backend.plot_functional_clustering import plot_cluster_profiles
 from backend.utils import load_css
 
 load_css()
@@ -247,10 +244,6 @@ with tab1:
                 with col_cov:
                     st.markdown(r"**cov_params (phi, gamma)** — SAD1")
                     st.dataframe(pd.DataFrame(em_cov_rows), use_container_width=True)
-
-                # 绘图区
-                st.markdown("**Convergence curve**")
-                plot_loglik_history(em_model.loglik_history)
 
                 st.markdown("**Cluster profiles**")
                 with st.expander("Cluster profiles plot settings", expanded=False):
