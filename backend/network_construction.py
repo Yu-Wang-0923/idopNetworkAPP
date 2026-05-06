@@ -5,24 +5,75 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from scipy.integrate import cumulative_trapezoid
-from scipy.special import eval_legendre as Legendre
-# from scipy.special import eval_laguerre as Legendre
+from scipy.interpolate import BSpline
+from scipy.special import eval_laguerre, eval_legendre
+
+SUPPORTED_BASIS_KINDS = ("legendre", "laguerre", "bspline")
 
 
-def polynomial_basis_expansion(data: pd.DataFrame, max_order: int) -> pd.DataFrame:
-    """对每个特征做勒让德多项式基展开（1..max_order 阶）。"""
-    basis_expansion = []
-    for order in range(1, max_order + 1):
-        basis_expansion.append(Legendre(order, data.values))
-    basis_expansion = np.stack(basis_expansion, axis=0).transpose(1, 2, 0)
-    n_samples, n_features, n_orders = basis_expansion.shape
+def _bspline_basis_matrix(x_flat: np.ndarray, max_order: int, degree: int) -> np.ndarray:
+    """在 [-1, 1] 上构建 clamped uniform B-spline 基矩阵，列数恰为 max_order。
+
+    节点向量：t = [-1]*(k+1) + interior + [1]*(k+1)，其中 interior 等距分布于 (-1, 1)，
+    个数 = max_order - degree - 1。max_order < degree+1 时自动降阶到 max_order-1。
+    """
+    if max_order <= 0:
+        raise ValueError("max_order 必须为正整数")
+    k = int(min(max(degree, 1), max(max_order - 1, 1)))
+    n_interior = max_order - k - 1
+    if n_interior > 0:
+        interior = np.linspace(-1.0, 1.0, n_interior + 2)[1:-1]
+    else:
+        interior = np.empty(0, dtype=float)
+    t = np.concatenate(
+        [np.full(k + 1, -1.0), interior, np.full(k + 1, 1.0)]
+    )
+    x_clipped = np.clip(x_flat.astype(float), -1.0, 1.0)
+    design = BSpline.design_matrix(x_clipped, t, k, extrapolate=False)
+    return np.asarray(design.todense()) if hasattr(design, "todense") else np.asarray(design)
+
+
+def polynomial_basis_expansion(
+    data: pd.DataFrame,
+    max_order: int,
+    kind: str = "legendre",
+    bspline_degree: int = 3,
+) -> pd.DataFrame:
+    """对每个特征做基展开（1..max_order 阶/列），可选 legendre / laguerre / bspline。
+
+    - legendre：scipy.eval_legendre，输入域期望为 [-1, 1]。
+    - laguerre：scipy.eval_laguerre，内部把 x ∈ [-1, 1] 映射到 [0, max_order]，
+      让前 n 阶 Laguerre 多项式的零点（O(n) 量级）能覆盖数据范围。
+    - bspline：clamped uniform B-spline 基（列数 = max_order，B 样条次数 bspline_degree）。
+    """
+    if kind not in SUPPORTED_BASIS_KINDS:
+        raise ValueError(
+            f"kind 必须为 {SUPPORTED_BASIS_KINDS} 之一，实际收到 {kind!r}"
+        )
+    values = data.values.astype(float)
+    n_samples, n_features = values.shape
+
+    if kind == "legendre":
+        per_order = [eval_legendre(order, values) for order in range(1, max_order + 1)]
+        basis_arr = np.stack(per_order, axis=0).transpose(1, 2, 0)
+    elif kind == "laguerre":
+        u = (values + 1.0) * (max_order / 2.0)
+        per_order = [eval_laguerre(order, u) for order in range(1, max_order + 1)]
+        basis_arr = np.stack(per_order, axis=0).transpose(1, 2, 0)
+    else:
+        per_feature = [
+            _bspline_basis_matrix(values[:, j], max_order, bspline_degree)
+            for j in range(n_features)
+        ]
+        basis_arr = np.stack(per_feature, axis=1)
+
     columns = [
         f"{data.columns[i]}_o({order + 1})"
         for i in range(n_features)
-        for order in range(n_orders)
+        for order in range(max_order)
     ]
-    basis_expansion = basis_expansion.reshape(n_samples, n_features * n_orders)
-    return pd.DataFrame(basis_expansion, index=data.index, columns=columns)
+    flat = basis_arr.reshape(n_samples, n_features * max_order)
+    return pd.DataFrame(flat, index=data.index, columns=columns)
 
 
 def polynomial_basis_expansion_integral(basis_expansion: pd.DataFrame) -> pd.DataFrame:
@@ -404,8 +455,14 @@ class IDOPRegressor:
         max_interactions: int = 0,
         multi_task: bool = False,
         basis_type: str = "integral",
+        basis_kind: str = "legendre",
+        bspline_degree: int = 3,
         ebic_gamma: float = 0.0,
     ):
+        if basis_kind not in SUPPORTED_BASIS_KINDS:
+            raise ValueError(
+                f"basis_kind 必须为 {SUPPORTED_BASIS_KINDS} 之一，实际收到 {basis_kind!r}"
+            )
         self.max_order = max_order
         self.solver = solver
         self.alpha = alpha
@@ -417,12 +474,19 @@ class IDOPRegressor:
         self.max_interactions = max_interactions
         self.multi_task = multi_task
         self.basis_type = basis_type
+        self.basis_kind = basis_kind
+        self.bspline_degree = bspline_degree
         self.ebic_gamma = ebic_gamma
         self.coef_: pd.DataFrame | None = None
         self.mse_: float | None = None
 
     def _design(self, power_function_sample_df: pd.DataFrame) -> pd.DataFrame:
-        basis_raw = polynomial_basis_expansion(power_function_sample_df, self.max_order)
+        basis_raw = polynomial_basis_expansion(
+            power_function_sample_df,
+            self.max_order,
+            kind=self.basis_kind,
+            bspline_degree=self.bspline_degree,
+        )
         if self.basis_type == "derivative":
             basis = basis_raw
         else:

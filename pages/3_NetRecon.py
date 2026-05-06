@@ -123,6 +123,30 @@ with tab1:
                         value=6,
                         step=1,
                     )
+                    basis_kind = st.selectbox(
+                        "basis_kind",
+                        options=["legendre", "laguerre", "bspline"],
+                        index=0,
+                        help=(
+                            "Basis family for per-feature expansion. "
+                            "legendre/laguerre: orthogonal polynomials (laguerre is "
+                            "internally remapped to [0, max_order]). "
+                            "bspline: clamped uniform B-spline with `bspline_degree` "
+                            "knots, column count still equals max_order."
+                        ),
+                    )
+                    bspline_degree = st.number_input(
+                        "bspline_degree",
+                        min_value=1,
+                        max_value=10,
+                        value=3,
+                        step=1,
+                        help=(
+                            "B-spline degree (only used when basis_kind == 'bspline'). "
+                            "Auto-clamped to max_order - 1 if too large."
+                        ),
+                        disabled=(basis_kind != "bspline"),
+                    )
                 with c2:
                     alpha = st.number_input(
                         "alpha",
@@ -165,6 +189,8 @@ with tab1:
                     mix=float(mix),
                     nonneg_self=bool(nonneg_self),
                     max_interactions=int(top_k),
+                    basis_kind=str(basis_kind),
+                    bspline_degree=int(bspline_degree),
                 )
                 # 响应 Y 必须与设计矩阵 X 共享同一 index（curve_sample 的 Chebyshev 节点）
                 # quasi_dynamic 的 τ 索引与 curve_sample 不同域，仅用于后续可视化散点
@@ -220,10 +246,13 @@ with tab1:
                         "n_zero": int((arr == 0).sum()),
                     }
 
+                _basis_label = model_dbg.basis_kind.capitalize()
+                if model_dbg.basis_kind == "bspline":
+                    _basis_label = f"B-spline(k={model_dbg.bspline_degree})"
                 summary_rows = [
                     _summary("curve_sample (raw)", cs_raw),
                     _summary("curve_sample (scaled to [-1,1])", cs_scl),
-                    _summary("design X = [intercept | Legendre integral]", X_dbg),
+                    _summary(f"design X = [intercept | {_basis_label} integral]", X_dbg),
                     _summary("response Y = curve_sample (raw)", Y_dbg),
                     _summary("coef_", coef),
                     _summary("predicted", pred),
@@ -235,6 +264,7 @@ with tab1:
                     f"`max_order` = **{model_dbg.max_order}** &nbsp; | &nbsp; "
                     f"`solver` = **{model_dbg.solver}** &nbsp; | &nbsp; "
                     f"`alpha` = **{model_dbg.alpha}** &nbsp; | &nbsp; "
+                    f"`basis_kind` = **{model_dbg.basis_kind}** &nbsp; | &nbsp; "
                     f"`mse_` = **{model_dbg.mse_}**"
                 )
 
