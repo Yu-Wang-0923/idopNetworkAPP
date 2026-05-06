@@ -1,9 +1,14 @@
 import streamlit as st
 
-st.set_page_config(page_title="Network Analysis", page_icon=None, layout="wide", initial_sidebar_state="auto")
+# 🌟 修改 1：统一小图标和侧边栏状态
+st.set_page_config(page_title="Network Analysis", page_icon="TSA.png", layout="wide", initial_sidebar_state="expanded")
 
-from backend.utils import load_css
+# 🌟 修改 2：导入 setup_sidebar
+from backend.utils import load_css, setup_sidebar
+
+# 🌟 修改 3：一键加载
 load_css()
+setup_sidebar()
 
 st.title("Network Analysis", text_alignment="center")
 

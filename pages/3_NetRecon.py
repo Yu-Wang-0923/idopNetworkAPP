@@ -5,20 +5,26 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+# 🌟 修改 1：统一小图标和侧边栏状态（建议紧跟在 import st 后面）
+st.set_page_config(
+    page_title="Network Construction",
+    page_icon="TSA.png",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
 from backend.curve_fitting import data_transformation
 from backend.network_construction import IDOPRegressor
 from backend.plot_curve_fitting import plot_curve_fitting
 from backend.plot_network_construction import plot_effect, plot_network
-from backend.utils import load_css
 
-st.set_page_config(
-    page_title="Network Construction",
-    page_icon=None,
-    layout="wide",
-    initial_sidebar_state="auto",
-)
+# 🌟 修改 2：导入 setup_sidebar
+from backend.utils import load_css, setup_sidebar
 
+# 🌟 修改 3：一键加载
 load_css()
+setup_sidebar()
+
 st.title("Network Construction", text_alignment="center")
 
 

@@ -3,16 +3,21 @@ import zipfile
 
 import streamlit as st
 
-st.set_page_config(page_title="Functional Clustering", page_icon=None, layout="wide", initial_sidebar_state="auto")
+# 🌟 修改 1：统一小图标和侧边栏状态
+st.set_page_config(page_title="Functional Clustering", page_icon="TSA.png", layout="wide", initial_sidebar_state="expanded")
 
 import numpy as np
 import pandas as pd
 
 from backend.functional_clustering import FunClu
 from backend.plot_functional_clustering import plot_cluster_profiles
-from backend.utils import load_css
 
+# 🌟 修改 2：导入 setup_sidebar
+from backend.utils import load_css, setup_sidebar
+
+# 🌟 修改 3：一键加载
 load_css()
+setup_sidebar()
 
 st.title("Functional Clustering", text_alignment="center")
 
