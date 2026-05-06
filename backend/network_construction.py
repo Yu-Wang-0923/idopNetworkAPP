@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from scipy.integrate import cumulative_trapezoid
 # from scipy.special import eval_legendre as Legendre
-from scipy.special import eval_hermite as Legendre
+from scipy.special import eval_laguerre as Legendre
 
 
 def polynomial_basis_expansion(data: pd.DataFrame, max_order: int) -> pd.DataFrame:
