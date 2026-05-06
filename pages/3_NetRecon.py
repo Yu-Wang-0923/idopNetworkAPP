@@ -122,7 +122,7 @@ with tab1:
                         "alpha",
                         min_value=0.0,
                         value=1.0,
-                        step=0.1,
+                        step=0.001,
                         help="ridge/lasso/asgl/adsiht regularization strength",
                     )
                     mix = st.slider(
