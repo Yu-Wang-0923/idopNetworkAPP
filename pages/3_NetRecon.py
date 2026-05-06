@@ -241,7 +241,6 @@ with tab1:
                 def _plot_matrix_lines(
                     df: pd.DataFrame,
                     title: str,
-                    key: str,
                     x_label: str,
                     exclude_intercept: bool = False,
                 ) -> None:
@@ -249,15 +248,7 @@ with tab1:
                         cols = [c for c in df.columns if c != "intercept"]
                     else:
                         cols = list(df.columns)
-                    default_n = min(8, len(cols))
-                    default_sel = cols[:default_n] if default_n > 0 else []
-                    selected_cols = st.multiselect(
-                        "选择要绘制的列",
-                        options=cols,
-                        default=default_sel,
-                        key=key,
-                    )
-                    if selected_cols:
+                    if cols:
                         fig, ax = plt.subplots(figsize=(12, 4.5))
                         try:
                             x_idx = df.index.astype(float).to_numpy(dtype=float, copy=False)
@@ -265,28 +256,22 @@ with tab1:
                                 raise ValueError("non-finite float index")
                         except (TypeError, ValueError):
                             x_idx = np.arange(len(df), dtype=float)
-                        for col in selected_cols:
+                        for col in cols:
                             ax.plot(
                                 x_idx,
                                 df[col].to_numpy(dtype=float, copy=False),
-                                label=col,
-                                linewidth=1.2,
+                                linewidth=1.0,
+                                alpha=0.75,
                             )
                         ax.set_xlabel(x_label, fontproperties=font_prop)
                         ax.set_ylabel("列取值", fontproperties=font_prop)
                         ax.set_title(title, fontproperties=font_prop)
                         ax.grid(True, alpha=0.35)
-                        ax.legend(
-                            bbox_to_anchor=(1.02, 1.0),
-                            loc="upper left",
-                            fontsize="small",
-                            prop=font_prop,
-                        )
                         fig.tight_layout()
                         st.pyplot(fig, use_container_width=True)
                         plt.close(fig)
                     else:
-                        st.caption("请至少选择一列以绘制折线图。")
+                        st.caption("没有可绘制的矩阵列。")
 
                 _basis_label = model_dbg.basis_kind.capitalize()
                 summary_rows = [
@@ -313,25 +298,26 @@ with tab1:
                 st.dataframe(cs_raw.head(), use_container_width=True)
                 st.markdown("**curve_sample (scaled) — head**")
                 st.dataframe(cs_scl.head(), use_container_width=True)
-                st.markdown("**basis matrix before integral — head (first 8 cols)**")
-                st.dataframe(basis_raw_dbg.iloc[:5, :8], use_container_width=True)
-                st.markdown("**basis matrix before integral — 沿 index 折线图**")
-                _plot_matrix_lines(
-                    basis_raw_dbg,
-                    "积分前基函数矩阵（按列）",
-                    "netrecon_basis_raw_line_cols",
-                    "basis_raw.index",
-                )
-                st.markdown("**design matrix X — head (first 8 cols)**")
-                st.dataframe(X_dbg.iloc[:5, :8], use_container_width=True)
-                st.markdown("**design matrix X — 沿 index 折线图（不含 intercept）**")
-                _plot_matrix_lines(
-                    X_dbg,
-                    "设计矩阵 X（按列，不含 intercept）",
-                    "netrecon_design_x_line_cols",
-                    "design_X.index",
-                    exclude_intercept=True,
-                )
+                left_col, right_col = st.columns(2)
+                with left_col:
+                    st.markdown("**basis matrix before integral — head (first 8 cols)**")
+                    st.dataframe(basis_raw_dbg.iloc[:5, :8], use_container_width=True)
+                    st.markdown("**basis matrix before integral — 沿 index 折线图**")
+                    _plot_matrix_lines(
+                        basis_raw_dbg,
+                        "积分前基函数矩阵（全部列）",
+                        "basis_raw.index",
+                    )
+                with right_col:
+                    st.markdown("**design matrix X — head (first 8 cols)**")
+                    st.dataframe(X_dbg.iloc[:5, :8], use_container_width=True)
+                    st.markdown("**design matrix X — 沿 index 折线图（不含 intercept）**")
+                    _plot_matrix_lines(
+                        X_dbg,
+                        "设计矩阵 X（全部列，不含 intercept）",
+                        "design_X.index",
+                        exclude_intercept=True,
+                    )
                 st.markdown("**response Y — head**")
                 st.dataframe(Y_dbg.head(), use_container_width=True)
                 st.markdown("**coef_**")
