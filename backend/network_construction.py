@@ -19,7 +19,7 @@ def polynomial_basis_expansion(
 
     - legendre：scipy.eval_legendre，输入域期望为 [-1, 1]。
     - laguerre：scipy.eval_laguerre，输入域期望为 -1 to 1。
-    - polynomial：普通幂基，列为 x^2, x^3, ..., x^(max_order + 1)。
+    - polynomial：普通幂基，列为 x, x^2, ..., x^max_order。
     """
     if kind not in SUPPORTED_BASIS_KINDS:
         raise ValueError(
@@ -36,13 +36,12 @@ def polynomial_basis_expansion(
         basis_arr = np.stack(per_order, axis=0).transpose(1, 2, 0)
     else:
         per_order = [
-            np.power(values, power) for power in range(2, max_order + 2)
+            np.power(values, power) for power in range(1, max_order + 1)
         ]
         basis_arr = np.stack(per_order, axis=0).transpose(1, 2, 0)
 
-    order_offset = 2 if kind == "polynomial" else 1
     columns = [
-        f"{data.columns[i]}_o({order + order_offset})"
+        f"{data.columns[i]}_o({order + 1})"
         for i in range(n_features)
         for order in range(max_order)
     ]

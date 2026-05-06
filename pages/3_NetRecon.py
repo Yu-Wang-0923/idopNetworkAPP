@@ -131,7 +131,7 @@ with tab1:
                         help=(
                             "Basis family for per-feature expansion. "
                             "legendre/laguerre: orthogonal polynomials on [-1, 1]. "
-                            "polynomial: powers x^2, x^3, ..., with column count "
+                            "polynomial: powers x, x^2, ..., with column count "
                             "still equals max_order."
                         ),
                     )
