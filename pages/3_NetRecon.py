@@ -3,8 +3,6 @@ import streamlit as st
 st.set_page_config(page_title="Network Construction", page_icon=None, layout="wide", initial_sidebar_state="auto")
 
 
-from backend.utils import setup_matplotlib_chinese
-
 from backend.utils import load_css
 
 load_css()
