@@ -253,37 +253,72 @@ with tab1:
                 plot_loglik_history(em_model.loglik_history)
 
                 st.markdown("**Cluster profiles**")
-                opts_col, _ = st.columns([1, 3])
-                with opts_col:
-                    em_use_log_y = st.checkbox(
-                        "log-scale Y", value=False, key="funclu_em_log_y"
-                    )
-                    em_use_log_x = st.checkbox(
-                        "log-scale X", value=False, key="funclu_em_log_x"
-                    )
-                    em_member_source = st.selectbox(
-                        "Member source",
-                        ["curve", "qd_df"],
-                        index=0,
-                        key="funclu_em_member_src",
-                        help=(
-                            "curve: 每个成员一条细线（基于 curve_sample）；"
-                            "qd_df: 每个时间点 × 每成员的散点（适合配 quasi_dynamic）。"
-                        ),
-                    )
-                    em_show_ci = st.checkbox(
-                        "Show CI band (±1.96 SE)",
-                        value=False,
-                        key="funclu_em_show_ci",
-                    )
-                    em_n_cols = st.number_input(
-                        "Subplot cols",
-                        min_value=1,
-                        max_value=max(em_model.n_components, 1),
-                        value=min(3, em_model.n_components),
-                        step=1,
-                        key="funclu_em_ncols",
-                    )
+                with st.expander("Cluster profiles plot settings", expanded=False):
+                    with st.form(key="funclu_cluster_profiles_form"):
+                        layout_col, member_col, scale_col = st.columns(3)
+                        with layout_col:
+                            em_profile_layout = st.selectbox(
+                                "Profile layout",
+                                options=["combined", "k_by_l", "l_by_k"],
+                                format_func={
+                                    "combined": "Combined: conditions in one panel",
+                                    "k_by_l": "K x L: cluster rows",
+                                    "l_by_k": "L x K: condition rows",
+                                }.get,
+                                key="funclu_em_profile_layout",
+                            )
+                            em_n_cols = st.number_input(
+                                "Subplot cols (combined only)",
+                                min_value=1,
+                                max_value=max(em_model.n_components, 1),
+                                value=min(3, em_model.n_components),
+                                step=1,
+                                key="funclu_em_ncols",
+                            )
+                        with member_col:
+                            em_member_source = st.selectbox(
+                                "Member source",
+                                ["curve", "qd_df"],
+                                index=0,
+                                key="funclu_em_member_src",
+                                help=(
+                                    "curve: 每个成员一条细线（基于 curve_sample）；"
+                                    "qd_df: 每个时间点 × 每成员的散点"
+                                    "（适合配 quasi_dynamic）。"
+                                ),
+                            )
+                            em_show_members = st.checkbox(
+                                "Show members",
+                                value=True,
+                                key="funclu_em_show_members",
+                            )
+                            em_show_mean = st.checkbox(
+                                "Show mean curve",
+                                value=True,
+                                key="funclu_em_show_mean",
+                            )
+                            em_show_ci = st.checkbox(
+                                "Show CI band (±1.96 SE)",
+                                value=False,
+                                key="funclu_em_show_ci",
+                            )
+                        with scale_col:
+                            em_use_log_y = st.checkbox(
+                                "log-scale Y",
+                                value=False,
+                                key="funclu_em_log_y",
+                            )
+                            em_use_log_x = st.checkbox(
+                                "log-scale X",
+                                value=False,
+                                key="funclu_em_log_x",
+                            )
+                            em_show_legend = st.checkbox(
+                                "Show legend",
+                                value=True,
+                                key="funclu_em_show_legend",
+                            )
+                        st.form_submit_button("Apply plot settings")
 
                 plot_cluster_profiles(
                     data_scatter=[curve_sample_dict[n] for n in em_cond_names],
@@ -292,10 +327,14 @@ with tab1:
                     n_components=em_model.n_components,
                     condition_labels=em_cond_names,
                     member_source=em_member_source,
+                    show_members=bool(em_show_members),
+                    show_mean=bool(em_show_mean),
                     show_mean_ci=bool(em_show_ci),
                     use_semilogy=bool(em_use_log_y),
                     use_log_x=bool(em_use_log_x),
+                    layout=str(em_profile_layout),
                     n_cols=int(em_n_cols),
+                    show_legend=bool(em_show_legend),
                 )
 
 

@@ -302,6 +302,444 @@ def plot_loglik_history(
     return fig
 
 
+def plot_cluster_profiles(
+    *,
+    data_scatter: List[pd.DataFrame],
+    data_curve: Optional[List[pd.DataFrame]] = None,
+    labels: np.ndarray,
+    common_cols: Optional[Sequence[str]] = None,
+    n_components: Optional[int] = None,
+    condition_labels: Optional[Sequence[str]] = None,
+    member_source: str = "qd_df",
+    show_members: bool = True,
+    show_mean: bool = True,
+    show_mean_ci: bool = False,
+    ci_alpha: float = 0.25,
+    ci_z: float = 1.96,
+    use_semilogy: bool = True,
+    use_log_x: bool = False,
+    layout: str = "combined",
+    n_cols: int = 3,
+    subplot_hw: Tuple[float, float] = (4.0, 3.0),
+    palette: Optional[Sequence[Tuple[str, str]]] = None,
+    title: str = "Cluster profiles",
+    panel_title_prefix: str = "M",
+    panel_title_fontsize: float = 11.0,
+    xlabel: str = "Index",
+    ylabel: Optional[str] = None,
+    axis_label_fontsize: float = 12.0,
+    linewidth_mean: float = 3.0,
+    linewidth_member: float = 1.2,
+    markersize_qd: float = 7.0,
+    alpha_member_lines: float = 0.7,
+    alpha_qd_marker: float = 0.9,
+    x_margin: float = 0.1,
+    y_margin: float = 0.2,
+    show_legend: bool = True,
+    legend_loc: str = "upper center",
+    legend_ncol: Optional[int] = None,
+    legend_fontsize: float = 11.0,
+    legend_bbox: Tuple[float, float] = (0.5, 0.96),
+    dpi: int = 200,
+    show_in_streamlit: bool = True,
+) -> Figure:
+    """按簇绘制 EM 拟合结果的 profile 图。
+
+    ``layout="combined"`` 表示每个 cluster 一个子图，多 condition 叠加；
+    ``"k_by_l"`` 表示 K 行 × L 列；``"l_by_k"`` 表示 L 行 × K 列。
+    """
+    if not data_scatter:
+        raise ValueError("data_scatter 不能为空")
+    if member_source not in ("qd_df", "curve"):
+        raise ValueError(
+            f"member_source 必须为 'qd_df' 或 'curve'，当前为：{member_source!r}"
+        )
+    if layout not in ("combined", "k_by_l", "l_by_k"):
+        raise ValueError(
+            "layout 必须为 'combined'、'k_by_l' 或 'l_by_k'，"
+            f"当前为：{layout!r}"
+        )
+    if data_curve is None:
+        data_curve = data_scatter
+    if len(data_curve) != len(data_scatter):
+        raise ValueError(
+            f"data_curve / data_scatter 长度不一致："
+            f"{len(data_curve)} vs {len(data_scatter)}"
+        )
+
+    n_conditions = len(data_scatter)
+    labels_np = (
+        labels.detach().cpu().numpy() if isinstance(labels, torch.Tensor)
+        else np.asarray(labels)
+    ).astype(np.int64)
+
+    if n_components is None:
+        n_components = int(labels_np.max()) + 1 if labels_np.size > 0 else 1
+    n_clusters = int(n_components)
+
+    if condition_labels is None:
+        condition_labels = [f"Cond {i + 1}" for i in range(n_conditions)]
+    else:
+        condition_labels = list(condition_labels)
+        if len(condition_labels) < n_conditions:
+            condition_labels = condition_labels + [
+                f"Cond {i + 1}"
+                for i in range(len(condition_labels), n_conditions)
+            ]
+
+    pal: List[Tuple[str, str]] = (
+        list(palette) if palette is not None else list(_CLUSTER_PROFILE_DEFAULT_PALETTE)
+    )
+    while len(pal) < n_conditions:
+        pal.extend(_CLUSTER_PROFILE_DEFAULT_PALETTE)
+
+    n_cols = max(1, int(n_cols))
+    if layout == "combined":
+        n_cols_eff = min(n_cols, max(n_clusters, 1))
+        n_rows = (n_clusters + n_cols_eff - 1) // n_cols_eff
+    elif layout == "k_by_l":
+        n_rows = n_clusters
+        n_cols_eff = n_conditions
+    else:
+        n_rows = n_conditions
+        n_cols_eff = n_clusters
+
+    panel_w, panel_h = subplot_hw
+    fig, axes = plt.subplots(
+        n_rows,
+        n_cols_eff,
+        figsize=(panel_w * n_cols_eff, panel_h * n_rows),
+        sharex=True,
+        sharey=True,
+        dpi=dpi,
+    )
+    if n_rows == 1 and n_cols_eff == 1:
+        axes_arr = np.array([[axes]])
+    elif n_rows == 1:
+        axes_arr = np.asarray(axes).reshape(1, n_cols_eff)
+    elif n_cols_eff == 1:
+        axes_arr = np.asarray(axes).reshape(n_rows, 1)
+    else:
+        axes_arr = np.asarray(axes)
+
+    y_label_eff = ylabel if ylabel is not None else (
+        "Value (log scale)" if use_semilogy else "Value"
+    )
+
+    def _select_member_columns(df: pd.DataFrame) -> pd.DataFrame:
+        if common_cols is not None:
+            cols = [c for c in common_cols if c in df.columns]
+            return df[cols]
+        return df.iloc[:, : labels_np.size]
+
+    def _plot_y(ax_: plt.Axes, x_, y_, *, fmt: str = "-", **kwargs) -> None:
+        x_arr = np.asarray(x_, dtype=np.float64)
+        y_arr = np.asarray(y_, dtype=np.float64)
+        valid = np.isfinite(x_arr) & np.isfinite(y_arr)
+        if use_log_x:
+            valid &= x_arr > 0
+        if use_semilogy:
+            valid &= y_arr > 0
+        if not valid.any():
+            return
+
+        x_plot = x_arr[valid]
+        y_plot = y_arr[valid]
+        if use_semilogy:
+            ax_.semilogy(x_plot, np.maximum(y_plot, 1e-10), fmt, **kwargs)
+        else:
+            ax_.plot(x_plot, y_plot, fmt, **kwargs)
+
+    def _style_axis(ax_: plt.Axes) -> None:
+        if use_log_x:
+            ax_.set_xscale("log")
+        ax_.grid(True, linestyle=":", linewidth=0.8, alpha=0.35)
+        ax_.spines["top"].set_visible(False)
+        ax_.spines["right"].set_visible(False)
+        ax_.spines["left"].set_linewidth(0.8)
+        ax_.spines["bottom"].set_linewidth(0.8)
+        ax_.tick_params(labelsize=8, width=0.8)
+        _set_chinese_axes(ax_)
+
+    def _draw_cluster_condition(
+        ax_: plt.Axes,
+        *,
+        cluster_idx: int,
+        condition_idx: int,
+        label_condition: bool,
+    ) -> None:
+        df_scatter = data_scatter[condition_idx]
+        df_curve = data_curve[condition_idx]
+        t_scatter = df_scatter.index.values.astype(np.float64)
+        t_curve = df_curve.index.values.astype(np.float64)
+        scatter_color, line_color = pal[condition_idx % len(pal)]
+        mask = labels_np == cluster_idx
+        n_in_cluster = int(mask.sum())
+
+        if show_members:
+            df_for_members = df_scatter if member_source == "qd_df" else df_curve
+            t_for_members = t_scatter if member_source == "qd_df" else t_curve
+            df_for_members = _select_member_columns(df_for_members)
+            cluster_data = df_for_members.iloc[:, mask]
+
+            if member_source == "qd_df":
+                x_vals = np.repeat(t_for_members, n_in_cluster)
+                y_vals = cluster_data.values.ravel()
+                valid = np.isfinite(x_vals) & np.isfinite(y_vals)
+                if use_log_x:
+                    valid &= x_vals > 0
+                if use_semilogy:
+                    valid &= y_vals > 0
+                if valid.any():
+                    x_vals = x_vals[valid]
+                    y_vals = y_vals[valid]
+                    if use_semilogy:
+                        ax_.semilogy(
+                            x_vals,
+                            np.maximum(y_vals, 1e-10),
+                            "o",
+                            markerfacecolor="none",
+                            markeredgecolor=scatter_color,
+                            markersize=markersize_qd,
+                            alpha=alpha_qd_marker,
+                            zorder=1,
+                        )
+                    else:
+                        ax_.plot(
+                            x_vals,
+                            y_vals,
+                            "o",
+                            markerfacecolor="none",
+                            markeredgecolor=scatter_color,
+                            markersize=markersize_qd,
+                            alpha=alpha_qd_marker,
+                            zorder=1,
+                        )
+            else:
+                for col in cluster_data.columns:
+                    _plot_y(
+                        ax_,
+                        t_for_members,
+                        cluster_data[col].values,
+                        fmt="-",
+                        color=scatter_color,
+                        linewidth=linewidth_member,
+                        alpha=alpha_member_lines,
+                        zorder=1,
+                    )
+
+        df_curve_sub = _select_member_columns(df_curve)
+        cluster_data_curve = df_curve_sub.iloc[:, mask]
+        mean_points = cluster_data_curve.mean(axis=1).values.astype(np.float64)
+        mean_x, mean_curve = _fit_mean_curve_power_sample(
+            t_curve, mean_points, t_curve
+        )
+        if not np.isfinite(mean_curve).any():
+            mean_x = t_curve
+            mean_curve = mean_points
+
+        if show_mean_ci and n_in_cluster > 0:
+            std_curve = cluster_data_curve.std(axis=1).values.astype(np.float64)
+            sem = std_curve / np.sqrt(max(n_in_cluster, 1))
+            lo = mean_curve - ci_z * sem
+            hi = mean_curve + ci_z * sem
+            valid = np.isfinite(t_curve) & np.isfinite(lo) & np.isfinite(hi)
+            if use_log_x:
+                valid &= t_curve > 0
+            if use_semilogy:
+                valid &= hi > 0
+                lo = np.maximum(lo, 1e-10)
+                hi = np.maximum(hi, 1e-10)
+            if valid.any():
+                ax_.fill_between(
+                    t_curve[valid],
+                    lo[valid],
+                    hi[valid],
+                    color=line_color,
+                    alpha=ci_alpha,
+                    zorder=2,
+                    linewidth=0,
+                )
+
+        if show_mean:
+            _plot_y(
+                ax_,
+                mean_x,
+                mean_curve,
+                fmt="-",
+                color=line_color,
+                linewidth=linewidth_mean,
+                label=condition_labels[condition_idx] if label_condition else None,
+                zorder=3,
+            )
+
+    def _draw_panel(
+        ax_: plt.Axes,
+        *,
+        cluster_idx: int,
+        condition_indexes: Sequence[int],
+        title_suffix: str = "",
+        show_panel_title: bool = True,
+    ) -> None:
+        n_in_cluster = int((labels_np == cluster_idx).sum())
+        if n_in_cluster == 0:
+            empty_title = f"{panel_title_prefix} {cluster_idx + 1}\n(empty)"
+            if title_suffix:
+                empty_title = f"{empty_title}\n{title_suffix}"
+            ax_.text(
+                0.5,
+                0.5,
+                empty_title,
+                transform=ax_.transAxes,
+                ha="center",
+                va="center",
+                fontsize=panel_title_fontsize,
+                fontproperties=font_prop,
+            )
+            _style_axis(ax_)
+            return
+
+        for condition_idx in condition_indexes:
+            _draw_cluster_condition(
+                ax_,
+                cluster_idx=cluster_idx,
+                condition_idx=condition_idx,
+                label_condition=(layout == "combined" and cluster_idx == 0),
+            )
+
+        if show_panel_title:
+            panel_title = f"{panel_title_prefix} {cluster_idx + 1} (n={n_in_cluster})"
+            if title_suffix:
+                panel_title = f"{panel_title} | {title_suffix}"
+            ax_.set_title(
+                panel_title,
+                fontsize=panel_title_fontsize,
+                fontweight="bold",
+                fontproperties=font_prop,
+            )
+        ax_.margins(x=x_margin, y=y_margin)
+        _style_axis(ax_)
+
+    if layout == "combined":
+        axes_flat = list(axes_arr.flat)
+        for cluster_idx in range(n_clusters):
+            _draw_panel(
+                axes_flat[cluster_idx],
+                cluster_idx=cluster_idx,
+                condition_indexes=range(n_conditions),
+            )
+        for idx in range(n_clusters, len(axes_flat)):
+            fig.delaxes(axes_flat[idx])
+    elif layout == "k_by_l":
+        for cluster_idx in range(n_clusters):
+            for condition_idx in range(n_conditions):
+                _draw_panel(
+                    axes_arr[cluster_idx, condition_idx],
+                    cluster_idx=cluster_idx,
+                    condition_indexes=[condition_idx],
+                    show_panel_title=False,
+                )
+        for condition_idx, condition_label in enumerate(condition_labels):
+            axes_arr[0, condition_idx].set_title(
+                str(condition_label),
+                fontsize=panel_title_fontsize,
+                fontweight="bold",
+                fontproperties=font_prop,
+            )
+        for cluster_idx in range(n_clusters):
+            n_in_cluster = int((labels_np == cluster_idx).sum())
+            axes_arr[cluster_idx, 0].set_ylabel(
+                f"{panel_title_prefix} {cluster_idx + 1}\n(n={n_in_cluster})",
+                fontsize=axis_label_fontsize,
+                fontproperties=font_prop,
+            )
+        for condition_idx in range(n_conditions):
+            axes_arr[-1, condition_idx].set_xlabel(
+                xlabel, fontproperties=font_prop
+            )
+    else:
+        for condition_idx in range(n_conditions):
+            for cluster_idx in range(n_clusters):
+                _draw_panel(
+                    axes_arr[condition_idx, cluster_idx],
+                    cluster_idx=cluster_idx,
+                    condition_indexes=[condition_idx],
+                    show_panel_title=False,
+                )
+        for cluster_idx in range(n_clusters):
+            n_in_cluster = int((labels_np == cluster_idx).sum())
+            axes_arr[0, cluster_idx].set_title(
+                f"{panel_title_prefix} {cluster_idx + 1} (n={n_in_cluster})",
+                fontsize=panel_title_fontsize,
+                fontweight="bold",
+                fontproperties=font_prop,
+            )
+            axes_arr[-1, cluster_idx].set_xlabel(
+                xlabel, fontproperties=font_prop
+            )
+        for condition_idx, condition_label in enumerate(condition_labels):
+            axes_arr[condition_idx, 0].set_ylabel(
+                f"{condition_label}\n{y_label_eff}",
+                fontsize=axis_label_fontsize,
+                fontproperties=font_prop,
+            )
+
+    if title:
+        fig.suptitle(
+            title,
+            fontsize=axis_label_fontsize + 2,
+            fontweight="bold",
+            fontproperties=font_prop,
+            y=0.995,
+        )
+
+    if show_legend:
+        ncol_leg = legend_ncol if legend_ncol is not None else min(n_conditions, 6)
+        handles = [
+            plt.Line2D(
+                [],
+                [],
+                color=pal[i % len(pal)][1],
+                linewidth=linewidth_mean,
+                label=condition_labels[i],
+            )
+            for i in range(n_conditions)
+        ]
+        fig.legend(
+            handles=handles,
+            loc=legend_loc,
+            ncol=ncol_leg,
+            fontsize=legend_fontsize,
+            bbox_to_anchor=legend_bbox,
+        )
+
+    if layout == "combined":
+        fig.text(
+            0.5,
+            0.01,
+            xlabel,
+            ha="center",
+            fontsize=axis_label_fontsize,
+            fontproperties=font_prop,
+        )
+        fig.text(
+            0.005,
+            0.5,
+            y_label_eff,
+            va="center",
+            rotation="vertical",
+            fontsize=axis_label_fontsize,
+            fontproperties=font_prop,
+        )
+
+    top = 0.89 if show_legend else 0.93
+    fig.tight_layout(rect=(0.035, 0.045, 0.995, top))
+
+    if show_in_streamlit:
+        st.pyplot(fig, use_container_width=True)
+    return fig
+
+
 def _fit_mean_curve_power_sample(
     t_curve: np.ndarray,
     y_mean: np.ndarray,
@@ -333,350 +771,3 @@ def _fit_mean_curve_power_sample(
     with np.errstate(over="ignore", invalid="ignore"):
         out[in_range] = a * np.power(xg[in_range], b)
     return xg, out
-
-
-def plot_cluster_profiles(
-    *,
-    data_scatter: List[pd.DataFrame],
-    data_curve: Optional[List[pd.DataFrame]] = None,
-    labels: np.ndarray,
-    common_cols: Optional[Sequence[str]] = None,
-    n_components: Optional[int] = None,
-    condition_labels: Optional[Sequence[str]] = None,
-    member_source: str = "qd_df",
-    show_members: bool = True,
-    show_mean: bool = True,
-    show_mean_ci: bool = False,
-    ci_alpha: float = 0.25,
-    ci_z: float = 1.96,
-    use_semilogy: bool = True,
-    use_log_x: bool = False,
-    n_cols: int = 3,
-    subplot_hw: Tuple[float, float] = (4.0, 3.0),
-    palette: Optional[Sequence[Tuple[str, str]]] = None,
-    panel_title_prefix: str = "M",
-    panel_title_fontsize: float = 11.0,
-    xlabel: str = "Index",
-    ylabel: Optional[str] = None,
-    axis_label_fontsize: float = 12.0,
-    linewidth_mean: float = 3.0,
-    linewidth_member: float = 1.2,
-    markersize_qd: float = 7.0,
-    alpha_member_lines: float = 0.7,
-    alpha_qd_marker: float = 0.9,
-    x_margin: float = 0.1,
-    y_margin: float = 0.2,
-    show_legend: bool = True,
-    legend_loc: str = "upper center",
-    legend_ncol: Optional[int] = None,
-    legend_fontsize: float = 11.0,
-    legend_bbox: Tuple[float, float] = (0.5, 0.99),
-    dpi: int = 200,
-    show_in_streamlit: bool = True,
-) -> Figure:
-    """按簇绘制 EM 拟合结果的 profile 图。每簇一个子图，叠加多 condition。
-
-    每个子图叠加三层信息（按 condition ``i`` 配同一对色）：
-
-    1. **成员**（可选）：被分到该簇的特征在该 condition 下的曲线，可选两种来源：
-
-       - ``member_source="qd_df"``：把每个时间点 × 每个成员特征作为散点（圈，仅描边）；
-       - ``member_source="curve"``：把每个成员特征当作一条细线。
-
-    2. **均值曲线**：簇内成员在 ``data_curve`` 上的逐时间点均值，再用同源的
-       ``fit_power_loglinear`` 拟合 ``a·t^b`` 后在原时间网格上采样。
-    3. **CI 带**（可选）：``mean ± ci_z · SE``，``SE = std/√n``，按 ``data_curve`` 的列统计。
-
-    Args:
-        data_scatter: 长度 ``L`` 的 DataFrame 列表，行索引为时间，列为特征；用于成员层。
-        data_curve: 长度 ``L`` 的 DataFrame 列表，用于均值/CI；为 ``None`` 时复用
-            ``data_scatter``。
-        labels: ``(N,)`` 的整型聚类标签（``np.ndarray`` / ``torch.Tensor`` 均可）。
-        common_cols: 训练时使用的列（``FunClu.common_cols``）；为 ``None`` 时
-            按 ``len(labels)`` 截前若干列。
-        n_components: 簇数 ``K``；为 ``None`` 时按 ``labels.max() + 1`` 推断。
-        condition_labels: 各 condition 的图例文字；为 ``None`` 时使用 ``Cond 1..L``。
-        member_source: ``"qd_df"`` 或 ``"curve"``。
-        show_members / show_mean / show_mean_ci: 各层显隐。
-        ci_alpha / ci_z: CI 带的填充透明度与倍数（默认近似 95%）。
-        use_semilogy / use_log_x: 坐标轴是否取对数；半对数 Y 时把非正值夹到 ``1e-10``
-            避免对数报错。
-        n_cols: 每行子图数；行数自动按 ``ceil(K / n_cols)`` 计算。
-        subplot_hw: 单子图 ``(宽, 高)`` 英寸。
-        palette: 各 condition 的 ``(成员色, 均值色)``；不足时循环填充。
-        panel_title_prefix / panel_title_fontsize: 子图标题样式（``"M k (n)"``）。
-        xlabel / ylabel / axis_label_fontsize: 共享坐标标签；``ylabel`` 为 ``None``
-            时按 ``use_semilogy`` 自动给出。
-        linewidth_mean / linewidth_member / markersize_qd / alpha_*: 视觉参数。
-        x_margin / y_margin: 子图 margins。
-        show_legend / legend_*: 顶部全局图例。
-        dpi: 分辨率。
-        show_in_streamlit: 是否直接 ``st.pyplot(fig)``。
-
-    Returns:
-        ``matplotlib.figure.Figure``。
-
-    Raises:
-        ValueError: ``data_scatter`` 为空、``data_curve`` 长度不匹配，或
-            ``member_source`` 非法。
-    """
-    if not data_scatter:
-        raise ValueError("data_scatter 不能为空")
-    if member_source not in ("qd_df", "curve"):
-        raise ValueError(
-            f"member_source 必须为 'qd_df' 或 'curve'，当前为：{member_source!r}"
-        )
-    if data_curve is None:
-        data_curve = data_scatter
-    if len(data_curve) != len(data_scatter):
-        raise ValueError(
-            f"data_curve / data_scatter 长度不一致："
-            f"{len(data_curve)} vs {len(data_scatter)}"
-        )
-
-    L = len(data_scatter)
-    labels_np = (
-        labels.detach().cpu().numpy() if isinstance(labels, torch.Tensor)
-        else np.asarray(labels)
-    ).astype(np.int64)
-
-    if n_components is None:
-        n_components = int(labels_np.max()) + 1 if labels_np.size > 0 else 1
-    K = int(n_components)
-
-    if condition_labels is None:
-        condition_labels = [f"Cond {i + 1}" for i in range(L)]
-    else:
-        condition_labels = list(condition_labels)
-        if len(condition_labels) < L:
-            condition_labels = condition_labels + [
-                f"Cond {i + 1}" for i in range(len(condition_labels), L)
-            ]
-
-    pal: List[Tuple[str, str]] = (
-        list(palette) if palette is not None else list(_CLUSTER_PROFILE_DEFAULT_PALETTE)
-    )
-    while len(pal) < L:
-        pal.extend(_CLUSTER_PROFILE_DEFAULT_PALETTE)
-
-    n_rows = (K + n_cols - 1) // n_cols
-    sw, sh = subplot_hw
-    fig, axes = plt.subplots(
-        n_rows,
-        n_cols,
-        figsize=(sw * n_cols, sh * n_rows),
-        sharex=True,
-        sharey=True,
-        dpi=dpi,
-    )
-    if n_rows == 1 and n_cols == 1:
-        axes = np.array([[axes]])
-    elif n_rows == 1:
-        axes = np.asarray(axes).reshape(1, n_cols)
-    elif n_cols == 1:
-        axes = np.asarray(axes).reshape(n_rows, 1)
-    axes_flat = axes.flat
-
-    y_label_eff = ylabel if ylabel is not None else (
-        "Value (log scale)" if use_semilogy else "Value"
-    )
-
-    def _plot_y(ax_, x_, y_, *, fmt: str = "-", **kw) -> None:
-        y_arr = np.asarray(y_, dtype=np.float64)
-        if use_semilogy:
-            y_plot = np.maximum(y_arr, 1e-10)
-            ax_.semilogy(x_, y_plot, fmt, **kw)
-        else:
-            ax_.plot(x_, y_arr, fmt, **kw)
-
-    def _select_member_columns(df: pd.DataFrame) -> pd.DataFrame:
-        if common_cols is not None:
-            cols = [c for c in common_cols if c in df.columns]
-            return df[cols]
-        return df.iloc[:, : labels_np.size]
-
-    for k in range(K):
-        ax = axes_flat[k]
-        mask = labels_np == k
-        n_in_cluster = int(mask.sum())
-
-        if n_in_cluster == 0:
-            ax.text(
-                0.5,
-                0.5,
-                f"{panel_title_prefix} {k + 1}\n(empty)",
-                transform=ax.transAxes,
-                ha="center",
-                va="center",
-                fontsize=panel_title_fontsize,
-                fontproperties=font_prop,
-            )
-            ax.grid(False)
-            continue
-
-        for i in range(L):
-            df_scatter = data_scatter[i]
-            df_curve = data_curve[i]
-            t_scatter = df_scatter.index.values.astype(np.float64)
-            t_curve = df_curve.index.values.astype(np.float64)
-            scatter_color, line_color = pal[i % len(pal)]
-
-            if show_members:
-                df_for_members = (
-                    df_scatter if member_source == "qd_df" else df_curve
-                )
-                t_for_members = (
-                    t_scatter if member_source == "qd_df" else t_curve
-                )
-                df_for_members = _select_member_columns(df_for_members)
-                cluster_data = df_for_members.iloc[:, mask]
-
-                if member_source == "qd_df":
-                    x_vals = np.repeat(t_for_members, n_in_cluster)
-                    y_vals = cluster_data.values.ravel()
-                    if use_semilogy:
-                        valid = (x_vals > 0) & (y_vals > 0)
-                    else:
-                        valid = np.isfinite(x_vals) & np.isfinite(y_vals)
-                    x_vals = x_vals[valid]
-                    y_vals = y_vals[valid]
-                    if use_semilogy:
-                        ax.semilogy(
-                            x_vals,
-                            np.maximum(y_vals, 1e-10),
-                            "o",
-                            markerfacecolor="none",
-                            markeredgecolor=scatter_color,
-                            markersize=markersize_qd,
-                            alpha=alpha_qd_marker,
-                            zorder=1,
-                        )
-                    else:
-                        ax.plot(
-                            x_vals,
-                            y_vals,
-                            "o",
-                            markerfacecolor="none",
-                            markeredgecolor=scatter_color,
-                            markersize=markersize_qd,
-                            alpha=alpha_qd_marker,
-                            zorder=1,
-                        )
-                else:
-                    for col in cluster_data.columns:
-                        _plot_y(
-                            ax,
-                            t_for_members,
-                            cluster_data[col].values,
-                            fmt="-",
-                            color=scatter_color,
-                            linewidth=linewidth_member,
-                            alpha=alpha_member_lines,
-                            zorder=1,
-                        )
-
-            df_curve_sub = _select_member_columns(df_curve)
-            cluster_data_curve = df_curve_sub.iloc[:, mask]
-            mean_curve_points = cluster_data_curve.mean(axis=1).values.astype(np.float64)
-            mean_x, mean_curve = _fit_mean_curve_power_sample(
-                t_curve, mean_curve_points, t_curve
-            )
-            if not np.isfinite(mean_curve).any():
-                mean_x = t_curve
-                mean_curve = mean_curve_points
-            if use_semilogy:
-                mean_curve = np.maximum(mean_curve, 1e-10)
-
-            if show_mean_ci and n_in_cluster > 0:
-                std_curve = cluster_data_curve.std(axis=1).values.astype(np.float64)
-                sem = std_curve / np.sqrt(max(n_in_cluster, 1))
-                lo = mean_curve - ci_z * sem
-                hi = mean_curve + ci_z * sem
-                if use_semilogy:
-                    lo = np.maximum(lo, 1e-10)
-                    hi = np.maximum(hi, 1e-10)
-                ax.fill_between(
-                    t_curve,
-                    lo,
-                    hi,
-                    color=line_color,
-                    alpha=ci_alpha,
-                    zorder=2,
-                    linewidth=0,
-                )
-
-            if show_mean:
-                _plot_y(
-                    ax,
-                    mean_x,
-                    mean_curve,
-                    fmt="-",
-                    color=line_color,
-                    linewidth=linewidth_mean,
-                    label=condition_labels[i] if k == 0 else None,
-                    zorder=3,
-                )
-
-        ax.text(
-            0.5,
-            0.97,
-            f"{panel_title_prefix} {k + 1} ({n_in_cluster})",
-            transform=ax.transAxes,
-            fontsize=panel_title_fontsize,
-            va="top",
-            ha="center",
-            fontweight="bold",
-            fontproperties=font_prop,
-        )
-        ax.margins(x=x_margin, y=y_margin)
-        ax.grid(False)
-        if use_log_x:
-            ax.set_xscale("log")
-        _set_chinese_axes(ax)
-
-    for idx in range(K, len(axes.flat)):
-        fig.delaxes(axes.flat[idx])
-
-    if show_legend:
-        ncol_leg = legend_ncol if legend_ncol is not None else min(L, 6)
-        handles = [
-            plt.Line2D(
-                [],
-                [],
-                color=pal[i % len(pal)][1],
-                linewidth=linewidth_mean,
-                label=condition_labels[i],
-            )
-            for i in range(L)
-        ]
-        fig.legend(
-            handles=handles,
-            loc=legend_loc,
-            ncol=ncol_leg,
-            fontsize=legend_fontsize,
-            bbox_to_anchor=legend_bbox,
-        )
-
-    fig.text(
-        0.5,
-        0.01,
-        xlabel,
-        ha="center",
-        fontsize=axis_label_fontsize,
-        fontproperties=font_prop,
-    )
-    fig.text(
-        0.005,
-        0.5,
-        y_label_eff,
-        va="center",
-        rotation="vertical",
-        fontsize=axis_label_fontsize,
-        fontproperties=font_prop,
-    )
-
-    fig.tight_layout(rect=(0.02, 0.02, 1.0, 0.95) if show_legend else (0.02, 0.02, 1.0, 1.0))
-
-    if show_in_streamlit:
-        st.pyplot(fig, use_container_width=True)
-    return fig
