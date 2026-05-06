@@ -33,7 +33,7 @@ def load_css():
     /* 2. 暴力隐藏自带的顶部白边和丑陋的默认导航栏 */
     header, footer, [data-testid="stSidebarNav"] { display: none !important; }
 
-    /* 3. 强制侧边栏变成高级深灰蓝！ */
+    /* 3. 🌟 强制侧边栏变成高级深灰蓝！（这里锁死深色，不受 config 影响） 🌟 */
     [data-testid="stSidebar"] {
         background-color: #334155 !important;
         background-image: none !important;
@@ -52,29 +52,10 @@ def load_css():
         background-color: #ffffff;
     }
 
-    /* 6. 全局字体放大 & 输入框精准白字 */
+    /* 6. 全局字体稍微放大，提升阅读舒适度 (删除了之前强制变白字的代码) */
     p, li, .stMarkdown {
         font-size: 1.1rem !important; 
         line-height: 1.6 !important;
-    }
-
-    div[data-baseweb="select"] > div, 
-    div[data-baseweb="base-input"] > input, 
-    .stTextInput input {
-        color: #ffffff !important;
-        -webkit-text-fill-color: #ffffff !important; 
-    }
-    
-    ul[data-baseweb="menu"] { background-color: #334155 !important; }
-    ul[data-baseweb="menu"] li { color: #ffffff !important; font-size: 1.05rem !important; }
-    ul[data-baseweb="menu"] li:hover { background-color: #475569 !important; }
-
-    /* 🌟 7. 修复：强制文件上传框里的小字变白 🌟 */
-    [data-testid="stFileUploader"] div, 
-    [data-testid="stFileUploader"] small,
-    [data-testid="stFileUploader"] span {
-        color: #f8fafc !important;
-        -webkit-text-fill-color: #f8fafc !important;
     }
     </style>
     """, unsafe_allow_html=True)
