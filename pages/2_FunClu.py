@@ -288,7 +288,7 @@ with tab1:
                         ),
                     )
                     use_log_y = st.checkbox(
-                        "log-scale Y", value=True, key="funclu_grid_log_y"
+                        "log-scale Y", value=False, key="funclu_grid_log_y"
                     )
                     use_log_x = st.checkbox(
                         "log-scale X", value=False, key="funclu_grid_log_x"
