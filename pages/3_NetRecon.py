@@ -120,11 +120,13 @@ with tab1:
                 with c2:
                     alpha = st.number_input(
                         "alpha",
-                        min_value=0.000,
+                        min_value=0.0,
                         value=0.001,
                         step=0.001,
+                        format="%.4f",
                         help="ridge/lasso/asgl/adsiht regularization strength",
                     )
+               
                     mix = st.slider(
                         "mix (ASGL only)",
                         min_value=0.0,
