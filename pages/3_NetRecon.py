@@ -285,7 +285,7 @@ with tab1:
             plot_curve_fitting(
                 df_scatter=result["quasi_dynamic_df"],
                 df_curve=result["predicted_df"],
-                plot_scatter_type="line",
+                plot_scatter_type="scatter",
                 show_curve=True,
                 nrow=2,
                 ncol=3,
