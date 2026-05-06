@@ -1,11 +1,13 @@
 import streamlit as st
 
+st.set_page_config(page_title="Network Construction", page_icon=None, layout="wide", initial_sidebar_state="auto")
+
+
 from backend.utils import setup_matplotlib_chinese
 
-st.set_page_config(page_title="Network Construction", page_icon="📈")
 setup_matplotlib_chinese()
 
-st.markdown("<h1 style='text-align: center;'>Network Construction</h1>", unsafe_allow_html=True)
+st.title("Network Construction", text_alignment="center")
 
 
 # ========== Tabs ==========
