@@ -24,10 +24,66 @@ plt.rcParams["axes.unicode_minus"] = False
 # ── 辅助函数 ──────────────────────────────────────────────────────────────────
 
 
-def load_css(path: Path = CSS_PATH) -> None:
-    """将自定义 CSS 文件注入 Streamlit 页面。"""
-    with open(path) as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+ddef load_css():
+    """强制注入的全局核心样式，彻底解决闪烁和颜色失效问题"""
+    st.markdown("""
+    <style>
+    /* 1. 强制页面主背景色为浅灰白 */
+    .stApp { background-color: #f8fafc !important; }
+
+    /* 2. 暴力隐藏自带的顶部白边和丑陋的默认导航栏 */
+    header, footer, [data-testid="stSidebarNav"] { display: none !important; }
+
+    /* 3. 强制侧边栏变成高级深灰蓝！ */
+    [data-testid="stSidebar"] {
+        background-color: #334155 !important;
+        background-image: none !important;
+        padding-top: 1rem !important;
+    }
+
+    /* 4. 让侧边栏我们自定义的链接变成亮白色，且悬停有发光效果 */
+    .stPageLink a { text-decoration: none !important; padding: 0.25rem 0; transition: all 0.2s;}
+    .stPageLink a p { color: #f8fafc !important; font-size: 1.15rem !important; font-weight: 500; }
+    .stPageLink:hover { background-color: rgba(255,255,255,0.15) !important; border-radius: 6px; }
+
+    /* 5. TSA Logo 圆角及阴影美化 */
+    [data-testid="stSidebar"] img {
+        border-radius: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        background-color: #ffffff;
+    }
+
+    /* ======================================================== */
+    /* 🌟 6. 终极优化：全局字体放大 & 输入框精准白字 🌟 */
+    /* ======================================================== */
+    
+    /* 【字体放大】全局的正文、列表字体稍微放大，提升阅读舒适度 */
+    p, li, .stMarkdown {
+        font-size: 1.1rem !important; 
+        line-height: 1.6 !important;
+    }
+
+    /* 【颜色保护】精准定位深色输入框的内部文字变成纯白，绝对不影响外部！ */
+    div[data-baseweb="select"] > div, 
+    div[data-baseweb="base-input"] > input, 
+    .stTextInput input {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important; /* 兼容 Safari/Chrome */
+    }
+    
+    /* 修复下拉菜单展开后的深色背景和白字 */
+    ul[data-baseweb="menu"] {
+        background-color: #334155 !important;
+    }
+    ul[data-baseweb="menu"] li {
+        color: #ffffff !important;
+        font-size: 1.05rem !important; /* 下拉菜单里的字也顺便放大一点 */
+    }
+    ul[data-baseweb="menu"] li:hover {
+        background-color: #475569 !important; /* 鼠标悬停时的亮色反馈 */
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 
 # def setup_matplotlib_chinese() -> None:
