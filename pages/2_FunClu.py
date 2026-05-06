@@ -9,7 +9,11 @@ import numpy as np
 import pandas as pd
 
 from backend.functional_clustering import FunClu
-from backend.plot_functional_clustering import plot_initialization_grid
+from backend.plot_functional_clustering import (
+    plot_cluster_profiles,
+    plot_initialization_grid,
+    plot_loglik_history,
+)
 from backend.utils import load_css
 
 load_css()
@@ -24,6 +28,8 @@ if "funclu_uploaded_zip_name" not in st.session_state:
     st.session_state.funclu_uploaded_zip_name = None
 if "funclu_init_result" not in st.session_state:
     st.session_state.funclu_init_result = None
+if "funclu_em_result" not in st.session_state:
+    st.session_state.funclu_em_result = None
 
 
 def _load_curve_sample_from_zip(zip_bytes: bytes) -> dict[str, pd.DataFrame]:
@@ -84,7 +90,7 @@ tab1, tab2, tab3 = st.tabs(["FunClu-K", "FunClu-BIC", "To Be Updated..."])
 
 # ========== Tab 1 ==========
 with tab1:
-    tab1_1, tab1_2, tab1_3 = st.tabs(["Data Overview", "Initialization", "To Be Updated..."])
+    tab1_1, tab1_2, tab1_3 = st.tabs(["Data Overview", "Initialization", "EM Fitting"])
 
     # ---------- Data Overview ----------
     with tab1_1:
@@ -313,8 +319,251 @@ with tab1:
                     share_y=share_y,
                 )
 
+    # ---------- EM Fitting ----------
     with tab1_3:
-        st.write("To Be Updated...")
+        curve_sample_dict = st.session_state.funclu_curve_sample
+        if not curve_sample_dict:
+            st.info("Please upload curve_fitting_export.zip first.")
+        else:
+            cond_names = list(curve_sample_dict.keys())
+            data_list = [curve_sample_dict[n] for n in cond_names]
+            n_features_max = min((d.shape[1] for d in data_list), default=2)
+            k_upper = max(2, min(20, n_features_max))
+
+            with st.form(key="funclu_em_form"):
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    K_em = st.slider(
+                        "n_components (K)",
+                        min_value=2,
+                        max_value=k_upper,
+                        value=min(3, k_upper),
+                        step=1,
+                        key="funclu_em_K",
+                    )
+                with col2:
+                    mb_choice_em = st.selectbox(
+                        "MiniBatchKMeans",
+                        ["auto", "on", "off"],
+                        key="funclu_em_mb",
+                        help=(
+                            "auto: 当 n_features ≥ kmeans_minibatch_threshold 时自动启用。"
+                        ),
+                    )
+                with col3:
+                    random_state_em = st.number_input(
+                        "random_state",
+                        value=42,
+                        min_value=0,
+                        max_value=2**31 - 1,
+                        step=1,
+                        key="funclu_em_seed",
+                    )
+                with col4:
+                    mb_threshold_em = st.number_input(
+                        "minibatch_threshold",
+                        value=8000,
+                        min_value=100,
+                        max_value=10**7,
+                        step=100,
+                        key="funclu_em_mb_thr",
+                    )
+                col5, col6, col7 = st.columns(3)
+                with col5:
+                    max_iter = st.number_input(
+                        "max_iter",
+                        value=50,
+                        min_value=1,
+                        max_value=1000,
+                        step=1,
+                        key="funclu_em_max_iter",
+                        help="EM 主循环最大迭代次数。",
+                    )
+                with col6:
+                    tol = st.number_input(
+                        "tol",
+                        value=1e-4,
+                        min_value=1e-12,
+                        max_value=1.0,
+                        step=1e-5,
+                        format="%.1e",
+                        key="funclu_em_tol",
+                        help="|Δlog_likelihood| < tol 视为收敛。",
+                    )
+                with col7:
+                    verbose_em = st.checkbox(
+                        "verbose (terminal)",
+                        value=False,
+                        key="funclu_em_verbose",
+                        help="勾选后会在运行 Streamlit 的终端打印每轮 log-lik。",
+                    )
+                submit_em = st.form_submit_button("Run EM Fitting")
+
+            if submit_em:
+                mb_map = {"auto": None, "on": True, "off": False}
+                try:
+                    em_model = FunClu(
+                        n_components=int(K_em),
+                        max_iter=int(max_iter),
+                        tol=float(tol),
+                        use_minibatch_kmeans=mb_map[mb_choice_em],
+                        random_state=int(random_state_em),
+                        kmeans_minibatch_threshold=int(mb_threshold_em),
+                    )
+                    em_model.fit(data_list, verbose=bool(verbose_em))
+                except Exception as e:
+                    st.error(f"EM 拟合失败：{e}")
+                    st.session_state.funclu_em_result = None
+                else:
+                    st.session_state.funclu_em_result = {
+                        "model": em_model,
+                        "cond_names": cond_names,
+                    }
+                    st.success(
+                        f"Done. converged={em_model.converged}, "
+                        f"iters={em_model.n_iter_run}/{em_model.max_iter}, "
+                        f"log-lik={em_model.log_likelihood:.4g}, "
+                        f"BIC={em_model.bic:.4g}"
+                    )
+
+            em = st.session_state.funclu_em_result
+            if em is not None:
+                em_model: FunClu = em["model"]
+                em_cond_names = em["cond_names"]
+
+                # 概览 metrics
+                m1, m2, m3, m4, m5, m6 = st.columns(6)
+                m1.metric("K", em_model.n_components)
+                m2.metric("L", em_model.n_conditions)
+                m3.metric("converged", "yes" if em_model.converged else "no")
+                m4.metric(
+                    "iters",
+                    f"{em_model.n_iter_run}/{em_model.max_iter}",
+                )
+                m5.metric(
+                    "log-lik",
+                    f"{em_model.log_likelihood:.4g}"
+                    if em_model.log_likelihood is not None
+                    else "—",
+                )
+                m6.metric(
+                    "BIC",
+                    f"{em_model.bic:.4g}" if em_model.bic is not None else "—",
+                )
+
+                # 收敛曲线
+                st.markdown("**Convergence curve**")
+                plot_loglik_history(em_model.loglik_history)
+
+                # 簇大小 & 权重
+                em_labels_np = em_model.labels.detach().cpu().numpy()
+                em_sizes = np.bincount(
+                    em_labels_np, minlength=em_model.n_components
+                )
+                em_weights_np = em_model.weights.detach().cpu().numpy()
+                em_sw_df = pd.DataFrame(
+                    {
+                        "cluster": [
+                            f"M{k + 1}" for k in range(em_model.n_components)
+                        ],
+                        "size": em_sizes.astype(int),
+                        "weight": em_weights_np,
+                    }
+                )
+                st.markdown("**Cluster sizes & weights (after EM)**")
+                st.dataframe(em_sw_df, use_container_width=True)
+
+                # 参数表
+                em_mu_np = em_model.params_mu.detach().cpu().numpy()
+                em_cov_np = em_model.params_cov.detach().cpu().numpy()
+                em_mu_rows = [
+                    {
+                        "cluster": f"M{k + 1}",
+                        "condition": em_cond_names[i],
+                        "a": float(em_mu_np[k, i, 0]),
+                        "b": float(em_mu_np[k, i, 1]),
+                    }
+                    for k in range(em_model.n_components)
+                    for i in range(em_model.n_conditions)
+                ]
+                em_cov_rows = [
+                    {
+                        "cluster": f"M{k + 1}",
+                        "condition": em_cond_names[i],
+                        "phi": float(em_cov_np[k, i, 0]),
+                        "gamma": float(em_cov_np[k, i, 1]),
+                    }
+                    for k in range(em_model.n_components)
+                    for i in range(em_model.n_conditions)
+                ]
+                col_mu, col_cov = st.columns(2)
+                with col_mu:
+                    st.markdown(r"**mu_params (a, b)** — $\mu = a \cdot t^{b}$")
+                    st.dataframe(pd.DataFrame(em_mu_rows), use_container_width=True)
+                with col_cov:
+                    st.markdown(r"**cov_params (phi, gamma)** — SAD1")
+                    st.dataframe(pd.DataFrame(em_cov_rows), use_container_width=True)
+
+                # 模型规模 / NLL / n_params
+                m_a, m_b, m_c = st.columns(3)
+                m_a.metric("n_features (N)", em_model.n_features)
+                m_b.metric(
+                    "n_params (p)",
+                    em_model.n_params if em_model.n_params is not None else "—",
+                )
+                m_c.metric(
+                    "neg log-lik",
+                    f"{em_model.neg_log_likelihood:.4g}"
+                    if em_model.neg_log_likelihood is not None
+                    else "—",
+                )
+
+                # Cluster profiles
+                st.markdown("**Cluster profiles**")
+                opts_col, _ = st.columns([1, 3])
+                with opts_col:
+                    em_use_log_y = st.checkbox(
+                        "log-scale Y", value=True, key="funclu_em_log_y"
+                    )
+                    em_use_log_x = st.checkbox(
+                        "log-scale X", value=False, key="funclu_em_log_x"
+                    )
+                    em_member_source = st.selectbox(
+                        "Member source",
+                        ["curve", "qd_df"],
+                        index=0,
+                        key="funclu_em_member_src",
+                        help=(
+                            "curve: 每个成员一条细线（基于 curve_sample）；"
+                            "qd_df: 每个时间点 × 每成员的散点（适合配 quasi_dynamic）。"
+                        ),
+                    )
+                    em_show_ci = st.checkbox(
+                        "Show CI band (±1.96 SE)",
+                        value=False,
+                        key="funclu_em_show_ci",
+                    )
+                    em_n_cols = st.number_input(
+                        "Subplot cols",
+                        min_value=1,
+                        max_value=max(em_model.n_components, 1),
+                        value=min(3, em_model.n_components),
+                        step=1,
+                        key="funclu_em_ncols",
+                    )
+
+                plot_cluster_profiles(
+                    data_scatter=[curve_sample_dict[n] for n in em_cond_names],
+                    labels=em_labels_np,
+                    common_cols=em_model.common_cols,
+                    n_components=em_model.n_components,
+                    condition_labels=em_cond_names,
+                    member_source=em_member_source,
+                    show_mean_ci=bool(em_show_ci),
+                    use_semilogy=bool(em_use_log_y),
+                    use_log_x=bool(em_use_log_x),
+                    n_cols=int(em_n_cols),
+                )
 
 
 # ========== Tab 2 ==========

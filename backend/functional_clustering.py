@@ -1,12 +1,18 @@
 """Functional Clustering 后端模块。
 
-当前进度：
-- ``_prepare_data``：多 condition DataFrame → ``(n_features, n_times_i)`` 张量列表（已完成）。
+实现进度：
+
+- ``_prepare_data``：多 condition DataFrame → ``(n_features, n_times_i)`` 张量列表。
 - ``_initialize``：基于 KMeans / MiniBatchKMeans 给出 EM 的 4 件套初值
   ``(labels, weights, mu_params, cov_params)``，外加 ``centers_kl``（KMeans 子中心，
   调试/可视化用）与 ``backend``（实际使用的 KMeans 后端名）。
+- ``_e_step / _m_step / fit``：基于 SAD1 协方差 + 幂律均值 ``μ = a · t^b`` 的 EM 主循环。
+  M 步采用"半 EM"方案：``a`` 内层迭代闭式更新，``b`` 冻在上一轮；``gamma`` 用加权
+  二次型闭式，``phi`` 冻在上一轮（NaN 兜底时回退到残差自相关重估）。
+- ``predict`` / ``get_params`` / ``get_cluster_curves``：拟合完成后的辅助接口。
 
-EM 主循环（``_e_step / _m_step / fit``）会在后续步骤补齐。
+模型参数计数（用于 BIC）：``n_params = K · L · 4 + max(K - 1, 0)``，每个 ``(k, i)``
+含 4 个参数 ``[a, b, phi, gamma]``，加 ``K - 1`` 个独立的混合权重。
 """
 
 from __future__ import annotations
@@ -82,6 +88,8 @@ class FunClu:
         self.bic: Optional[float] = None
         self.n_params: Optional[int] = None
         self.converged: bool = False
+        self.loglik_history: List[float] = []
+        self.n_iter_run: int = 0
         self._kmeans_init_backend: str = ""
 
     # ────────────────────────────────────────────────────────────────────────
@@ -330,6 +338,569 @@ class FunClu:
             "centers_kl": centers_kl,
             "backend": backend,
         }
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Step 3: SAD1 covariance utilities
+    # ────────────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _sad1_quad_per_feature(
+        diff: torch.Tensor,
+        phi: torch.Tensor,
+        gamma: torch.Tensor,
+    ) -> torch.Tensor:
+        """逐特征计算 SAD1 协方差下的二次型 ``(x - μ)ᵀ Σ⁻¹ (x - μ)``。
+
+        利用 SAD1 协方差逆阵的三对角结构（``diag_inner = (1+φ²)/γ²``、
+        ``diag_edge = 1/γ²``、``off = -φ/γ²``），对形如 ``(N, n_t)`` 的残差矩阵
+        逐行直接求二次型，不显式构造 ``Σ⁻¹``。
+
+        Args:
+            diff: ``(N, n_t)`` 的残差张量 ``x - μ``。
+            phi: 标量 0 维张量，AR(1) 系数；调用方应已夹紧到 ``(-0.995, 0.995)``。
+            gamma: 标量 0 维张量，正数；调用方应已夹紧到 ``≥ 1e-6``。
+
+        Returns:
+            ``(N,)`` 的二次型张量。``n_t == 1`` 时蜕化为 ``diff² / γ²``。
+        """
+        n_t = int(diff.shape[-1])
+        gamma_sq = gamma * gamma
+        diag_inner = (1.0 + phi * phi) / gamma_sq
+        diag_edge = 1.0 / gamma_sq
+        off_diag = -phi / gamma_sq
+
+        q = diag_inner * (diff * diff).sum(dim=-1)
+        if n_t >= 1:
+            edge_correction = (diag_edge - diag_inner) * (
+                diff[..., 0] ** 2 + diff[..., -1] ** 2
+            )
+            q = q + edge_correction
+        if n_t > 1:
+            q = q + 2.0 * off_diag * (diff[..., :-1] * diff[..., 1:]).sum(dim=-1)
+        return q
+
+    @staticmethod
+    def _sad1_logdet(phi: torch.Tensor, gamma: torch.Tensor, n_t: int) -> torch.Tensor:
+        """SAD1 协方差矩阵的 log-determinant（闭式）。
+
+        ``log|Σ| = 2·n·log γ - (n - 1)·log(1 - φ²)``。
+
+        Args:
+            phi: 标量张量，已夹紧到 ``(-0.995, 0.995)``。
+            gamma: 标量张量，已夹紧到 ``≥ 1e-6``。
+            n_t: 时间点数 ``n``。
+
+        Returns:
+            标量 0 维张量。
+        """
+        return 2.0 * n_t * torch.log(gamma) - (n_t - 1) * torch.log(1.0 - phi * phi)
+
+    def _sad1_inv_block(
+        self,
+        params_cov_one: torch.Tensor,
+        n_t: int,
+    ) -> torch.Tensor:
+        """构造单个 condition 的 SAD1 协方差三对角逆阵 ``(n_t, n_t)``。
+
+        与二次型形式一致（``diag_inner = (1+φ²)/γ²``、``diag_edge = 1/γ²``、
+        ``off = -φ/γ²``），主要用于外部诊断/验证。EM 主循环本身只用
+        :meth:`_sad1_quad_per_feature` + :meth:`_sad1_logdet`，不显式构造此矩阵。
+
+        Args:
+            params_cov_one: 形如 ``(2,)`` 的 ``[phi, gamma]``。
+            n_t: 时间点数。
+
+        Returns:
+            ``(n_t, n_t)`` 的逆协方差矩阵张量。
+        """
+        phi = torch.clamp(params_cov_one[0], -0.995, 0.995)
+        gamma = torch.clamp(params_cov_one[1], min=1e-6)
+        gamma_sq = gamma * gamma
+        diag_inner = float((1.0 + phi * phi) / gamma_sq)
+        diag_edge = float(1.0 / gamma_sq)
+        off_diag = float(-phi / gamma_sq)
+
+        device = params_cov_one.device
+        dtype = params_cov_one.dtype
+        inv_sigma = torch.zeros((n_t, n_t), device=device, dtype=dtype)
+        diagonal = torch.full((n_t,), diag_inner, device=device, dtype=dtype)
+        if n_t >= 1:
+            diagonal[0] = diag_edge
+            diagonal[-1] = diag_edge
+        inv_sigma.diagonal().copy_(diagonal)
+        if n_t > 1:
+            inv_sigma.diagonal(1).fill_(off_diag)
+            inv_sigma.diagonal(-1).fill_(off_diag)
+        return inv_sigma
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Step 4: E-step
+    # ────────────────────────────────────────────────────────────────────────
+    def _e_step(
+        self,
+        X_list: List[torch.Tensor],
+        params_mu: torch.Tensor,
+        params_cov: torch.Tensor,
+        weights: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """E 步：计算每个特征对每个簇的对数联合概率与后验责任。
+
+        各 condition 的协方差为 SAD1 块对角，因此对每个 ``(k, i)`` 独立累加
+        ``log|Σ_ki|`` 与 Mahalanobis ``(x-μ)ᵀ Σ⁻¹ (x-μ)``，再合成总维度
+        ``d = Σ_i n_t_i`` 的多元正态对数密度。``log f_k`` 与 ``log π_k`` 相加后用
+        ``logsumexp`` 得到样本对数似然，避免上溢/下溢。
+
+        Args:
+            X_list: 长度 ``L`` 的张量列表，第 i 项形如 ``(N, n_t_i)``。
+            params_mu: ``(K, L, 2)``，最后一维为 ``[a, b]``。
+            params_cov: ``(K, L, 2)``，最后一维为 ``[phi, gamma]``。
+            weights: ``(K,)``，混合权重，未归一化时由内部 clamp + log 处理。
+
+        Returns:
+            ``(log_lik, resp)``：
+
+            - ``log_lik``：标量 0 维张量，所有特征的对数似然之和 ``Σ_i log f_mix(x_i)``。
+            - ``resp``：``(N, K)``，后验责任，行和归一化为 1。
+        """
+        if not X_list:
+            raise ValueError("X_list 不能为空")
+        if self.n_times_conditions is None or self.times_list is None:
+            raise RuntimeError("_e_step 调用前必须先调用 _prepare_data")
+
+        N = int(X_list[0].shape[0])
+        K = self.n_components
+        L = self.n_conditions
+        n_t_per: List[int] = list(self.n_times_conditions)
+        d_full = int(sum(n_t_per))
+
+        log_probs = torch.zeros((N, K), device=self.device, dtype=self.dtype)
+        const = -0.5 * d_full * float(np.log(2.0 * np.pi))
+
+        for k in range(K):
+            maha_total = torch.zeros(N, device=self.device, dtype=self.dtype)
+            logdet_total = torch.zeros((), device=self.device, dtype=self.dtype)
+
+            for i in range(L):
+                X_i = X_list[i]
+                n_t = n_t_per[i]
+                t_i = torch.from_numpy(
+                    np.asarray(self.times_list[i], dtype=np.float64)
+                ).to(self.device, self.dtype)
+
+                a = params_mu[k, i, 0]
+                b = params_mu[k, i, 1]
+                phi = torch.clamp(params_cov[k, i, 0], -0.995, 0.995)
+                gamma = torch.clamp(params_cov[k, i, 1], min=1e-6)
+
+                if not (
+                    torch.isfinite(a)
+                    and torch.isfinite(b)
+                    and torch.isfinite(phi)
+                    and torch.isfinite(gamma)
+                ):
+                    a = torch.tensor(1.0, device=self.device, dtype=self.dtype)
+                    b = torch.tensor(0.5, device=self.device, dtype=self.dtype)
+                    phi = torch.tensor(0.0, device=self.device, dtype=self.dtype)
+                    gamma = torch.tensor(1.0, device=self.device, dtype=self.dtype)
+
+                mu_ki = a * (t_i ** b)
+                diff = X_i - mu_ki.unsqueeze(0)
+
+                q = self._sad1_quad_per_feature(diff, phi, gamma)
+                q = torch.where(
+                    torch.isfinite(q),
+                    q,
+                    torch.full_like(q, 1e6),
+                )
+                maha_total = maha_total + q
+                logdet_total = logdet_total + self._sad1_logdet(phi, gamma, n_t)
+
+            log_probs[:, k] = const - 0.5 * (logdet_total + maha_total)
+
+        log_probs = torch.where(
+            torch.isfinite(log_probs),
+            log_probs,
+            torch.full_like(log_probs, -1e10),
+        )
+
+        log_w = torch.log(torch.clamp(weights, min=1e-16))
+        log_joint = log_probs + log_w.unsqueeze(0)
+        log_norm = torch.logsumexp(log_joint, dim=1, keepdim=True)
+        log_lik = log_norm.sum()
+        resp = torch.exp(log_joint - log_norm)
+        resp = torch.where(torch.isfinite(resp), resp, torch.full_like(resp, 1.0 / K))
+        resp = resp / resp.sum(dim=1, keepdim=True).clamp(min=1e-16)
+        return log_lik, resp
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Step 5: M-step（方案 A：a 闭式 + b 冻；gamma 闭式 + phi 冻）
+    # ────────────────────────────────────────────────────────────────────────
+    def _m_step(
+        self,
+        X_list: List[torch.Tensor],
+        resp: torch.Tensor,
+    ) -> Dict[str, torch.Tensor]:
+        """M 步：按方案 A 更新 ``weights / a / gamma``，``b / phi`` 沿用上一轮。
+
+        - **weights**：``π_k = N_k / N``，``N_k = Σ_i resp[i, k]``，归一化和为 1。
+        - **a_{k,i}**：以上一轮 ``b`` 与协方差对角主项简化为加权 OLS：
+
+            ``a = Σ_i q_{ki} · X_i · t^b / Σ_i q_{ki} · t^{2b}``
+
+          内层重复 3 次（保留接口便于以后改为同时更新 ``a, b``），外加 ``a ≥ 1e-8`` 兜底。
+        - **gamma_{k,i}**：``γ² = Σ_i q_{ki} · ξ_i / (n_t · N_k)``，其中 ``ξ_i`` 为
+          以 ``γ = 1`` 计算的 SAD1 二次型。``γ`` 必为正（取平方根，最小 ``1e-4``）。
+        - **phi_{k,i}**：保持上一轮值；若该簇空簇或本步出现 NaN，则用残差自相关
+          重估并夹紧 ``[-0.99, 0.99]``，此时 ``γ`` 也按相应方差闭式重设。
+
+        Args:
+            X_list: ``_prepare_data`` 输出的张量列表。
+            resp: ``(N, K)`` 的后验责任。
+
+        Returns:
+            字典 ``{"mu_params", "cov_params", "weights"}``。
+        """
+        if self.params_mu is None or self.params_cov is None:
+            raise RuntimeError("_m_step 调用前必须先有上一轮的 params_mu / params_cov")
+
+        N = int(X_list[0].shape[0])
+        K = self.n_components
+        L = self.n_conditions
+        n_t_per: List[int] = list(self.n_times_conditions or [])
+
+        Nk = resp.sum(dim=0)
+        weights = Nk / max(N, 1)
+        weights = weights / weights.sum().clamp(min=1e-16)
+
+        params_mu_new = self.params_mu.clone()
+        params_cov_new = self.params_cov.clone()
+
+        for k in range(K):
+            if float(Nk[k]) < 1e-10:
+                # 空簇：保留上一轮参数，跳过更新
+                continue
+
+            q_k = resp[:, k].detach()
+
+            for i in range(L):
+                X_i = X_list[i]
+                n_t = n_t_per[i]
+                t_i = torch.from_numpy(
+                    np.asarray(self.times_list[i], dtype=np.float64)
+                ).to(self.device, self.dtype)
+
+                # b、phi 冻在上一轮
+                b_prev = self.params_mu[k, i, 1].detach()
+                phi_prev = self.params_cov[k, i, 0].detach()
+
+                b = torch.clamp(b_prev, -10.0, 10.0)
+                phi = torch.clamp(phi_prev, -0.995, 0.995)
+
+                # 5.1 闭式更新 a（内层迭代 3 次，与参考实现一致）
+                with torch.no_grad():
+                    a_new = self.params_mu[k, i, 0].detach().clone()
+                    for _ in range(3):
+                        t_pow_b = t_i ** b
+                        weighted = q_k.unsqueeze(1)
+                        numer = (weighted * X_i * t_pow_b.unsqueeze(0)).sum()
+                        denom = (weighted * (t_pow_b.unsqueeze(0) ** 2)).sum()
+                        a_new = numer / denom.clamp(min=1e-8)
+                        a_new = torch.clamp(a_new, min=1e-8)
+
+                # 5.2 计算残差并以"phi 冻 + gamma=1"二次型估 gamma²
+                with torch.no_grad():
+                    mean_curve = a_new * (t_i ** b)
+                    diff = X_i - mean_curve.unsqueeze(0)
+
+                    one = torch.ones((), device=self.device, dtype=self.dtype)
+                    q_per_feature = self._sad1_quad_per_feature(diff, phi, one)
+                    gamma_sq = (q_k * q_per_feature).sum() / max(n_t, 1) / Nk[k]
+                    gamma_sq = torch.clamp(gamma_sq, min=1e-8)
+                    gamma_new = torch.sqrt(gamma_sq)
+                    phi_new = phi
+
+                    if not (torch.isfinite(gamma_new) and torch.isfinite(phi_new)):
+                        # 兜底：用加权残差均值序列重估 (phi, gamma)
+                        weighted_diff = diff * q_k.unsqueeze(1)
+                        r_mean = weighted_diff.sum(dim=0) / Nk[k].clamp(min=1e-16)
+                        if n_t > 1:
+                            r_np = r_mean.detach().cpu().numpy()
+                            with np.errstate(invalid="ignore"):
+                                cc = np.corrcoef(r_np[:-1], r_np[1:])[0, 1]
+                            cc = float(cc) if np.isfinite(cc) else 0.0
+                            phi_alt = float(np.clip(cc, -0.99, 0.99))
+                            var_alt = float(np.var(r_np)) * (1.0 - phi_alt ** 2)
+                            phi_new = torch.tensor(
+                                phi_alt, device=self.device, dtype=self.dtype
+                            )
+                            gamma_new = torch.tensor(
+                                float(np.sqrt(max(var_alt, 1e-6))),
+                                device=self.device,
+                                dtype=self.dtype,
+                            )
+                        else:
+                            phi_new = torch.tensor(
+                                0.0, device=self.device, dtype=self.dtype
+                            )
+                            gamma_new = torch.tensor(
+                                1.0, device=self.device, dtype=self.dtype
+                            )
+
+                    gamma_new = torch.clamp(gamma_new, min=1e-4)
+                    phi_new = torch.clamp(phi_new, -0.995, 0.995)
+
+                params_mu_new[k, i, 0] = a_new
+                params_mu_new[k, i, 1] = b
+                params_cov_new[k, i, 0] = phi_new
+                params_cov_new[k, i, 1] = gamma_new
+
+        return {
+            "mu_params": params_mu_new,
+            "cov_params": params_cov_new,
+            "weights": weights,
+        }
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Step 6: fit / predict / 辅助接口
+    # ────────────────────────────────────────────────────────────────────────
+    def fit(
+        self,
+        data: List[pd.DataFrame],
+        *,
+        verbose: bool = False,
+    ) -> "FunClu":
+        """端到端拟合：``_prepare_data → _initialize → EM 主循环``。
+
+        EM 终止条件（任一满足即停）：
+
+        1. ``|Δlog_lik| < tol``（视为收敛，``self.converged = True``）；
+        2. 达到 ``max_iter``；
+        3. 出现 NaN/Inf log-likelihood 或参数（早停，回退到上一轮参数）；
+        4. ``log_lik`` 显著下降（差值 ``> 1e6``，认为发散，早停）。
+
+        终止后用最终参数再跑一次 E 步得到 ``resp``，``labels = argmax resp``；若
+        发现空簇，回退为初始化的 KMeans 标签（保证每簇至少一个成员）。
+
+        BIC 与 ``n_params`` 计算与 R 端一致：``BIC = 2·NLL + p·log(N)``，
+        ``NLL = -log_likelihood``，``p = K · L · 4 + max(K - 1, 0)``。
+
+        Args:
+            data: 多 condition 的 DataFrame 列表（与 ``_prepare_data`` 同形）。
+            verbose: 是否在终端打印每轮 log-likelihood / 收敛信息（不调用 ``st.*``）。
+
+        Returns:
+            ``self``，便于链式调用。
+        """
+        X_list, _ = self._prepare_data(data)
+        init_result = self._initialize(X_list)
+        self.params_mu = init_result["mu_params"]
+        self.params_cov = init_result["cov_params"]
+        self.weights = init_result["weights"]
+        init_labels: torch.Tensor = init_result["labels"].clone()
+
+        N = int(X_list[0].shape[0])
+        prev_log_likelihood = -float("inf")
+        last_log_likelihood = -float("inf")
+        self.converged = False
+        self.loglik_history = []
+        self.n_iter_run = 0
+
+        if verbose:
+            print(
+                f"[FunClu] EM start | N={N} | K={self.n_components} | "
+                f"L={self.n_conditions} | n_times={self.n_times_conditions} | "
+                f"max_iter={self.max_iter} | tol={self.tol}",
+                flush=True,
+            )
+
+        for iter_num in range(self.max_iter):
+            log_lik_t, resp = self._e_step(
+                X_list, self.params_mu, self.params_cov, self.weights
+            )
+            log_likelihood = float(log_lik_t.item())
+
+            if not np.isfinite(log_likelihood):
+                if verbose:
+                    print(
+                        f"[FunClu] iter {iter_num + 1}: NaN/Inf log-lik，提前停止。",
+                        flush=True,
+                    )
+                log_likelihood = prev_log_likelihood
+                break
+
+            self.loglik_history.append(log_likelihood)
+            self.n_iter_run = iter_num + 1
+            last_log_likelihood = log_likelihood
+
+            m_result = self._m_step(X_list, resp)
+            if (
+                torch.isnan(m_result["mu_params"]).any()
+                or torch.isnan(m_result["cov_params"]).any()
+            ):
+                if verbose:
+                    print(
+                        f"[FunClu] iter {iter_num + 1}: NaN in M-step params，提前停止。",
+                        flush=True,
+                    )
+                break
+
+            self.params_mu = m_result["mu_params"]
+            self.params_cov = m_result["cov_params"]
+            self.weights = m_result["weights"]
+
+            if verbose:
+                print(
+                    f"[FunClu] iter {iter_num + 1}/{self.max_iter} "
+                    f"log-lik={log_likelihood:.6f}",
+                    flush=True,
+                )
+
+            change = abs(log_likelihood - prev_log_likelihood)
+            if np.isfinite(prev_log_likelihood) and change < self.tol:
+                if verbose:
+                    print(
+                        f"[FunClu] converged at iter {iter_num + 1} "
+                        f"(Δ={change:.2e} < tol={self.tol:.2e})",
+                        flush=True,
+                    )
+                self.converged = True
+                break
+
+            if (
+                np.isfinite(prev_log_likelihood)
+                and log_likelihood < prev_log_likelihood - 1e6
+            ):
+                if verbose:
+                    print(
+                        f"[FunClu] iter {iter_num + 1}: log-lik 显著下降，提前停止。",
+                        flush=True,
+                    )
+                break
+
+            prev_log_likelihood = log_likelihood
+
+        # 用最终参数再跑一次 E 步，分配标签
+        _, final_resp = self._e_step(
+            X_list, self.params_mu, self.params_cov, self.weights
+        )
+        final_labels = final_resp.argmax(dim=1)
+        counts_final = torch.bincount(final_labels, minlength=self.n_components)
+        if (counts_final == 0).any():
+            if verbose:
+                empty_ids = [i for i, c in enumerate(counts_final.tolist()) if c == 0]
+                print(
+                    f"[FunClu] empty cluster(s) {empty_ids} after EM；"
+                    f"回退到 KMeans 初始化标签。",
+                    flush=True,
+                )
+            self.labels = init_labels
+        else:
+            self.labels = final_labels
+
+        ell = (
+            last_log_likelihood
+            if np.isfinite(last_log_likelihood)
+            else (prev_log_likelihood if np.isfinite(prev_log_likelihood) else float("nan"))
+        )
+        self.log_likelihood = ell
+        self.neg_log_likelihood = -ell if np.isfinite(ell) else float("nan")
+        self.n_params = (
+            self.n_components * self.n_conditions * 4
+            + max(self.n_components - 1, 0)
+        )
+        if np.isfinite(ell):
+            self.bic = 2.0 * (-ell) + self.n_params * float(np.log(max(N, 1)))
+        else:
+            self.bic = float("nan")
+
+        if verbose:
+            print(
+                f"[FunClu] EM end | converged={self.converged} | "
+                f"log-lik={self.log_likelihood} | BIC={self.bic}",
+                flush=True,
+            )
+        return self
+
+    def predict(self, data: List[pd.DataFrame]) -> torch.Tensor:
+        """对新数据按当前模型分配硬标签 ``argmax resp``。
+
+        Args:
+            data: 多 condition 的 DataFrame 列表，列必须能与训练阶段的 ``common_cols``
+                取交集（少于训练时会重新缩窄 ``common_cols``，由 ``_prepare_data`` 处理）。
+
+        Returns:
+            ``(N,)`` 的 ``torch.LongTensor``。
+
+        Raises:
+            RuntimeError: 模型尚未拟合（``params_mu`` 为 ``None``）。
+        """
+        if self.params_mu is None or self.params_cov is None or self.weights is None:
+            raise RuntimeError("predict 调用前必须先调用 fit / _initialize")
+        X_list, _ = self._prepare_data(data)
+        _, resp = self._e_step(X_list, self.params_mu, self.params_cov, self.weights)
+        return resp.argmax(dim=1)
+
+    def get_params(self) -> Dict[str, Optional[np.ndarray]]:
+        """以 numpy 字典导出关键模型参数，便于持久化或表格展示。
+
+        Returns:
+            字典：``mu_params (K,L,2)``、``cov_params (K,L,2)``、``weights (K,)``、
+            ``labels (N,)``；尚未填充的字段为 ``None``。
+        """
+        return {
+            "mu_params": (
+                self.params_mu.detach().cpu().numpy()
+                if self.params_mu is not None
+                else None
+            ),
+            "cov_params": (
+                self.params_cov.detach().cpu().numpy()
+                if self.params_cov is not None
+                else None
+            ),
+            "weights": (
+                self.weights.detach().cpu().numpy()
+                if self.weights is not None
+                else None
+            ),
+            "labels": (
+                self.labels.detach().cpu().numpy()
+                if self.labels is not None
+                else None
+            ),
+        }
+
+    def get_cluster_curves(
+        self,
+        condition_idx: int = 0,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """在指定 condition 下，按当前 ``params_mu`` 计算各簇的均值曲线 ``a · t^b``。
+
+        Args:
+            condition_idx: condition 索引，范围 ``[0, n_conditions)``。
+
+        Returns:
+            ``(times, curves)``：``times`` 形如 ``(n_t_i,)``，``curves`` 形如
+            ``(n_components, n_t_i)``。
+
+        Raises:
+            RuntimeError: 模型尚未填充 ``params_mu`` / ``times_list``。
+            IndexError: ``condition_idx`` 越界。
+        """
+        if self.params_mu is None or self.times_list is None:
+            raise RuntimeError("get_cluster_curves 调用前必须先调用 fit / _initialize")
+        if not (0 <= condition_idx < self.n_conditions):
+            raise IndexError(
+                f"condition_idx={condition_idx} 越界（n_conditions={self.n_conditions}）"
+            )
+        t = np.asarray(self.times_list[condition_idx], dtype=np.float64)
+        mu_np = self.params_mu.detach().cpu().numpy()
+        curves = np.empty((self.n_components, t.size), dtype=np.float64)
+        with np.errstate(over="ignore", invalid="ignore"):
+            for k in range(self.n_components):
+                a = float(mu_np[k, condition_idx, 0])
+                b = float(mu_np[k, condition_idx, 1])
+                curves[k] = a * np.power(t, b)
+        return t, curves
 
     def __repr__(self) -> str:
         return (
