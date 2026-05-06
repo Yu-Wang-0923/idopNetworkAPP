@@ -5,7 +5,9 @@ st.set_page_config(page_title="Network Construction", page_icon=None, layout="wi
 
 from backend.utils import setup_matplotlib_chinese
 
-setup_matplotlib_chinese()
+from backend.utils import load_css
+
+load_css()
 
 st.title("Network Construction", text_alignment="center")
 
