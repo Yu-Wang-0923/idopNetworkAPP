@@ -1,6 +1,4 @@
 import streamlit as st
-
-import streamlit as st
 from backend.utils import load_css, setup_sidebar
 
 # 1. 基础设置
