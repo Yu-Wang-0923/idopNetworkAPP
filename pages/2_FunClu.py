@@ -156,64 +156,81 @@ with tab1:
 
     tab1_1, tab1_2, tab1_3 = st.tabs(["Data Overview", "EM Fitting", "Export"])
 
-    # ---------- Data Overview ----------
-    with tab1_1:
-        curve_sample_dict = st.session_state.funclu_curve_sample
-        if not curve_sample_dict:
-            st.info("Please upload curve_fitting_export.zip first.")
+# ---------- Data Overview ----------
+with tab1_1:
+    curve_sample_dict = st.session_state.get("funclu_curve_sample", {})
+    
+    if not curve_sample_dict:
+        st.info("💡 Please upload `curve_fitting_export.zip` in the section above first.")
+    else:
+        cond_names = list(curve_sample_dict.keys())
+        data_list = [curve_sample_dict[n] for n in cond_names]
+
+        st.markdown(
+            f"**Detected conditions ({len(cond_names)}):** "
+            + ", ".join(f"`{n}`" for n in cond_names)
+        )
+
+        try:
+            model = FunClu()
+            # 注意: 这里调用了保护方法 _prepare_data，请确保 FunClu 类设计允许此操作
+            X_list, times_list = model._prepare_data(data_list)
+        except Exception as e:
+            st.error(f"⚠️ 数据准备失败 (Data preparation failed): {e}")
         else:
-            cond_names = list(curve_sample_dict.keys())
-            data_list = [curve_sample_dict[n] for n in cond_names]
+            st.divider()  # 添加视觉分割线
 
-            st.markdown(
-                f"**Detected conditions ({len(cond_names)}):** "
-                + ", ".join(f"`{n}`" for n in cond_names)
-            )
+            # --- 1. Key Metrics ---
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Conditions", model.n_conditions)
+            with col2:
+                st.metric("Common Features", model.n_features)
+            with col3:
+                per_cond_str = ", ".join(str(d) for d in model.n_times_conditions)
+                st.metric(
+                    "Time Points (Total)",
+                    f"{sum(model.n_times_conditions)}",
+                    delta=f"Per condition: {per_cond_str}",
+                    delta_color="off",
+                )
 
-            try:
-                model = FunClu()
-                X_list, times_list = model._prepare_data(data_list)
-            except Exception as e:
-                st.error(f"数据准备失败：{e}")
-            else:
-                col_a, col_b, col_c = st.columns(3)
-                with col_a:
-                    st.metric("n_conditions", model.n_conditions)
-                with col_b:
-                    st.metric("n_features (common cols)", model.n_features)
-                with col_c:
-                    st.metric(
-                        "n_times (sum / per-cond)",
-                        f"{sum(model.n_times_conditions)}",
-                        delta=", ".join(str(d) for d in model.n_times_conditions),
-                        delta_color="off",
-                    )
+            st.write("") # 增加一点垂直空白
 
-                shape_rows = [
-                    {
-                        "condition": n,
-                        "n_times": int(model.n_times_conditions[i]),
-                        "X_shape (n_features, n_times)": str(tuple(X_list[i].shape)),
-                        "time_min": float(times_list[i].min()),
-                        "time_max": float(times_list[i].max()),
-                    }
-                    for i, n in enumerate(cond_names)
-                ]
-                st.markdown("**Per-condition summary**")
-                st.dataframe(pd.DataFrame(shape_rows), use_container_width=True)
+            # --- 2. Per-condition Summary Table ---
+            st.markdown("#### Per-Condition Summary")
+            summary_df = pd.DataFrame([
+                {
+                    "Condition": n,
+                    "Time Points": int(model.n_times_conditions[i]),
+                    "Shape (Features × Times)": f"{X_list[i].shape[0]} × {X_list[i].shape[1]}",
+                    "Time Min": float(times_list[i].min()),
+                    "Time Max": float(times_list[i].max()),
+                }
+                for i, n in enumerate(cond_names)
+            ])
+            # 使用 hide_index=True 让表格更清爽
+            st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
-                with st.expander(
-                    f"Common columns ({model.n_features})", expanded=False
-                ):
-                    st.write(model.common_cols)
+            # --- 3. Features & Data Preview ---
+            col_left, col_right = st.columns([1, 2]) # 左右比例 1:2
 
-                st.markdown("**curve_sample preview** (first 5 rows × first 5 cols)")
-                for n in cond_names:
-                    with st.expander(f"`{n}`", expanded=False):
-                        st.dataframe(
-                            curve_sample_dict[n].iloc[:5, :5],
-                            use_container_width=True,
-                        )
+            with col_left:
+                with st.expander(f"Common Features ({model.n_features})", expanded=False):
+                    # 将特征列表转为 DataFrame 展示，比纯文本列表更规范
+                    features_df = pd.DataFrame({"Feature Name": model.common_cols})
+                    st.dataframe(features_df, use_container_width=True, hide_index=True)
+
+            with col_right:
+                with st.expander("Data Preview (Top 5 × 5)", expanded=False):
+                    # 使用内嵌 tabs 来展示不同 condition 的预览，避免 expander 堆叠过长
+                    preview_tabs = st.tabs(cond_names)
+                    for idx, n in enumerate(cond_names):
+                        with preview_tabs[idx]:
+                            st.dataframe(
+                                curve_sample_dict[n].iloc[:5, :5],
+                                use_container_width=True,
+                            )
 
     # ---------- EM Fitting ----------
     with tab1_2:
