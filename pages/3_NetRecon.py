@@ -48,6 +48,137 @@ def _load_netrecon_inputs_from_zip(
     return dict(sorted(quasi_map.items())), dict(sorted(curve_map.items()))
 
 
+def _load_funclu_export_from_zip(
+    zip_bytes: bytes,
+) -> tuple[
+    pd.DataFrame,
+    pd.DataFrame,
+    dict[str, pd.DataFrame],
+    dict[str, dict[str, pd.DataFrame]],
+]:
+    """从 funclu_k_export.zip 读取标签、簇中心曲线与簇内成员曲线。"""
+    labels_df: pd.DataFrame | None = None
+    cluster_sizes_df: pd.DataFrame | None = None
+    centers: dict[str, pd.DataFrame] = {}
+    members: dict[str, dict[str, pd.DataFrame]] = {}
+
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+        for name in zf.namelist():
+            if name.endswith("/"):
+                continue
+            parts = name.split("/")
+            with zf.open(name) as f:
+                if name == "labels.csv":
+                    labels_df = pd.read_csv(f)
+                elif name == "cluster_sizes.csv":
+                    cluster_sizes_df = pd.read_csv(f)
+                elif (
+                    len(parts) == 3
+                    and parts[0] == "cluster_centers"
+                    and parts[2] == "cluster_center_curve_sample.csv"
+                ):
+                    centers[parts[1]] = pd.read_csv(f, index_col=0)
+                elif (
+                    len(parts) == 3
+                    and parts[0] == "cluster_members"
+                    and parts[2].endswith("_curve_sample.csv")
+                ):
+                    cluster_name = parts[2].removesuffix("_curve_sample.csv")
+                    members.setdefault(parts[1], {})[cluster_name] = pd.read_csv(
+                        f, index_col=0
+                    )
+
+    if labels_df is None:
+        raise ValueError("FunClu-K export ZIP 缺少 labels.csv")
+    if cluster_sizes_df is None:
+        cluster_sizes_df = pd.DataFrame()
+    if not centers:
+        raise ValueError("FunClu-K export ZIP 缺少 cluster center curve_sample")
+    if not members:
+        raise ValueError("FunClu-K export ZIP 缺少 cluster member curve_sample")
+
+    sorted_centers = dict(sorted(centers.items()))
+    sorted_members = {
+        cond: dict(sorted(cluster_map.items()))
+        for cond, cluster_map in sorted(members.items())
+    }
+    return labels_df, cluster_sizes_df, sorted_centers, sorted_members
+
+
+def _fit_idop_network_from_curve_sample(
+    curve_sample_df: pd.DataFrame,
+    *,
+    max_order: int,
+    solver: str,
+    alpha: float,
+    nonneg_self: bool,
+    max_interactions: int,
+    basis_kind: str,
+) -> dict:
+    """复用单层 IdopNetwork 流程，从 curve_sample 构建一个网络。"""
+    if curve_sample_df.shape[1] < 2:
+        raise ValueError("至少需要 2 条曲线才能构建交互网络")
+
+    curve_sample_scaled = data_transformation(curve_sample_df, "rescale_to_-1_1")
+    model = IDOPRegressor(
+        max_order=int(max_order),
+        solver=str(solver),
+        alpha=float(alpha),
+        mix=0.5,
+        fix_mix=(solver == "asgl"),
+        nonneg_self=bool(nonneg_self),
+        max_interactions=int(max_interactions),
+        basis_kind=str(basis_kind),
+    )
+    model.fit(curve_sample_scaled, curve_sample_df)
+    predicted_df = model.predict(curve_sample_scaled)
+    effect_df_list = model.effect(curve_sample_scaled)
+    adj_df = model.adjacency_matrix(curve_sample_scaled)
+    return {
+        "model": model,
+        "curve_sample_df": curve_sample_df,
+        "curve_sample_scaled": curve_sample_scaled,
+        "predicted_df": predicted_df,
+        "effect_df_list": effect_df_list,
+        "adj_df": adj_df,
+    }
+
+
+def _build_multilayer_export_zip(
+    *,
+    result: dict,
+    labels_df: pd.DataFrame,
+    cluster_sizes_df: pd.DataFrame,
+) -> bytes:
+    """把 Multi-Layer IdopNetwork 邻接矩阵与元数据打包为 ZIP。"""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("metadata/labels.csv", labels_df.to_csv(index=False))
+        if not cluster_sizes_df.empty:
+            zf.writestr(
+                "metadata/cluster_sizes.csv", cluster_sizes_df.to_csv(index=False)
+            )
+
+        for cond_name, network in result["inter_cluster"].items():
+            zf.writestr(
+                f"inter_cluster/{cond_name}/adjacency_matrix.csv",
+                network["adj_df"].to_csv(index=True),
+            )
+
+        for cond_name, cluster_map in result["intra_cluster"].items():
+            for cluster_name, network in cluster_map.items():
+                zf.writestr(
+                    f"intra_cluster/{cond_name}/{cluster_name}/adjacency_matrix.csv",
+                    network["adj_df"].to_csv(index=True),
+                )
+
+        skipped_df = pd.DataFrame(result.get("skipped", []))
+        if not skipped_df.empty:
+            zf.writestr("metadata/skipped_networks.csv", skipped_df.to_csv(index=False))
+
+    return buffer.getvalue()
+
+
 if "netrecon_quasi_dynamic" not in st.session_state:
     st.session_state.netrecon_quasi_dynamic = {}
 if "netrecon_curve_sample" not in st.session_state:
@@ -56,6 +187,18 @@ if "netrecon_uploaded_zip_name" not in st.session_state:
     st.session_state.netrecon_uploaded_zip_name = None
 if "netrecon_result" not in st.session_state:
     st.session_state.netrecon_result = None
+if "netrecon_funclu_labels" not in st.session_state:
+    st.session_state.netrecon_funclu_labels = pd.DataFrame()
+if "netrecon_funclu_cluster_sizes" not in st.session_state:
+    st.session_state.netrecon_funclu_cluster_sizes = pd.DataFrame()
+if "netrecon_funclu_centers" not in st.session_state:
+    st.session_state.netrecon_funclu_centers = {}
+if "netrecon_funclu_members" not in st.session_state:
+    st.session_state.netrecon_funclu_members = {}
+if "netrecon_funclu_uploaded_zip_name" not in st.session_state:
+    st.session_state.netrecon_funclu_uploaded_zip_name = None
+if "netrecon_multilayer_result" not in st.session_state:
+    st.session_state.netrecon_multilayer_result = None
 
 uploaded_zip = st.file_uploader(
     label="Please upload curve_fitting_export.zip",
@@ -428,4 +571,315 @@ with tab1:
             plot_network(result["adj_df"], target_node=target_node)
 
 with tab2:
-    st.write("To Be Updated...")
+    uploaded_funclu_zip = st.file_uploader(
+        label="Please upload funclu_k_export.zip",
+        type=["zip"],
+        accept_multiple_files=False,
+        help="Input comes from Functional Clustering -> FunClu-K -> Export",
+        key="netrecon_funclu_export_upload",
+    )
+
+    if (
+        uploaded_funclu_zip is not None
+        and st.session_state.netrecon_funclu_uploaded_zip_name
+        != uploaded_funclu_zip.name
+    ):
+        try:
+            labels_df, cluster_sizes_df, centers, members = _load_funclu_export_from_zip(
+                uploaded_funclu_zip.getvalue()
+            )
+        except Exception as e:
+            st.error(f"读取 FunClu-K ZIP 失败：{e}")
+            st.session_state.netrecon_funclu_labels = pd.DataFrame()
+            st.session_state.netrecon_funclu_cluster_sizes = pd.DataFrame()
+            st.session_state.netrecon_funclu_centers = {}
+            st.session_state.netrecon_funclu_members = {}
+            st.session_state.netrecon_funclu_uploaded_zip_name = None
+            st.session_state.netrecon_multilayer_result = None
+        else:
+            st.session_state.netrecon_funclu_labels = labels_df
+            st.session_state.netrecon_funclu_cluster_sizes = cluster_sizes_df
+            st.session_state.netrecon_funclu_centers = centers
+            st.session_state.netrecon_funclu_members = members
+            st.session_state.netrecon_funclu_uploaded_zip_name = uploaded_funclu_zip.name
+            st.session_state.netrecon_multilayer_result = None
+
+    labels_df = st.session_state.netrecon_funclu_labels
+    cluster_sizes_df = st.session_state.netrecon_funclu_cluster_sizes
+    centers = st.session_state.netrecon_funclu_centers
+    members = st.session_state.netrecon_funclu_members
+
+    if not centers:
+        st.info("Please upload funclu_k_export.zip first.")
+    else:
+        condition_names = list(centers.keys())
+        cluster_names = sorted(
+            {
+                cluster_name
+                for cluster_map in members.values()
+                for cluster_name in cluster_map
+            }
+        )
+
+        st.markdown("### FunClu-K Export Overview")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.metric("n_conditions", len(condition_names))
+        with c2:
+            st.metric("n_clusters", len(cluster_names))
+        with c3:
+            st.metric("n_features", len(labels_df))
+
+        overview_rows = []
+        for cond_name in condition_names:
+            center_df = centers[cond_name]
+            overview_rows.append(
+                {
+                    "condition": cond_name,
+                    "center_shape": str(center_df.shape),
+                    "member_clusters": len(members.get(cond_name, {})),
+                }
+            )
+        st.dataframe(pd.DataFrame(overview_rows), use_container_width=True)
+
+        with st.expander("FunClu labels and cluster sizes", expanded=False):
+            left_col, right_col = st.columns(2)
+            with left_col:
+                st.markdown("**labels.csv**")
+                st.dataframe(labels_df, use_container_width=True)
+            with right_col:
+                st.markdown("**cluster_sizes.csv**")
+                if cluster_sizes_df.empty:
+                    st.caption("No cluster_sizes.csv found in ZIP.")
+                else:
+                    st.dataframe(cluster_sizes_df, use_container_width=True)
+
+        with st.expander("Multi-Layer IdopNetwork parameter settings", expanded=True):
+            with st.form(key="netrecon_form_multilayer"):
+                mc1, mc2, mc3 = st.columns(3)
+                with mc1:
+                    ml_solver = st.selectbox(
+                        "Solver",
+                        options=["ols", "lasso", "asgl"],
+                        index=0,
+                        key="netrecon_ml_solver",
+                    )
+                    ml_max_order = st.number_input(
+                        "max_order_upper (BIC)"
+                        if ml_solver == "asgl"
+                        else "max_order",
+                        min_value=1,
+                        max_value=100,
+                        value=6,
+                        step=1,
+                        key="netrecon_ml_max_order",
+                    )
+                    ml_basis_kind = st.selectbox(
+                        "basis_kind",
+                        options=["legendre", "laguerre", "polynomial"],
+                        index=0,
+                        key="netrecon_ml_basis_kind",
+                    )
+                with mc2:
+                    if ml_solver == "lasso":
+                        ml_alpha = st.number_input(
+                            "alpha",
+                            min_value=0.0,
+                            value=0.001,
+                            step=0.001,
+                            format="%.4f",
+                            key="netrecon_ml_alpha",
+                        )
+                    else:
+                        ml_alpha = 1.0
+                    if ml_solver == "asgl":
+                        st.caption("ASGL: max_order and alpha are selected by BIC.")
+                with mc3:
+                    ml_nonneg_self = st.checkbox(
+                        "nonneg_self",
+                        value=True,
+                        key="netrecon_ml_nonneg_self",
+                    )
+                    ml_top_k = st.number_input(
+                        "max_interactions (Top-K)",
+                        min_value=0,
+                        max_value=100,
+                        value=0,
+                        step=1,
+                        key="netrecon_ml_top_k",
+                    )
+                submit_multilayer = st.form_submit_button(
+                    "Run Multi-Layer IdopNetwork"
+                )
+
+        if submit_multilayer:
+            params = {
+                "max_order": int(ml_max_order),
+                "solver": str(ml_solver),
+                "alpha": float(ml_alpha),
+                "nonneg_self": bool(ml_nonneg_self),
+                "max_interactions": int(ml_top_k),
+                "basis_kind": str(ml_basis_kind),
+            }
+            inter_cluster: dict[str, dict] = {}
+            intra_cluster: dict[str, dict[str, dict]] = {}
+            skipped: list[dict[str, str | int]] = []
+
+            try:
+                for cond_name in condition_names:
+                    center_df = centers[cond_name]
+                    try:
+                        inter_cluster[cond_name] = _fit_idop_network_from_curve_sample(
+                            center_df,
+                            **params,
+                        )
+                    except Exception as e:
+                        skipped.append(
+                            {
+                                "layer": "inter_cluster",
+                                "condition": cond_name,
+                                "cluster": "",
+                                "n_nodes": int(center_df.shape[1]),
+                                "reason": str(e),
+                            }
+                        )
+
+                    intra_cluster[cond_name] = {}
+                    for cluster_name, member_df in members.get(cond_name, {}).items():
+                        if member_df.shape[1] < 2:
+                            skipped.append(
+                                {
+                                    "layer": "intra_cluster",
+                                    "condition": cond_name,
+                                    "cluster": cluster_name,
+                                    "n_nodes": int(member_df.shape[1]),
+                                    "reason": "less than 2 member curves",
+                                }
+                            )
+                            continue
+                        try:
+                            intra_cluster[cond_name][cluster_name] = (
+                                _fit_idop_network_from_curve_sample(
+                                    member_df,
+                                    **params,
+                                )
+                            )
+                        except Exception as e:
+                            skipped.append(
+                                {
+                                    "layer": "intra_cluster",
+                                    "condition": cond_name,
+                                    "cluster": cluster_name,
+                                    "n_nodes": int(member_df.shape[1]),
+                                    "reason": str(e),
+                                }
+                            )
+            except Exception as e:
+                st.error(f"Multi-Layer IdopNetwork 运行失败：{e}")
+                st.session_state.netrecon_multilayer_result = None
+            else:
+                st.session_state.netrecon_multilayer_result = {
+                    "params": params,
+                    "inter_cluster": inter_cluster,
+                    "intra_cluster": intra_cluster,
+                    "skipped": skipped,
+                }
+                st.success("Done")
+
+        multilayer_result = st.session_state.netrecon_multilayer_result
+        if multilayer_result is not None:
+            st.markdown("### Multi-Layer Network Summary")
+            summary_rows = []
+            for cond_name, network in multilayer_result["inter_cluster"].items():
+                adj_df = network["adj_df"]
+                summary_rows.append(
+                    {
+                        "layer": "inter_cluster",
+                        "condition": cond_name,
+                        "cluster": "",
+                        "n_nodes": int(adj_df.shape[0]),
+                        "mse": network["model"].mse_,
+                        "status": "built",
+                    }
+                )
+            for cond_name, cluster_map in multilayer_result["intra_cluster"].items():
+                for cluster_name, network in cluster_map.items():
+                    adj_df = network["adj_df"]
+                    summary_rows.append(
+                        {
+                            "layer": "intra_cluster",
+                            "condition": cond_name,
+                            "cluster": cluster_name,
+                            "n_nodes": int(adj_df.shape[0]),
+                            "mse": network["model"].mse_,
+                            "status": "built",
+                        }
+                    )
+            for row in multilayer_result.get("skipped", []):
+                summary_rows.append({**row, "mse": np.nan, "status": "skipped"})
+            st.dataframe(pd.DataFrame(summary_rows), use_container_width=True)
+
+            if multilayer_result["inter_cluster"]:
+                st.markdown("### Inter-Cluster Network")
+                inter_condition = st.selectbox(
+                    "Inter-cluster condition",
+                    options=list(multilayer_result["inter_cluster"].keys()),
+                    key="netrecon_ml_inter_condition",
+                )
+                inter_adj_df = multilayer_result["inter_cluster"][inter_condition][
+                    "adj_df"
+                ]
+                st.dataframe(inter_adj_df, use_container_width=True)
+                inter_target_node = st.selectbox(
+                    "Inter-cluster target node filter",
+                    options=[""] + list(inter_adj_df.index),
+                    format_func=lambda x: "ALL" if x == "" else x,
+                    key="netrecon_ml_inter_target_node",
+                )
+                plot_network(inter_adj_df, target_node=inter_target_node)
+            else:
+                st.warning("No inter-cluster network was built.")
+
+            available_intra = {
+                cond_name: cluster_map
+                for cond_name, cluster_map in multilayer_result["intra_cluster"].items()
+                if cluster_map
+            }
+            if available_intra:
+                st.markdown("### Intra-Cluster Network")
+                intra_condition = st.selectbox(
+                    "Intra-cluster condition",
+                    options=list(available_intra.keys()),
+                    key="netrecon_ml_intra_condition",
+                )
+                intra_cluster_name = st.selectbox(
+                    "Cluster",
+                    options=list(available_intra[intra_condition].keys()),
+                    key="netrecon_ml_intra_cluster",
+                )
+                intra_adj_df = available_intra[intra_condition][intra_cluster_name][
+                    "adj_df"
+                ]
+                st.dataframe(intra_adj_df, use_container_width=True)
+                intra_target_node = st.selectbox(
+                    "Intra-cluster target node filter",
+                    options=[""] + list(intra_adj_df.index),
+                    format_func=lambda x: "ALL" if x == "" else x,
+                    key="netrecon_ml_intra_target_node",
+                )
+                plot_network(intra_adj_df, target_node=intra_target_node)
+            else:
+                st.warning("No intra-cluster network was built.")
+
+            export_zip = _build_multilayer_export_zip(
+                result=multilayer_result,
+                labels_df=labels_df,
+                cluster_sizes_df=cluster_sizes_df,
+            )
+            st.download_button(
+                label="Download Multi-Layer IdopNetwork ZIP",
+                data=export_zip,
+                file_name="multi_layer_idopnetwork_export.zip",
+                mime="application/zip",
+                key="netrecon_ml_export_download",
+            )
