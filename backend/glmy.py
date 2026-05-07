@@ -35,13 +35,15 @@ with tab1:
 
     # ========== Tab 1_2 IdopNetwork Construction ==========
 
-    tab1_2_1, tab1_2_2, tab1_2_3 = st.tabs(["Network", "Effect Decomposition", "Adjacency Matrix"])
+    tab1_2_1, tab1_2_2, tab1_2_3, tab1_2_4 = st.tabs(["Network", "Effect Decomposition", "Adjacency Matrix", "Debug"])
 
     # ========== Tab 1_2_1 Network ==========
 
     # ========== Tab 1_2_2 Effect Decomposition ==========
 
     # ========== Tab 1_2_3 Adjacency Matrix ==========
+
+    # ========== Tab 1_2_4 Debug ==========
 
     # ========== Tab 1_3 Export ==========
 
