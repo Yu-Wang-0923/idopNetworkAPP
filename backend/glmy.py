@@ -15,11 +15,20 @@ setup_sidebar()
 # ========== 页面标题 ==========
 st.title("Network Construction", text_alignment="center")
 
+# ========== 侧边栏 ==========
+#with st.sidebar:
+    #st.write("To Be Updated...")
+    # st.divider()
+
 
 # ========== Tabs ==========
 tab1, tab2, tab3 = st.tabs(["IdopNetwork", "Multi-Layer IdopNetwork", "To Be Updated..."])
 
 
-# ========== Tab 1 GLMY ==========
+# ========== Tab 1 IdopNetwork ==========
 with tab1:
-    st.write("待更新...")
+    st.write("uploaded_zip 待更新...")
+
+    tab1_1, tab1_2, tab1_3 = st.tabs(["Data Overview", "Data Transformation", "To Be Updated"])
+
+    # ========== Tab 1 IdopNetwork ==========
