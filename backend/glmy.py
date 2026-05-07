@@ -30,23 +30,36 @@ with tab1:
     st.write("uploaded_zip 待更新...")
 
     tab1_1, tab1_2, tab1_3 = st.tabs(["Data Overview", "IdopNetwork Construction", "Export"])
-
+    
     # ========== Tab 1_1 Data Overview ==========
+    with tab1_1:
+        st.write("待更新...")
 
     # ========== Tab 1_2 IdopNetwork Construction ==========
+    with tab1_2:
+        st.write("待更新...")
 
     tab1_2_1, tab1_2_2, tab1_2_3, tab1_2_4 = st.tabs(["Network", "Effect Decomposition", "Adjacency Matrix", "Debug"])
+        
+        # ========== Tab 1_2_1 Network ==========
+        with tab1_2_1:
+            st.write("待更新...")
 
-    # ========== Tab 1_2_1 Network ==========
+        # ========== Tab 1_2_2 Effect Decomposition ==========
+        with tab1_2_2:
+            st.write("待更新...")
 
-    # ========== Tab 1_2_2 Effect Decomposition ==========
+        # ========== Tab 1_2_3 Adjacency Matrix ==========
+        with tab1_2_3:
+            st.write("待更新...")
 
-    # ========== Tab 1_2_3 Adjacency Matrix ==========
-
-    # ========== Tab 1_2_4 Debug ==========
+        # ========== Tab 1_2_4 Debug ==========
+        with tab1_2_4:
+            st.write("待更新...")
 
     # ========== Tab 1_3 Export ==========
-
+    with tab1_3:
+        st.write("待更新...")
 
 # ========== Tab 2 Multi-Layer IdopNetwork ==========
 with tab2:
