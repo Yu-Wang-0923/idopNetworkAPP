@@ -61,16 +61,7 @@ def load_css():
     """, unsafe_allow_html=True)
 
 
-def setup_sidebar():
-    """全局统一的侧边栏组件"""
-    with st.sidebar:
-        # 1. 放置统一的 Logo
-        st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True) 
-        col1, col2, col3 = st.columns([1, 3.5, 1])
-        with col2:
-            st.image("TSA.png", use_container_width=True)
-        
-        # 2. 放置统一的导航按钮
+# 2. 放置统一的导航按钮
         st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
         
         # 注意：下面每一行开头必须比上面的 with 多出 4 个空格
