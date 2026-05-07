@@ -74,6 +74,6 @@ def setup_sidebar():
         st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
         st.page_link("Home.py", label="Home", icon="🏠")
         st.page_link("pages/1_Curve Fitting.py", label="Curve Fitting", icon="📈")
-        st.page_link("pages/2_FunClu.py", label="FunClu", icon="material/category")
+        st.page_link("pages/2_FunClu.py", label="FunClu", icon=":material/category:") 
         st.page_link("pages/3_NetRecon.py", label="NetRecon", icon=":material/hub:")  # 复杂网络拓扑
         st.page_link("pages/4_NetAnal.py", label="NetAnal", icon="📊")
