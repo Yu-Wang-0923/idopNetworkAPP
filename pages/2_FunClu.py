@@ -3,25 +3,28 @@ import zipfile
 
 import streamlit as st
 
-# ========== 页面配置 ==========
-st.set_page_config(page_title="Functional Clustering", page_icon="TSA.png", layout="wide", initial_sidebar_state="expanded")
+# 🌟 统一小图标和侧边栏状态
+st.set_page_config(
+    page_title="Functional Clustering", 
+    page_icon="TSA.png", 
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
 
 import numpy as np
 import pandas as pd
 
 from backend.functional_clustering import FunClu
 from backend.plot_functional_clustering import plot_cluster_profiles
-
-# ========== 加载 css ==========
 from backend.utils import load_css, setup_sidebar
+
+# 🌟 一键加载 CSS 和侧边栏
 load_css()
 setup_sidebar()
 
-# ========== 页面标题 ==========
 st.title("Functional Clustering", text_alignment="center")
 
-
-# ========== 状态缓存 ==========
+# ========== Session State ==========
 if "funclu_curve_sample" not in st.session_state:
     st.session_state.funclu_curve_sample = {}  # {condition_name: pd.DataFrame}
 if "funclu_uploaded_zip_name" not in st.session_state:
@@ -29,21 +32,9 @@ if "funclu_uploaded_zip_name" not in st.session_state:
 if "funclu_em_result" not in st.session_state:
     st.session_state.funclu_em_result = None
 
-
+# ========== Helper Functions ==========
 def _load_curve_sample_from_zip(zip_bytes: bytes) -> dict[str, pd.DataFrame]:
-    """从 curve_fitting 导出的 ZIP 中按子目录读取 ``curve_sample.csv``。
-
-    期望的 ZIP 结构（与 ``1_Curve Fitting.py`` 的导出一致）：
-        ``<condition_name>/curve_sample.csv``
-        ``<condition_name>/quasi_dynamic.csv``
-        ``<condition_name>/curve_params.csv``
-    Args:
-        zip_bytes: ZIP 文件的字节内容。
-
-    Returns:
-        按 ``condition_name`` 升序排序的有序映射：``{condition_name: DataFrame}``，
-        DataFrame 的第一列被作为行索引（即时间/τ）。
-    """
+    """从 curve_fitting 导出的 ZIP 中按子目录读取 ``curve_sample.csv``。"""
     out: dict[str, pd.DataFrame] = {}
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
         for name in zf.namelist():
@@ -55,14 +46,13 @@ def _load_curve_sample_from_zip(zip_bytes: bytes) -> dict[str, pd.DataFrame]:
             out[cond] = df
     return dict(sorted(out.items(), key=lambda kv: kv[0]))
 
-
 def _build_funclu_k_export_zip(
     *,
     model: FunClu,
     cond_names: list[str],
     curve_sample_dict: dict[str, pd.DataFrame],
 ) -> bytes:
-    """Build a ZIP package for downstream Multi-Layer IdopNetwork construction."""
+    """Build a ZIP package for downstream Multi-Layer idopNetwork construction."""
     if model.labels is None or model.common_cols is None:
         raise ValueError("FunClu-K result is incomplete: missing labels/common columns.")
 
@@ -89,8 +79,10 @@ def _build_funclu_k_export_zip(
     with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("labels.csv", labels_df.to_csv(index=False))
         zf.writestr("cluster_sizes.csv", cluster_sizes_df.to_csv(index=False))
+
         for cond_idx, cond_name in enumerate(cond_names):
             curve_sample = curve_sample_dict[cond_name].loc[:, common_cols]
+
             for cluster_idx in range(model.n_components):
                 cluster_name = f"M{cluster_idx + 1}"
                 member_cols = labels_df.loc[
@@ -101,6 +93,7 @@ def _build_funclu_k_export_zip(
                     f"cluster_members/{cond_name}/{cluster_name}_curve_sample.csv",
                     member_df.to_csv(index=True),
                 )
+
             center_times, center_curves = model.get_cluster_curves(cond_idx)
             center_df = pd.DataFrame(
                 center_curves.T,
@@ -112,19 +105,18 @@ def _build_funclu_k_export_zip(
                 f"cluster_centers/{cond_name}/cluster_center_curve_sample.csv",
                 center_df.to_csv(index=True),
             )
+
     return buffer.getvalue()
 
 
+# ========== Top-Level Tabs ==========
+tab1, tab2, tab3 = st.tabs(["Uploaded Data", "FunClu-K", "FunClu-BIC"])
 
-
-
-# ========== Tabs ==========
-tab1, tab2, tab3 = st.tabs(["FunClu-K", "FunClu-BIC", "To Be Updated..."])
-
-# ========== Tab 1 FunClu-K ==========
+# =====================================================================
+# TAB 1: Uploaded Data (File uploader & Data Overview)
+# =====================================================================
 with tab1:
-
-# ========== 文件上传 ==========
+    st.markdown("### Data Initialization")
     uploaded_file = st.file_uploader(
         label="Please upload your file",
         type=["zip"],
@@ -144,20 +136,20 @@ with tab1:
                     uploaded_file.getvalue()
                 )
                 st.session_state.funclu_uploaded_zip_name = uploaded_file.name
+                # Reset EM results when new data is uploaded
+                st.session_state.funclu_em_result = None 
             except Exception as e:
                 st.error(f"读取 ZIP 失败：{e}")
                 st.session_state.funclu_curve_sample = {}
                 st.session_state.funclu_uploaded_zip_name = None
 
-    tab1_1, tab1_2, tab1_3 = st.tabs(["Data Overview", "EM Fitting", "Export"])
-
-# ========== 文件概览 ==========
-with tab1_1:
     curve_sample_dict = st.session_state.get("funclu_curve_sample", {})
     
     if not curve_sample_dict:
-        st.info("💡 Please upload `curve_fitting_export.zip` in the section above first.")
+        st.info("💡 Please upload `curve_fitting_export.zip` above to proceed.")
     else:
+        st.divider()
+        st.markdown("### Data Overview")
         cond_names = list(curve_sample_dict.keys())
         data_list = [curve_sample_dict[n] for n in cond_names]
 
@@ -168,13 +160,10 @@ with tab1_1:
 
         try:
             model = FunClu()
-            # 注意: 这里调用了保护方法 _prepare_data，请确保 FunClu 类设计允许此操作
             X_list, times_list = model._prepare_data(data_list)
         except Exception as e:
             st.error(f"⚠️ 数据准备失败 (Data preparation failed): {e}")
         else:
-            st.divider()  # 添加视觉分割线
-
             # --- 1. Key Metrics ---
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -190,7 +179,7 @@ with tab1_1:
                     delta_color="off",
                 )
 
-            st.write("") # 增加一点垂直空白
+            st.write("") 
 
             # --- 2. Per-condition Summary Table ---
             st.markdown("#### Per-Condition Summary")
@@ -204,21 +193,17 @@ with tab1_1:
                 }
                 for i, n in enumerate(cond_names)
             ])
-            # 使用 hide_index=True 让表格更清爽
             st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
             # --- 3. Features & Data Preview ---
-            col_left, col_right = st.columns([1, 2]) # 左右比例 1:2
-
+            col_left, col_right = st.columns([1, 2]) 
             with col_left:
                 with st.expander(f"Common Features ({model.n_features})", expanded=False):
-                    # 将特征列表转为 DataFrame 展示，比纯文本列表更规范
                     features_df = pd.DataFrame({"Feature Name": model.common_cols})
                     st.dataframe(features_df, use_container_width=True, hide_index=True)
 
             with col_right:
                 with st.expander("Data Preview (Top 5 × 5)", expanded=False):
-                    # 使用内嵌 tabs 来展示不同 condition 的预览，避免 expander 堆叠过长
                     preview_tabs = st.tabs(cond_names)
                     for idx, n in enumerate(cond_names):
                         with preview_tabs[idx]:
@@ -227,11 +212,18 @@ with tab1_1:
                                 use_container_width=True,
                             )
 
+
+# =====================================================================
+# TAB 2: FunClu-K (EM Fitting & Export)
+# =====================================================================
+with tab2:
+    tab2_1, tab2_2 = st.tabs(["EM Fitting", "Export"])
+
     # ---------- EM Fitting ----------
-    with tab1_2:
-        curve_sample_dict = st.session_state.funclu_curve_sample
+    with tab2_1:
+        curve_sample_dict = st.session_state.get("funclu_curve_sample", {})
         if not curve_sample_dict:
-            st.info("Please upload curve_fitting_export.zip first.")
+            st.info("Please upload data in the 'Uploaded Data' tab first.")
         else:
             cond_names = list(curve_sample_dict.keys())
             data_list = [curve_sample_dict[n] for n in cond_names]
@@ -319,6 +311,7 @@ with tab1_1:
                     for k in range(em_model.n_components)
                     for i in range(em_model.n_conditions)
                 ]
+                
                 col_mu, col_cov = st.columns(2)
                 with col_mu:
                     st.markdown(r"**mu_params (a, b)** — $\mu = a \cdot t^{b}$")
@@ -413,13 +406,14 @@ with tab1_1:
                 )
 
     # ---------- Export ----------
-    with tab1_3:
-        curve_sample_dict = st.session_state.funclu_curve_sample
+    with tab2_2:
+        curve_sample_dict = st.session_state.get("funclu_curve_sample", {})
         em = st.session_state.funclu_em_result
+        
         if not curve_sample_dict:
-            st.info("Please upload curve_fitting_export.zip first.")
+            st.info("Please upload data in the 'Uploaded Data' tab first.")
         elif em is None:
-            st.info("Please run EM Fitting first.")
+            st.info("Please run EM Fitting in the adjacent tab first.")
         else:
             em_model: FunClu = em["model"]
             em_cond_names = em["cond_names"]
@@ -452,6 +446,8 @@ with tab1_1:
                 )
 
 
-# ========== Tab 2 ==========
-with tab2:
+# =====================================================================
+# TAB 3: FunClu-BIC
+# =====================================================================
+with tab3:
     st.write("To Be Updated...")
