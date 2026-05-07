@@ -35,18 +35,18 @@ with tab1:
 with tab2:
     st.write("待更新...")
 
-    tab1_1, tab1_2 = st.tabs(["Uploaded Data", "Classification", "Regression"])
+    tab2_1, tab2_2, tab2_3 = st.tabs(["Uploaded Data", "Classification", "Regression"])
     
     # ========== Tab 2_1 Uploaded Data ==========
-    with tab1_1:
+    with tab2_1:
         st.write("待更新...")
 
     # ========== Tab 2_2 Classification ==========
-    with tab1_1:
+    with tab2_2:
         st.write("待更新...")
 
     # ========== Tab 2_3 Regression ==========
-    with tab1_1:
+    with tab2_3:
         st.write("待更新...")
 
 
