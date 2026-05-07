@@ -14,17 +14,42 @@ st.title("Network Analysis", text_alignment="center")
 
 
 # ========== Tabs ==========
-tab1, tab2, tab3 = st.tabs(["GLMY 同调", "中心网络", "待更新..."])
+tab1, tab2, tab3 = st.tabs(["GLMY", "Machine Learning", "中心网络"])
 
 
-# ========== Tab 1 ==========
+# ========== Tab 1 GLMY ==========
 with tab1:
     st.write("待更新...")
 
-# ========== Tab 2 ==========
+    tab1_1, tab1_2 = st.tabs(["Uploaded Data", "GLMY Analysis"])
+
+    # ========== Tab 1_1 Uploaded Data ==========
+    with tab1_1:
+        st.write("待更新...")
+
+    # ========== Tab 1_1 GLMY Analysis ==========
+    with tab1_2:
+        st.write("待更新...")
+
+# ========== Tab 2 机器学习 ==========
 with tab2:
     st.write("待更新...")
 
-# ========== Tab 3 ==========
+    tab1_1, tab1_2 = st.tabs(["Uploaded Data", "Classification", "Regression"])
+    
+    # ========== Tab 2_1 Uploaded Data ==========
+    with tab1_1:
+        st.write("待更新...")
+
+    # ========== Tab 2_2 Classification ==========
+    with tab1_1:
+        st.write("待更新...")
+
+    # ========== Tab 2_3 Regression ==========
+    with tab1_1:
+        st.write("待更新...")
+
+
+# ========== Tab 3 中心网络 ==========
 with tab3:
     st.write("待更新...")
