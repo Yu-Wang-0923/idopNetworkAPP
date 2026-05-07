@@ -129,8 +129,6 @@ tab1, tab2, tab3 = st.tabs(["FunClu-K", "FunClu-BIC", "To Be Updated..."])
 
 # ========== Tab 1 ==========
 with tab1:
-    tab1_1, tab1_2, tab1_3 = st.tabs(["Data Overview", "EM Fitting", "Export"])
-
     # ========== File Upload ==========
     uploaded_file = st.file_uploader(
         label="Please upload your file",
@@ -155,6 +153,8 @@ with tab1:
                 st.error(f"读取 ZIP 失败：{e}")
                 st.session_state.funclu_curve_sample = {}
                 st.session_state.funclu_uploaded_zip_name = None
+
+    tab1_1, tab1_2, tab1_3 = st.tabs(["Data Overview", "EM Fitting", "Export"])
 
     # ---------- Data Overview ----------
     with tab1_1:
