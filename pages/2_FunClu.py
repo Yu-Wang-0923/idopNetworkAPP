@@ -22,10 +22,6 @@ st.title("Functional Clustering", text_alignment="center")
 
 
 # ========== 状态缓存 ==========
-""" 状态缓存
-在 Streamlit 中
-st.session_state 允许在应用的不同部分之间传递和共享信息使得用户体验更加流畅和便捷
-"""
 if "funclu_curve_sample" not in st.session_state:
     st.session_state.funclu_curve_sample = {}  # {condition_name: pd.DataFrame}
 if "funclu_uploaded_zip_name" not in st.session_state:
