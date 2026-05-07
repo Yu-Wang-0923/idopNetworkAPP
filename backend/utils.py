@@ -1,11 +1,5 @@
 """
 共享工具模块：路径常量、CSS 注入、matplotlib 中文字体配置。
-
-所有 static/ 资源的路径引用、页面 CSS 加载以及 matplotlib 中文字体
-初始化均集中于此，避免各页面/模块重复硬编码。
-"""
-"""
-共享工具模块：路径常量、CSS 注入、matplotlib 中文字体配置。
 """
 from pathlib import Path
 import matplotlib.font_manager as fm
@@ -33,14 +27,14 @@ def load_css():
     /* 2. 暴力隐藏自带的顶部白边和丑陋的默认导航栏 */
     header, footer, [data-testid="stSidebarNav"] { display: none !important; }
 
-    /* 3. 🌟 强制侧边栏变成高级深灰蓝！（这里锁死深色，不受 config 影响） 🌟 */
+    /* 3. 🌟 强制侧边栏变成高级深灰蓝！ */
     [data-testid="stSidebar"] {
         background-color: #334155 !important;
         background-image: none !important;
         padding-top: 1rem !important;
     }
 
-    /* 4. 让侧边栏我们自定义的链接变成亮白色，且悬停有发光效果 */
+    /* 4. 让侧边栏我们自定义的链接变成亮白色 */
     .stPageLink a { text-decoration: none !important; padding: 0.25rem 0; transition: all 0.2s;}
     .stPageLink a p { color: #f8fafc !important; font-size: 1.15rem !important; font-weight: 500; }
     .stPageLink:hover { background-color: rgba(255,255,255,0.15) !important; border-radius: 6px; }
@@ -52,7 +46,7 @@ def load_css():
         background-color: #ffffff;
     }
 
-    /* 6. 全局字体稍微放大，提升阅读舒适度 (删除了之前强制变白字的代码) */
+    /* 6. 全局字体稍微放大 */
     p, li, .stMarkdown {
         font-size: 1.1rem !important; 
         line-height: 1.6 !important;
@@ -61,10 +55,18 @@ def load_css():
     """, unsafe_allow_html=True)
 
 
-# 2. 放置统一的导航按钮
+def setup_sidebar():
+    """全局统一的侧边栏组件"""
+    with st.sidebar:
+        # 1. 放置统一的 Logo（修复了之前丢失的代码）
+        st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True) 
+        col1, col2, col3 = st.columns([1, 3.5, 1])
+        with col2:
+            st.image("TSA.png", use_container_width=True)
+        
+        # 2. 放置统一的导航按钮（Material Icons 极简风）
         st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
         
-        # 注意：下面每一行开头必须比上面的 with 多出 4 个空格
         st.page_link("Home.py", label="Home", icon=":material/home:")
         st.page_link("pages/1_Curve Fitting.py", label="Curve Fitting", icon=":material/timeline:")
         st.page_link("pages/2_FunClu.py", label="FunClu", icon=":material/category:") 
