@@ -353,7 +353,11 @@ with tab1:
 
         result = st.session_state.netrecon_result
         if result is not None:
-            with st.expander("Debug: design matrix, response, coefficients", expanded=True):
+            # 🌟 新增：创建子标签页，将主要结果与 Debug 信息分离
+            res_tab_main, res_tab_debug = st.tabs(["Main Results", "Debug"])
+
+            with res_tab_debug:
+                st.markdown("### Debug: design matrix, response, coefficients")
                 model_dbg: IDOPRegressor = result["model"]
                 X_dbg: pd.DataFrame = result["design_X"]
                 Y_dbg: pd.DataFrame = result["response_Y"]
@@ -535,40 +539,41 @@ with tab1:
                 st.markdown("**predicted — head**")
                 st.dataframe(pred.head(), use_container_width=True)
 
-            st.markdown("### Fitting vs Prediction")
-            plot_curve_fitting(
-                df_scatter=result["quasi_dynamic_df"],
-                df_curve=result["predicted_df"],
-                plot_scatter_type="scatter",
-                show_curve=True,
-                nrow=2,
-                ncol=3,
-                nsubfig=6,
-                scatter_x="index",
-                scatter_size=30,
-                scatter_linewidth=1,
-            )
+            with res_tab_main:
+                st.markdown("### Fitting vs Prediction")
+                plot_curve_fitting(
+                    df_scatter=result["quasi_dynamic_df"],
+                    df_curve=result["predicted_df"],
+                    plot_scatter_type="scatter",
+                    show_curve=True,
+                    nrow=2,
+                    ncol=3,
+                    nsubfig=6,
+                    scatter_x="index",
+                    scatter_size=30,
+                    scatter_linewidth=1,
+                )
 
-            st.markdown("### Effect Decomposition")
-            plot_effect(
-                quasi_dynamic_df=result["quasi_dynamic_df"],
-                curve_df=result["predicted_df"],
-                effect_df_list=result["effect_df_list"],
-                intercept=result["model"].coef_.loc["intercept"],
-                plot_ncols=4,
-            )
+                st.markdown("### Effect Decomposition")
+                plot_effect(
+                    quasi_dynamic_df=result["quasi_dynamic_df"],
+                    curve_df=result["predicted_df"],
+                    effect_df_list=result["effect_df_list"],
+                    intercept=result["model"].coef_.loc["intercept"],
+                    plot_ncols=4,
+                )
 
-            st.markdown("### Adjacency Matrix")
-            st.dataframe(result["adj_df"], use_container_width=True)
+                st.markdown("### Adjacency Matrix")
+                st.dataframe(result["adj_df"], use_container_width=True)
 
-            st.markdown("### Interaction Network")
-            target_node = st.selectbox(
-                "Target node filter",
-                options=[""] + list(result["adj_df"].index),
-                format_func=lambda x: "ALL" if x == "" else x,
-                key="netrecon_target_node",
-            )
-            plot_network(result["adj_df"], target_node=target_node)
+                st.markdown("### Interaction Network")
+                target_node = st.selectbox(
+                    "Target node filter",
+                    options=[""] + list(result["adj_df"].index),
+                    format_func=lambda x: "ALL" if x == "" else x,
+                    key="netrecon_target_node",
+                )
+                plot_network(result["adj_df"], target_node=target_node)
 
 with tab2:
     uploaded_funclu_zip = st.file_uploader(
