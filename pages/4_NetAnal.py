@@ -53,3 +53,13 @@ with tab2:
 # ========== Tab 3 Center Network ==========
 with tab3:
     st.write("待更新...")
+
+    tab3_1, tab3_2 = st.tabs(["Uploaded Data", "Center Network"])
+
+    # ========== Tab 3_1 Uploaded Data ==========
+    with tab3_1:
+        st.write("待更新...")
+
+    # ========== Tab 3_2 Classification ==========
+    with tab3_2:
+        st.write("待更新...")
