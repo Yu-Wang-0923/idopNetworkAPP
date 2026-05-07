@@ -23,7 +23,6 @@ st.title("Functional Clustering", text_alignment="center")
 
 # ========== 状态缓存 ==========
 """ 状态缓存
-
 在 Streamlit 中
 st.session_state 允许在应用的不同部分之间传递和共享信息使得用户体验更加流畅和便捷
 """
@@ -94,10 +93,8 @@ def _build_funclu_k_export_zip(
     with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("labels.csv", labels_df.to_csv(index=False))
         zf.writestr("cluster_sizes.csv", cluster_sizes_df.to_csv(index=False))
-
         for cond_idx, cond_name in enumerate(cond_names):
             curve_sample = curve_sample_dict[cond_name].loc[:, common_cols]
-
             for cluster_idx in range(model.n_components):
                 cluster_name = f"M{cluster_idx + 1}"
                 member_cols = labels_df.loc[
@@ -108,7 +105,6 @@ def _build_funclu_k_export_zip(
                     f"cluster_members/{cond_name}/{cluster_name}_curve_sample.csv",
                     member_df.to_csv(index=True),
                 )
-
             center_times, center_curves = model.get_cluster_curves(cond_idx)
             center_df = pd.DataFrame(
                 center_curves.T,
@@ -120,7 +116,6 @@ def _build_funclu_k_export_zip(
                 f"cluster_centers/{cond_name}/cluster_center_curve_sample.csv",
                 center_df.to_csv(index=True),
             )
-
     return buffer.getvalue()
 
 
