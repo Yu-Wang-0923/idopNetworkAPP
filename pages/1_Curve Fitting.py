@@ -31,7 +31,7 @@ def _safe_zip_subdir(fname: str) -> str:
     return base or "export"
 
 
-st.title("Curve Fitting", text_alignment="center")
+st.title("Curve Fitting cycycycycycycycyc", text_alignment="center")
 
 
 if "df_original" not in st.session_state:
