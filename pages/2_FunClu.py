@@ -6,6 +6,17 @@ import streamlit as st
 # 🌟 修改 1：统一小图标和侧边栏状态
 st.set_page_config(page_title="Functional Clustering", page_icon="TSA.png", layout="wide", initial_sidebar_state="expanded")
 
+
+#
+hide_badge_style = """
+<style>
+    [data-testid="stViewerBadge"] {
+        display: none !important;
+    }
+</style>
+"""
+st.markdown(hide_badge_style, unsafe_allow_html=True)
+
 import numpy as np
 import pandas as pd
 
