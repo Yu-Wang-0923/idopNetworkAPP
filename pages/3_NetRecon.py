@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-# 🌟 修改 1：统一小图标和侧边栏状态（建议紧跟在 import st 后面）
+# ========== 页面配置 ==========
 st.set_page_config(
     page_title="Network Construction",
     page_icon="TSA.png",
@@ -200,31 +200,31 @@ if "netrecon_funclu_uploaded_zip_name" not in st.session_state:
 if "netrecon_multilayer_result" not in st.session_state:
     st.session_state.netrecon_multilayer_result = None
 
-uploaded_zip = st.file_uploader(
-    label="Please upload curve_fitting_export.zip",
-    type=["zip"],
-    accept_multiple_files=False,
-    help="Input comes directly from Curve Fitting -> Export ZIP",
-)
-
-if uploaded_zip is not None and st.session_state.netrecon_uploaded_zip_name != uploaded_zip.name:
-    try:
-        quasi_map, curve_map = _load_netrecon_inputs_from_zip(uploaded_zip.getvalue())
-        st.session_state.netrecon_quasi_dynamic = quasi_map
-        st.session_state.netrecon_curve_sample = curve_map
-        st.session_state.netrecon_uploaded_zip_name = uploaded_zip.name
-        st.session_state.netrecon_result = None
-    except Exception as e:
-        st.error(f"读取 ZIP 失败：{e}")
-        st.session_state.netrecon_quasi_dynamic = {}
-        st.session_state.netrecon_curve_sample = {}
-        st.session_state.netrecon_uploaded_zip_name = None
-        st.session_state.netrecon_result = None
-
 
 tab1, tab2, tab3 = st.tabs(["IdopNetwork", "Multi-Layer IdopNetwork", "To Be Updated..."])
 
 with tab1:
+    uploaded_zip = st.file_uploader(
+        label="Please upload curve_fitting_export.zip",
+        type=["zip"],
+        accept_multiple_files=False,
+        help="Input comes directly from Curve Fitting -> Export ZIP",
+    )
+
+    if uploaded_zip is not None and st.session_state.netrecon_uploaded_zip_name != uploaded_zip.name:
+        try:
+            quasi_map, curve_map = _load_netrecon_inputs_from_zip(uploaded_zip.getvalue())
+            st.session_state.netrecon_quasi_dynamic = quasi_map
+            st.session_state.netrecon_curve_sample = curve_map
+            st.session_state.netrecon_uploaded_zip_name = uploaded_zip.name
+            st.session_state.netrecon_result = None
+        except Exception as e:
+            st.error(f"读取 ZIP 失败：{e}")
+            st.session_state.netrecon_quasi_dynamic = {}
+            st.session_state.netrecon_curve_sample = {}
+            st.session_state.netrecon_uploaded_zip_name = None
+            st.session_state.netrecon_result = None
+
     quasi_map = st.session_state.netrecon_quasi_dynamic
     curve_map = st.session_state.netrecon_curve_sample
     common_conditions = [k for k in quasi_map if k in curve_map]
