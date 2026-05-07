@@ -14,3 +14,9 @@ st.title("Network Construction", text_alignment="center")
 
 
 # ========== Tabs ==========
+tab1, tab2, tab3 = st.tabs(["GLMY", "Machine Learning", "Center Network"])
+
+
+# ========== Tab 1 GLMY ==========
+with tab1:
+    st.write("待更新...")
