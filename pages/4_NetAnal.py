@@ -31,7 +31,7 @@ with tab1:
     with tab1_2:
         st.write("待更新...")
 
-# ========== Tab 2 机器学习 ==========
+# ========== Tab 2 Machine Learning ==========
 with tab2:
     st.write("待更新...")
 
@@ -50,6 +50,6 @@ with tab2:
         st.write("待更新...")
 
 
-# ========== Tab 3 中心网络 ==========
+# ========== Tab 3 Center Network ==========
 with tab3:
     st.write("待更新...")
