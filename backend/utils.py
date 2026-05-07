@@ -70,10 +70,20 @@ def setup_sidebar():
         with col2:
             st.image("TSA.png", use_container_width=True)
         
-        # 2. 放置统一的导航按钮
+       # 2. 放置统一的导航按钮（全系 Material Icons 学术风）
         st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
-        st.page_link("Home.py", label="Home", icon="🏠")
-        st.page_link("pages/1_Curve Fitting.py", label="Curve Fitting", icon="📈")
+        
+        # Home：用极简的房屋线条，比 Emoji 房子更专业
+        st.page_link("Home.py", label="Home", icon=":material/home:")
+        
+        # Curve Fitting：用线型增长图，线条感和 FunClu 的图标很搭
+        st.page_link("pages/1_Curve Fitting.py", label="Curve Fitting", icon=":material/timeline:")
+        
+        # FunClu：保持你喜欢的几何分类
         st.page_link("pages/2_FunClu.py", label="FunClu", icon=":material/category:") 
-        st.page_link("pages/3_NetRecon.py", label="NetRecon", icon=":material/hub:")  # 复杂网络拓扑
-        st.page_link("pages/4_NetAnal.py", label="NetAnal", icon="📊")
+        
+        # NetRecon：保持你喜欢的网络枢纽
+        st.page_link("pages/3_NetRecon.py", label="NetRecon", icon=":material/hub:") 
+        
+        # NetAnal：用“分析报告”或“多维度洞察”图标，代表对复杂网络的深度推演
+        st.page_link("pages/4_NetAnal.py", label="NetAnal", icon=":material/insights:")
