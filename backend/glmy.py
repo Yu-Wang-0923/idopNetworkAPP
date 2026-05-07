@@ -68,8 +68,16 @@ with tab2:
     tab2_1, tab2_2, tab2_3 = st.tabs(["Data Overview", "Multi-Layer IdopNetwork Construction", "Export"])
 
     # ========== Tab 2_1 Data Overview ==========
+    with tab2_1:
+        st.write("待更新...")
 
     # ========== Tab 2_2 IdopNetwork Construction ==========
+    with tab2_2:
+        st.write("待更新...")
+
+    tab2_2_1, tab2_2_2, tab2_2_3, tab2_2_4 = st.tabs(["Network", "Effect Decomposition", "Adjacency Matrix", "Debug"])
 
     # ========== Tab 2_3 Export ==========
+    with tab2_3:
+        st.write("待更新...")
 
