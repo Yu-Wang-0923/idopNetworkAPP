@@ -22,7 +22,7 @@ st.title("Network Construction", text_alignment="center")
 
 
 # ========== Tabs ==========
-tab1, tab2, tab3 = st.tabs(["IdopNetwork", "Multi-Layer IdopNetwork", "To Be Updated..."])
+tab1, tab2 = st.tabs(["IdopNetwork", "Multi-Layer IdopNetwork"])
 
 
 # ========== Tab 1 IdopNetwork ==========
@@ -32,3 +32,21 @@ with tab1:
     tab1_1, tab1_2, tab1_3 = st.tabs(["Data Overview", "IdopNetwork Construction", "Export"])
 
     # ========== Tab 1_1 Data Overview ==========
+
+    # ========== Tab 1_2 IdopNetwork Construction ==========
+
+    # ========== Tab 1_3 Export ==========
+
+
+# ========== Tab 2 Multi-Layer IdopNetwork ==========
+with tab2:
+    st.write("uploaded_zip 待更新...")
+
+    tab2_1, tab2_2, tab2_3 = st.tabs(["Data Overview", "Multi-Layer IdopNetwork Construction", "Export"])
+
+    # ========== Tab 2_1 Data Overview ==========
+
+    # ========== Tab 2_2 IdopNetwork Construction ==========
+
+    # ========== Tab 2_3 Export ==========
+
