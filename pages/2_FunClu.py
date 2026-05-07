@@ -121,30 +121,7 @@ def _build_funclu_k_export_zip(
     return buffer.getvalue()
 
 
-# ========== File Upload ==========
-uploaded_file = st.file_uploader(
-    label="Please upload your file",
-    type=["zip"],
-    accept_multiple_files=False,
-    help=(
-        "Upload the ZIP from Curve Fitting: Export Result → "
-        "Export ZIP → Download curve_fitting_export.zip (one file)."
-    ),
-    label_visibility="visible",
-    max_upload_size=500,
-)
 
-if uploaded_file is not None:
-    if st.session_state.funclu_uploaded_zip_name != uploaded_file.name:
-        try:
-            st.session_state.funclu_curve_sample = _load_curve_sample_from_zip(
-                uploaded_file.getvalue()
-            )
-            st.session_state.funclu_uploaded_zip_name = uploaded_file.name
-        except Exception as e:
-            st.error(f"读取 ZIP 失败：{e}")
-            st.session_state.funclu_curve_sample = {}
-            st.session_state.funclu_uploaded_zip_name = None
 
 
 # ========== Tabs ==========
@@ -153,6 +130,31 @@ tab1, tab2, tab3 = st.tabs(["FunClu-K", "FunClu-BIC", "To Be Updated..."])
 # ========== Tab 1 ==========
 with tab1:
     tab1_1, tab1_2, tab1_3 = st.tabs(["Data Overview", "EM Fitting", "Export"])
+
+    # ========== File Upload ==========
+    uploaded_file = st.file_uploader(
+        label="Please upload your file",
+        type=["zip"],
+        accept_multiple_files=False,
+        help=(
+            "Upload the ZIP from Curve Fitting: Export Result → "
+            "Export ZIP → Download curve_fitting_export.zip (one file)."
+        ),
+        label_visibility="visible",
+        max_upload_size=500,
+    )
+
+    if uploaded_file is not None:
+        if st.session_state.funclu_uploaded_zip_name != uploaded_file.name:
+            try:
+                st.session_state.funclu_curve_sample = _load_curve_sample_from_zip(
+                    uploaded_file.getvalue()
+                )
+                st.session_state.funclu_uploaded_zip_name = uploaded_file.name
+            except Exception as e:
+                st.error(f"读取 ZIP 失败：{e}")
+                st.session_state.funclu_curve_sample = {}
+                st.session_state.funclu_uploaded_zip_name = None
 
     # ---------- Data Overview ----------
     with tab1_1:
