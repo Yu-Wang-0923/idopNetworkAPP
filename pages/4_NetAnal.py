@@ -14,7 +14,7 @@ st.title("Network Analysis", text_alignment="center")
 
 
 # ========== Tabs ==========
-tab1, tab2, tab3 = st.tabs(["GLMY", "Machine Learning", "中心网络"])
+tab1, tab2, tab3 = st.tabs(["GLMY", "Machine Learning", "Center Network"])
 
 
 # ========== Tab 1 GLMY ==========
