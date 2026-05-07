@@ -6,7 +6,6 @@ import streamlit as st
 # ========== 页面配置 ==========
 st.set_page_config(page_title="Functional Clustering", page_icon="TSA.png", layout="wide", initial_sidebar_state="expanded")
 
-
 import numpy as np
 import pandas as pd
 
@@ -18,12 +17,16 @@ from backend.utils import load_css, setup_sidebar
 load_css()
 setup_sidebar()
 
-
 # ========== 页面标题 ==========
 st.title("Functional Clustering", text_alignment="center")
 
 
-# ========== Session State ==========
+# ========== 状态缓存 ==========
+""" 状态缓存
+
+在 Streamlit 中
+st.session_state 允许在应用的不同部分之间传递和共享信息使得用户体验更加流畅和便捷
+"""
 if "funclu_curve_sample" not in st.session_state:
     st.session_state.funclu_curve_sample = {}  # {condition_name: pd.DataFrame}
 if "funclu_uploaded_zip_name" not in st.session_state:
@@ -39,7 +42,6 @@ def _load_curve_sample_from_zip(zip_bytes: bytes) -> dict[str, pd.DataFrame]:
         ``<condition_name>/curve_sample.csv``
         ``<condition_name>/quasi_dynamic.csv``
         ``<condition_name>/curve_params.csv``
-
     Args:
         zip_bytes: ZIP 文件的字节内容。
 
@@ -128,9 +130,10 @@ def _build_funclu_k_export_zip(
 # ========== Tabs ==========
 tab1, tab2, tab3 = st.tabs(["FunClu-K", "FunClu-BIC", "To Be Updated..."])
 
-# ========== Tab 1 ==========
+# ========== Tab 1 FunClu-K ==========
 with tab1:
-    # ========== File Upload ==========
+
+# ========== 文件上传 ==========
     uploaded_file = st.file_uploader(
         label="Please upload your file",
         type=["zip"],
@@ -157,7 +160,7 @@ with tab1:
 
     tab1_1, tab1_2, tab1_3 = st.tabs(["Data Overview", "EM Fitting", "Export"])
 
-# ---------- Data Overview ----------
+# ========== 文件概览 ==========
 with tab1_1:
     curve_sample_dict = st.session_state.get("funclu_curve_sample", {})
     
