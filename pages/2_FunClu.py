@@ -116,6 +116,7 @@ tab1, tab2, tab3 = st.tabs(["Uploaded Data", "FunClu-K", "FunClu-BIC"])
 # TAB 1: Uploaded Data (File uploader & Data Overview)
 # =====================================================================
 with tab1:
+    # ---------- 1. 文件上传（直接位于 Tab 1 顶级） ----------
     st.markdown("### Data Initialization")
     uploaded_file = st.file_uploader(
         label="Please upload your file",
@@ -136,13 +137,15 @@ with tab1:
                     uploaded_file.getvalue()
                 )
                 st.session_state.funclu_uploaded_zip_name = uploaded_file.name
-                # Reset EM results when new data is uploaded
+                # 当上传新数据时，清空之前的 EM 拟合结果
                 st.session_state.funclu_em_result = None 
+                st.success("✅ File loaded successfully!")
             except Exception as e:
                 st.error(f"读取 ZIP 失败：{e}")
                 st.session_state.funclu_curve_sample = {}
                 st.session_state.funclu_uploaded_zip_name = None
 
+    # ---------- 2. 数据概览（拆分为多个子 Tab） ----------
     curve_sample_dict = st.session_state.get("funclu_curve_sample", {})
     
     if not curve_sample_dict:
@@ -164,54 +167,66 @@ with tab1:
         except Exception as e:
             st.error(f"⚠️ 数据准备失败 (Data preparation failed): {e}")
         else:
-            # --- 1. Key Metrics ---
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Conditions", model.n_conditions)
-            with col2:
-                st.metric("Common Features", model.n_features)
-            with col3:
-                per_cond_str = ", ".join(str(d) for d in model.n_times_conditions)
-                st.metric(
-                    "Time Points (Total)",
-                    f"{sum(model.n_times_conditions)}",
-                    delta=f"Per condition: {per_cond_str}",
-                    delta_color="off",
-                )
-
-            st.write("") 
-
-            # --- 2. Per-condition Summary Table ---
-            st.markdown("#### Per-Condition Summary")
-            summary_df = pd.DataFrame([
-                {
-                    "Condition": n,
-                    "Time Points": int(model.n_times_conditions[i]),
-                    "Shape (Features × Times)": f"{X_list[i].shape[0]} × {X_list[i].shape[1]}",
-                    "Time Min": float(times_list[i].min()),
-                    "Time Max": float(times_list[i].max()),
-                }
-                for i, n in enumerate(cond_names)
+            # 🌟 创建数据概览的子标签页
+            overview_tab1, overview_tab2, overview_tab3 = st.tabs([
+                "📊 Summary", 
+                "🏷️ Common Features", 
+                "👀 Data Preview"
             ])
-            st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
-            # --- 3. Features & Data Preview ---
-            col_left, col_right = st.columns([1, 2]) 
-            with col_left:
-                with st.expander(f"Common Features ({model.n_features})", expanded=False):
-                    features_df = pd.DataFrame({"Feature Name": model.common_cols})
-                    st.dataframe(features_df, use_container_width=True, hide_index=True)
+            # --- 子标签页 1: Summary (核心指标与维度摘要) ---
+            with overview_tab1:
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Conditions", model.n_conditions)
+                with col2:
+                    st.metric("Common Features", model.n_features)
+                with col3:
+                    per_cond_str = ", ".join(str(d) for d in model.n_times_conditions)
+                    st.metric(
+                        "Time Points (Total)",
+                        f"{sum(model.n_times_conditions)}",
+                        delta=f"Per condition: {per_cond_str}",
+                        delta_color="off",
+                    )
+                
+                st.write("")
+                st.markdown("#### Per-Condition Summary")
+                summary_df = pd.DataFrame([
+                    {
+                        "Condition": n,
+                        "Time Points": int(model.n_times_conditions[i]),
+                        "Shape (Features × Times)": f"{X_list[i].shape[0]} × {X_list[i].shape[1]}",
+                        "Time Min": float(times_list[i].min()),
+                        "Time Max": float(times_list[i].max()),
+                    }
+                    for i, n in enumerate(cond_names)
+                ])
+                st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
-            with col_right:
-                with st.expander("Data Preview (Top 5 × 5)", expanded=False):
-                    preview_tabs = st.tabs(cond_names)
-                    for idx, n in enumerate(cond_names):
-                        with preview_tabs[idx]:
-                            st.dataframe(
-                                curve_sample_dict[n].iloc[:5, :5],
-                                use_container_width=True,
-                            )
+            # --- 子标签页 2: Common Features (共有特征列表) ---
+            with overview_tab2:
+                st.markdown(f"#### Shared Features Across All Conditions ({model.n_features})")
+                features_df = pd.DataFrame({"Feature Name": model.common_cols})
+                # 给 dataframe 限制一下高度，防止特征太多拉得太长
+                st.dataframe(features_df, use_container_width=True, hide_index=True, height=300)
 
+            # --- 子标签页 3: Data Preview (数据预览) ---
+            with overview_tab3:
+                # 避免嵌套 tabs 引发 Streamlit 报错，使用 selectbox 切换查看不同的 condition 数据
+                col_sel, col_empty = st.columns([1, 2])
+                with col_sel:
+                    selected_cond = st.selectbox(
+                        "Select Condition to Preview:", 
+                        options=cond_names,
+                        key="overview_preview_select"
+                    )
+                
+                st.markdown(f"**Top 5 rows × 5 cols for `{selected_cond}`:**")
+                st.dataframe(
+                    curve_sample_dict[selected_cond].iloc[:5, :5],
+                    use_container_width=True,
+                )
 
 # =====================================================================
 # TAB 2: FunClu-K (EM Fitting & Export)
