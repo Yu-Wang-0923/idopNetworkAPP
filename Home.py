@@ -1,6 +1,5 @@
 
 
-Python
 import streamlit as st
 from backend.utils import load_css, setup_sidebar
 from backend.auth import show_login_ui
