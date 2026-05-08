@@ -12,18 +12,33 @@ CSS_PATH = STATIC_DIR / "css" / "custom_style.css"
 FONT_PATH = STATIC_DIR / "SimHei.ttf"
 BACKEND_DIR = Path(__file__).parent
 GLMY_EXE_PATH = BACKEND_DIR / "GLMY.exe"
+ADMIN_USERS = {"郭佳泽", "11"}
+HEADER_TOGGLE_KEY = "show_streamlit_header"
 
 font_prop = fm.FontProperties(fname=FONT_PATH)
 plt.rcParams["axes.unicode_minus"] = False
 
 # ── 辅助函数 ──────────────────────────────────────────────────────────────────
 
+def _is_admin_user() -> bool:
+    """判断当前登录用户是否为管理员。"""
+    current_user = st.session_state.get("current_user")
+    return bool(st.session_state.get("logged_in", False) and current_user in ADMIN_USERS)
+
+
 def load_css():
     """强制注入的全局核心样式"""
-    st.markdown("""
+    show_streamlit_header = bool(st.session_state.get(HEADER_TOGGLE_KEY, False))
+    header_css = (
+        "footer, [data-testid=\"stSidebarNav\"] { display: none !important; }"
+        if show_streamlit_header
+        else "header, footer, [data-testid=\"stSidebarNav\"] { display: none !important; }"
+    )
+
+    st.markdown(f"""
     <style>
     .stApp { background-color: #f8fafc !important; }
-    header, footer, [data-testid="stSidebarNav"] { display: none !important; }
+    {header_css}
     [data-testid="stSidebar"] {
         background-color: #f1f5f9 !important;
         background-image: none !important;
@@ -65,10 +80,19 @@ def setup_sidebar():
             
             st.markdown("<hr style='margin: 1.5rem 0; border-color: #cbd5e1;'>", unsafe_allow_html=True)
             st.markdown(f"<p style='color:#334155; font-weight:bold;'>👋 欢迎, {st.session_state['current_user']}</p>", unsafe_allow_html=True)
+            if _is_admin_user():
+                st.toggle(
+                    "显示 Streamlit 顶部菜单",
+                    key=HEADER_TOGGLE_KEY,
+                    help="开启后可使用右上角 Streamlit 菜单（如 Clear cache）。",
+                )
+            else:
+                st.session_state[HEADER_TOGGLE_KEY] = False
             if st.button("退出登录", key="logout_btn_final"):
                 st.session_state["logged_in"] = False
                 st.rerun()
         else:
+            st.session_state[HEADER_TOGGLE_KEY] = False
             # 🌟 关键修改：即使没登录，也允许点回 Home 页面去登录！
             st.page_link("Home.py", label="返回首页登录", icon=":material/login:")
             st.markdown("<p style='color:#ef4444; font-weight:bold; text-align:center; margin-top:2rem;'>🔒 请先登录以解锁功能</p>", unsafe_allow_html=True)
