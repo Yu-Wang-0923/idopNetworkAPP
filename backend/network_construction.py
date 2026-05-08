@@ -9,6 +9,7 @@ from scipy.special import eval_laguerre, eval_legendre
 
 SUPPORTED_BASIS_KINDS = ("legendre", "laguerre", "polynomial")
 SUPPORTED_SOLVERS = ("ols", "lasso", "asgl")
+SUPPORTED_MONOTONIC_MODES = ("none", "increasing", "decreasing")
 
 
 def polynomial_basis_expansion(
@@ -310,6 +311,59 @@ def _build_groups(n_features: int, max_order: int) -> list[np.ndarray]:
     return groups
 
 
+def _ols_with_monotonic_effect_constraints(
+    Xv: np.ndarray,
+    Y: np.ndarray,
+    groups: list[np.ndarray],
+    y0: np.ndarray,
+    monotonic_mode: str,
+) -> np.ndarray:
+    """带效应单调约束的 OLS 拟合（按目标逐列求解）。"""
+    try:
+        import cvxpy as cp
+    except ImportError as e:
+        raise ImportError(
+            "monotonic_mode 需要安装 cvxpy。请先安装依赖后再启用单调约束。"
+        ) from e
+
+    n_obs, p = Xv.shape
+    n_targets = Y.shape[1]
+    if n_obs < 2:
+        raise ValueError("单调约束至少需要 2 个观测点。")
+    if monotonic_mode not in ("increasing", "decreasing"):
+        raise ValueError(
+            "monotonic_mode 必须是 'increasing' 或 'decreasing'。"
+        )
+
+    D = np.eye(n_obs - 1, n_obs, k=1) - np.eye(n_obs - 1, n_obs, k=0)
+    W = np.zeros((p, n_targets))
+
+    for j in range(n_targets):
+        w = cp.Variable(p)
+        constraints = [w[0] == float(y0[j])]
+        for gi, g in enumerate(groups):
+            if gi == 0:
+                continue
+            effect = Xv[:, g] @ w[g]
+            diff = D @ effect
+            if monotonic_mode == "increasing":
+                constraints.append(diff >= 0)
+            else:
+                constraints.append(diff <= 0)
+
+        objective = cp.Minimize(cp.sum_squares(Xv @ w - Y[:, j]))
+        problem = cp.Problem(objective, constraints)
+        try:
+            problem.solve(solver=cp.OSQP, warm_start=True, verbose=False)
+        except Exception:
+            problem.solve(warm_start=True, verbose=False)
+        if w.value is None:
+            raise RuntimeError(f"目标列 {j} 的单调约束 OLS 求解失败。")
+        W[:, j] = np.asarray(w.value, dtype=float).reshape(-1)
+
+    return W
+
+
 def _lasso_cd_col(
     Xv: np.ndarray,
     y: np.ndarray,
@@ -357,6 +411,7 @@ class IDOPRegressor:
         basis_type: str = "integral",
         basis_kind: str = "legendre",
         ebic_gamma: float = 0.0,
+        monotonic_mode: str = "none",
     ):
         if basis_kind not in SUPPORTED_BASIS_KINDS:
             raise ValueError(
@@ -365,6 +420,11 @@ class IDOPRegressor:
         if solver not in SUPPORTED_SOLVERS:
             raise ValueError(
                 f"solver 必须为 {SUPPORTED_SOLVERS} 之一，实际收到 {solver!r}"
+            )
+        if monotonic_mode not in SUPPORTED_MONOTONIC_MODES:
+            raise ValueError(
+                "monotonic_mode 必须为 "
+                f"{SUPPORTED_MONOTONIC_MODES} 之一，实际收到 {monotonic_mode!r}"
             )
         self.max_order = max_order
         self.solver = solver
@@ -379,6 +439,7 @@ class IDOPRegressor:
         self.basis_type = basis_type
         self.basis_kind = basis_kind
         self.ebic_gamma = ebic_gamma
+        self.monotonic_mode = monotonic_mode
         self.coef_: pd.DataFrame | None = None
         self.mse_: float | None = None
         self.bic_order_path_: pd.DataFrame | None = None
@@ -719,6 +780,19 @@ class IDOPRegressor:
         n_feat = (p - 1) // self.max_order
         groups = _build_groups(n_feat, self.max_order)
 
+        if self.monotonic_mode != "none":
+            if self.solver != "ols":
+                raise ValueError("当前仅支持在 solver='ols' 下启用 monotonic_mode。")
+            if self.max_interactions > 0:
+                raise ValueError(
+                    "启用 monotonic_mode 时暂不支持 max_interactions > 0。"
+                )
+            if self.nonneg_self:
+                raise ValueError(
+                    "启用 monotonic_mode 时请关闭 nonneg_self，"
+                    "以避免后处理破坏单调约束。"
+                )
+
         if self.solver == "asgl":
             return self._fit_asgl_bic(
                 power_function_sample_df, quasi_dynamic_df, intercept_values
@@ -757,7 +831,14 @@ class IDOPRegressor:
                 )
                 for j in range(n_targets):
                     W[0, j] = y0[j]
-
+        elif self.monotonic_mode in ("increasing", "decreasing"):
+            W = _ols_with_monotonic_effect_constraints(
+                Xv=Xv,
+                Y=Y,
+                groups=groups,
+                y0=y0,
+                monotonic_mode=self.monotonic_mode,
+            )
         else:
             Xv_body = Xv[:, 1:]
             W = np.zeros((p, n_targets))

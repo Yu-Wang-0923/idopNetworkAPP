@@ -113,6 +113,7 @@ def _fit_idop_network_from_curve_sample(
     nonneg_self: bool,
     max_interactions: int,
     basis_kind: str,
+    monotonic_mode: str,
 ) -> dict:
     """复用单层 IdopNetwork 流程，从 curve_sample 构建一个网络。"""
     if curve_sample_df.shape[1] < 2:
@@ -128,6 +129,7 @@ def _fit_idop_network_from_curve_sample(
         nonneg_self=bool(nonneg_self),
         max_interactions=int(max_interactions),
         basis_kind=str(basis_kind),
+        monotonic_mode=str(monotonic_mode),
     )
     model.fit(curve_sample_scaled, curve_sample_df)
     predicted_df = model.predict(curve_sample_scaled)
@@ -205,6 +207,7 @@ def _collect_network_export_artifacts(
         "nonneg_self": bool(model.nonneg_self),
         "max_interactions": int(model.max_interactions),
         "basis_kind": model.basis_kind,
+        "monotonic_mode": model.monotonic_mode,
         "basis_type": model.basis_type,
         "ebic_gamma": float(model.ebic_gamma),
         "mse": float(model.mse_) if model.mse_ is not None else np.nan,
@@ -665,6 +668,15 @@ with tab1:
                             alpha = 1.0
                         if solver == "asgl":
                             st.caption("ASGL: max_order and alpha are selected by BIC.")
+                        monotonic_mode = st.selectbox(
+                            "monotonic_mode",
+                            options=["none", "increasing", "decreasing"],
+                            index=0,
+                            help=(
+                                "Constrain every source effect curve to be monotonic on sampled t. "
+                                "Current support: solver=ols, nonneg_self=False, max_interactions=0."
+                            ),
+                        )
                     with c3:
                         nonneg_self = st.checkbox("nonneg_self", value=True)
                         top_k = st.number_input(
@@ -678,6 +690,15 @@ with tab1:
 
             if submit_run:
                 try:
+                    if monotonic_mode != "none":
+                        if solver != "ols":
+                            raise ValueError("启用 monotonic_mode 时，solver 必须为 ols。")
+                        if bool(nonneg_self):
+                            raise ValueError("启用 monotonic_mode 时，请将 nonneg_self 设为 False。")
+                        if int(top_k) > 0:
+                            raise ValueError(
+                                "启用 monotonic_mode 时，请将 max_interactions (Top-K) 设为 0。"
+                            )
                     curve_sample_scaled = data_transformation(curve_sample_df, "rescale_to_-1_1")
                     model = IDOPRegressor(
                         max_order=int(max_order),
@@ -688,6 +709,7 @@ with tab1:
                         nonneg_self=bool(nonneg_self),
                         max_interactions=int(top_k),
                         basis_kind=str(basis_kind),
+                        monotonic_mode=str(monotonic_mode),
                     )
                     model.fit(curve_sample_scaled, curve_sample_df)
                     predicted_df = model.predict(curve_sample_scaled)
@@ -1095,6 +1117,16 @@ with tab2:
                             ml_alpha = 1.0
                         if ml_solver == "asgl":
                             st.caption("ASGL: max_order and alpha are selected by BIC.")
+                        ml_monotonic_mode = st.selectbox(
+                            "monotonic_mode",
+                            options=["none", "increasing", "decreasing"],
+                            index=0,
+                            key="netrecon_ml_monotonic_mode",
+                            help=(
+                                "Constrain every source effect curve to be monotonic on sampled t. "
+                                "Current support: solver=ols, nonneg_self=False, max_interactions=0."
+                            ),
+                        )
                     with mc3:
                         ml_nonneg_self = st.checkbox(
                             "nonneg_self",
@@ -1112,78 +1144,92 @@ with tab2:
                     submit_multilayer = st.form_submit_button("Run Multi-Layer IdopNetwork")
 
             if submit_multilayer:
-                params = {
-                    "max_order": int(ml_max_order),
-                    "solver": str(ml_solver),
-                    "alpha": float(ml_alpha),
-                    "nonneg_self": bool(ml_nonneg_self),
-                    "max_interactions": int(ml_top_k),
-                    "basis_kind": str(ml_basis_kind),
-                }
-                inter_cluster: dict[str, dict] = {}
-                intra_cluster: dict[str, dict[str, dict]] = {}
-                skipped: list[dict[str, str | int]] = []
+                invalid_msg: str | None = None
+                if ml_monotonic_mode != "none":
+                    if ml_solver != "ols":
+                        invalid_msg = "启用 monotonic_mode 时，solver 必须为 ols。"
+                    elif bool(ml_nonneg_self):
+                        invalid_msg = "启用 monotonic_mode 时，请将 nonneg_self 设为 False。"
+                    elif int(ml_top_k) > 0:
+                        invalid_msg = (
+                            "启用 monotonic_mode 时，请将 max_interactions (Top-K) 设为 0。"
+                        )
+                if invalid_msg is not None:
+                    st.error(invalid_msg)
+                else:
+                    params = {
+                        "max_order": int(ml_max_order),
+                        "solver": str(ml_solver),
+                        "alpha": float(ml_alpha),
+                        "nonneg_self": bool(ml_nonneg_self),
+                        "max_interactions": int(ml_top_k),
+                        "basis_kind": str(ml_basis_kind),
+                        "monotonic_mode": str(ml_monotonic_mode),
+                    }
+                    inter_cluster: dict[str, dict] = {}
+                    intra_cluster: dict[str, dict[str, dict]] = {}
+                    skipped: list[dict[str, str | int]] = []
 
-                try:
-                    for cond_name in condition_names:
-                        center_df = centers[cond_name]
-                        try:
-                            inter_cluster[cond_name] = _fit_idop_network_from_curve_sample(
-                                center_df,
-                                **params,
-                            )
-                        except Exception as e:
-                            skipped.append(
-                                {
-                                    "layer": "inter_cluster",
-                                    "condition": cond_name,
-                                    "cluster": "",
-                                    "n_nodes": int(center_df.shape[1]),
-                                    "reason": str(e),
-                                }
-                            )
-
-                        intra_cluster[cond_name] = {}
-                        for cluster_name, member_df in members.get(cond_name, {}).items():
-                            if member_df.shape[1] < 2:
-                                skipped.append(
-                                    {
-                                        "layer": "intra_cluster",
-                                        "condition": cond_name,
-                                        "cluster": cluster_name,
-                                        "n_nodes": int(member_df.shape[1]),
-                                        "reason": "less than 2 member curves",
-                                    }
-                                )
-                                continue
+                    try:
+                        for cond_name in condition_names:
+                            center_df = centers[cond_name]
                             try:
-                                intra_cluster[cond_name][cluster_name] = (
-                                    _fit_idop_network_from_curve_sample(
-                                        member_df,
-                                        **params,
-                                    )
+                                inter_cluster[cond_name] = _fit_idop_network_from_curve_sample(
+                                    center_df,
+                                    **params,
                                 )
                             except Exception as e:
                                 skipped.append(
                                     {
-                                        "layer": "intra_cluster",
+                                        "layer": "inter_cluster",
                                         "condition": cond_name,
-                                        "cluster": cluster_name,
-                                        "n_nodes": int(member_df.shape[1]),
+                                        "cluster": "",
+                                        "n_nodes": int(center_df.shape[1]),
                                         "reason": str(e),
                                     }
                                 )
-                except Exception as e:
-                    st.error(f"Multi-Layer IdopNetwork 运行失败：{e}")
-                    st.session_state.netrecon_multilayer_result = None
-                else:
-                    st.session_state.netrecon_multilayer_result = {
-                        "params": params,
-                        "inter_cluster": inter_cluster,
-                        "intra_cluster": intra_cluster,
-                        "skipped": skipped,
-                    }
-                    st.success("Done")
+
+                            intra_cluster[cond_name] = {}
+                            for cluster_name, member_df in members.get(cond_name, {}).items():
+                                if member_df.shape[1] < 2:
+                                    skipped.append(
+                                        {
+                                            "layer": "intra_cluster",
+                                            "condition": cond_name,
+                                            "cluster": cluster_name,
+                                            "n_nodes": int(member_df.shape[1]),
+                                            "reason": "less than 2 member curves",
+                                        }
+                                    )
+                                    continue
+                                try:
+                                    intra_cluster[cond_name][cluster_name] = (
+                                        _fit_idop_network_from_curve_sample(
+                                            member_df,
+                                            **params,
+                                        )
+                                    )
+                                except Exception as e:
+                                    skipped.append(
+                                        {
+                                            "layer": "intra_cluster",
+                                            "condition": cond_name,
+                                            "cluster": cluster_name,
+                                            "n_nodes": int(member_df.shape[1]),
+                                            "reason": str(e),
+                                        }
+                                    )
+                    except Exception as e:
+                        st.error(f"Multi-Layer IdopNetwork 运行失败：{e}")
+                        st.session_state.netrecon_multilayer_result = None
+                    else:
+                        st.session_state.netrecon_multilayer_result = {
+                            "params": params,
+                            "inter_cluster": inter_cluster,
+                            "intra_cluster": intra_cluster,
+                            "skipped": skipped,
+                        }
+                        st.success("Done")
 
             multilayer_result = st.session_state.netrecon_multilayer_result
             if multilayer_result is not None:
