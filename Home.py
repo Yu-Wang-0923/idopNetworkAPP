@@ -110,19 +110,27 @@ with col_hero1:
 
 
 with col_hero2: 
-    # 创建一个带边框的白色卡片区域
-    with st.container():
-        # 这里建议放邬教授的照片，如果想闪屏切换，可以后续加入多张图片轮播的HTML组件
-        # 目前使用单张照片确保专业性
-        col_img_left, col_info_right = st.columns([0.4, 0.6])
+    # 使用居中排版，去掉冗长的文字，打造一张干净的“专家名片”
+    _, img_col, _ = st.columns([1.5, 4, 1.5])
+    
+    with img_col:
+        st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
+        # 本地照片
+        st.image("邬.jpg", use_container_width=True) 
         
-        with col_img_left:
-            # 改为使用根目录下的本地图片：
-            st.image("wu.jpg", use_container_width=True) 
-            st.markdown("<p style='text-align:center; font-weight:bold; color:#0f172a; margin-top:5px;'>邬荣领 教授</p>", unsafe_allow_html=True)
-
-            <a href="https://www.bimsa.cn/zh-CN/detail/ronglingwu.html" target="_blank" class="profile-btn">查看个人主页 ➔</a>
-            """, unsafe_allow_html=True)
+        # 姓名和头衔居中
+        st.markdown("<p style='text-align:center; font-weight:bold; font-size:1.1rem; color:#0f172a; margin-top:10px; margin-bottom:2px;'>邬荣领 教授</p>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align:center; color:#475569; font-size:0.9rem; margin-top:0;'>BIMSA 副院长 / 首席科学家</p>", unsafe_allow_html=True)
+        
+        # 按钮居中，并使用安全的 &rarr; 替代刚才报错的特殊符号
+        st.markdown("""
+        <div style="text-align:center;">
+            <a href="https://www.bimsa.cn/zh-CN/detail/ronglingwu.html" target="_blank" class="profile-btn" style="padding: 6px 20px;">
+                查看个人主页 &rarr;
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
+        
 
 st.divider()
 
