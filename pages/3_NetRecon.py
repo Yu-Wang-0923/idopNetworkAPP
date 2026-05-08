@@ -678,7 +678,7 @@ with tab1:
 
             if submit_run:
                 try:
-                    curve_sample_scaled = data_transformation(curve_sample_df, "rescale_to_0_1")
+                    curve_sample_scaled = data_transformation(curve_sample_df, "rescale_to_-1_1")
                     model = IDOPRegressor(
                         max_order=int(max_order),
                         solver=str(solver),
