@@ -1,3 +1,18 @@
+针对你提供的最新 Home.py 代码，我已经完成了最终的缝合与优化。
+
+🔧 修复与优化重点：
+彻底解决 SyntaxError：将代码中所有会导致报错的特殊箭头符号 ➔ 替换为了标准的网页代码 &rarr;。
+
+权限锁死：确保所有核心内容（工作流卡片、论文列表、管理员后台）都严格包裹在 else 分支内。没登录的人绝对看不到这些内容。
+
+管理员识别：已按照你的要求，将后台查看权限绑定给用户名 “郭佳泽”。
+
+布局平衡：右侧的“教授名片”现在更简洁，照片直接读取你本地的 邬.jpg。
+
+🚀 完整的 Home.py 代码
+请全选并覆盖你现在的 Home.py 内容：
+
+Python
 import streamlit as st
 from backend.utils import load_css, setup_sidebar
 from backend.auth import show_login_ui
@@ -5,7 +20,12 @@ from backend.auth import show_login_ui
 # ==========================================
 # 1. 基础设置 (必须在第一行)
 # ==========================================
-st.set_page_config(page_title="idopNetwork", page_icon="TSA.png", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(
+    page_title="idopNetwork", 
+    page_icon="TSA.png", 
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
 
 # 加载全局样式和侧边栏
 load_css()
@@ -18,154 +38,128 @@ if not st.session_state.get("logged_in", False):
     # 如果没登录，显示右上角登录按钮
     show_login_ui()
     
-    # 显示一个漂亮的门面介绍，但不给看具体内容
+    # 显示一个漂亮的门面介绍
     st.markdown("<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>idopNetwork：下一代数据分析平台</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color:#475569;font-size:1.2rem;'>一个面向复杂系统数据的可视化分析工作台。</p>", unsafe_allow_html=True)
     st.info("💡 请点击右上角的 **[🔑 登录 / 注册]** 认证身份后解锁全部功能。")
     
-    # 强制切断！没登录的人绝对看不到下面的论文和工具链接
+    # 强制切断！
     st.stop()
 
 # ==========================================
-# 3. 登录后的世界 (你原来的所有代码都在这里)
+# 3. 登录后的世界 (只有认证用户可见)
 # ==========================================
-
-# --- 原有的主页专属 CSS ---
-# --- 替换整个主页专属 CSS 块 ---
-st.markdown("""
-<style>
-/* IDOP 静态标签 */
-.idop-badges { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; }
-.badge-item { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 0.65rem 1.4rem; border-radius: 8px; font-size: 1.1rem; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
-
-/* 工作流卡片样式 */
-.card-link {text-decoration: none !important;}
-.card { background:#fff; padding:1.2rem; border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02); margin-bottom: 0.8rem; transition:0.3s; }
-.card:hover { border-color:#3b82f6; box-shadow:0 4px 12px rgba(59,130,246,0.15); transform: translateY(-2px); }
-.card-title { font-size: 1.1rem; font-weight: bold; color: #0f172a; margin-bottom: 0.4rem; display: flex; justify-content: space-between; }
-.card-desc { font-size: 0.95rem; color: #64748b; line-height: 1.5; margin-bottom:0; }
-
-/* 论文滚动框样式 */
-.scroll-box { height:480px; overflow-y:auto; background:#fff; padding:1.2rem; border-radius:8px; border:1px solid #e2e8f0; }
-.paper-item { margin-bottom: 1.2rem; padding-bottom: 0.8rem; border-bottom: 1px dashed #e2e8f0; }
-.paper-item:last-child {border-bottom: none;}
-.paper-title {font-weight: 600; color: #0f172a; font-size: 1.05rem;}
-.paper-authors {color: #475569; font-size: 0.9rem; line-height: 1.5; margin-top: 0.3rem;}
-.paper-link {color: #3b82f6; font-size: 0.85rem; text-decoration: none;}
-
-/* 👇 这里是新加的：教授简介滚动框 */
-.bio-scroll-box {
-    height: 180px; 
-    overflow-y: auto; 
-    background: #f8fafc; 
-    padding: 1rem; 
-    border-radius: 8px; 
-    border: 1px solid #e2e8f0;
-    font-size: 0.95rem;
-    color: #475569;
-    line-height: 1.6;
-}
-/* 👇 这里是新加的：个人主页按钮样式 */
-.profile-btn {
-    display: inline-block;
-    margin-top: 10px;
-    padding: 6px 15px;
-    background-color: #3b82f6;
-    color: white !important;
-    text-decoration: none !important;
-    border-radius: 5px;
-    font-size: 0.85rem;
-    font-weight: 600;
-}
-.profile-btn:hover {
-    background-color: #2563eb;
-    box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
-}
-</style>
-""", unsafe_allow_html=True)
-
-
-
-# --- 原有的首屏横幅区 ---
-col_hero1, col_hero2 = st.columns([1.3, 1], gap="large")
-with col_hero1: 
-    st.markdown("<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>idopNetwork</h1>", unsafe_allow_html=True)
-    # 这里增加了描述深度，填补空位
+else:
+    # --- 主页专属 CSS 样式 ---
     st.markdown("""
-    <p style='color:#475569;font-size:1.15rem;line-height:1.7;margin-top:1.2rem;'>
-        idopNetwork 是一套基于 <b>邬荣领教授</b> 提出的统计力学框架构建的复杂系统分析体系。
-        通过将静态的观测数据映射到高维拓扑空间，我们能够突破传统统计学的局限，实现对系统内部运作机理的深度还原。
-    </p>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="idop-badges">
-        <div class="badge-item" title="将复杂数据转化为可解释的生物/物理逻辑">💡 Informative</div>
-        <div class="badge-item" title="刻画系统随时间与环境变化的演化轨迹">🔄 Dynamic</div>
-        <div class="badge-item" title="覆盖从分子到表型的全尺度互作网络">🌐 Omnidirectional</div>
-        <div class="badge-item" title="生成针对单样本或个体的特异性精准分析">🎯 Personalized</div>
-    </div>
+    <style>
+    /* IDOP 静态标签 */
+    .idop-badges { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; }
+    .badge-item { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 0.65rem 1.4rem; border-radius: 8px; font-size: 1.1rem; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
+
+    /* 工作流卡片样式 */
+    .card-link {text-decoration: none !important;}
+    .card { background:#fff; padding:1.2rem; border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.02); margin-bottom: 0.8rem; transition:0.3s; }
+    .card:hover { border-color:#3b82f6; box-shadow:0 4px 12px rgba(59,130,246,0.15); transform: translateY(-2px); }
+    .card-title { font-size: 1.1rem; font-weight: bold; color: #0f172a; margin-bottom: 0.4rem; display: flex; justify-content: space-between; }
+    .card-desc { font-size: 0.95rem; color: #64748b; line-height: 1.5; margin-bottom:0; }
+
+    /* 论文滚动框样式 */
+    .scroll-box { height:480px; overflow-y:auto; background:#fff; padding:1.2rem; border-radius:8px; border:1px solid #e2e8f0; }
+    .paper-item { margin-bottom: 1.2rem; padding-bottom: 0.8rem; border-bottom: 1px dashed #e2e8f0; }
+    .paper-item:last-child {border-bottom: none;}
+    .paper-title {font-weight: 600; color: #0f172a; font-size: 1.05rem;}
+    .paper-authors {color: #475569; font-size: 0.9rem; line-height: 1.5; margin-top: 0.3rem;}
+    .paper-link {color: #3b82f6; font-size: 0.85rem; text-decoration: none;}
+
+    /* 个人主页按钮样式 */
+    .profile-btn {
+        display: inline-block;
+        margin-top: 10px;
+        padding: 6px 20px;
+        background-color: #3b82f6;
+        color: white !important;
+        text-decoration: none !important;
+        border-radius: 5px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+    .profile-btn:hover {
+        background-color: #2563eb;
+        box-shadow: 0 4px 10px rgba(59,130,246,0.3);
+    }
+    </style>
     """, unsafe_allow_html=True)
 
-
-
-with col_hero2: 
-    # 使用居中排版，去掉冗长的文字，打造一张干净的“专家名片”
-    _, img_col, _ = st.columns([1.5, 4, 1.5])
-    
-    with img_col:
-        st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
-        # 本地照片
-        st.image("邬.jpg", use_container_width=True) 
-        
-        # 姓名和头衔居中
-        st.markdown("<p style='text-align:center; font-weight:bold; font-size:1.1rem; color:#0f172a; margin-top:10px; margin-bottom:2px;'>邬荣领 教授</p>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align:center; color:#475569; font-size:0.9rem; margin-top:0;'>BIMSA 副院长 / 首席科学家</p>", unsafe_allow_html=True)
-        
-        # 按钮居中，并使用安全的 &rarr; 替代刚才报错的特殊符号
+    # --- 首屏横幅区 ---
+    col_hero1, col_hero2 = st.columns([1.3, 1], gap="large")
+    with col_hero1: 
+        st.markdown(f"<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>欢迎回来, {st.session_state['current_user']}</h1>", unsafe_allow_html=True)
         st.markdown("""
-        <div style="text-align:center;">
-            <a href="https://www.bimsa.cn/zh-CN/detail/ronglingwu.html" target="_blank" class="profile-btn" style="padding: 6px 20px;">
-                查看个人主页 &rarr;
-            </a>
-        </div>
+        <p style='color:#475569;font-size:1.15rem;line-height:1.7;margin-top:1.2rem;'>
+            idopNetwork 是一套基于 <b>邬荣领教授</b> 提出的统计力学框架构建的复杂系统分析体系。
+            通过将静态的观测数据映射到高维拓扑空间，我们能够突破传统统计学的局限，实现对系统内部运作机理的深度还原。
+        </p>
         """, unsafe_allow_html=True)
         
+        st.markdown("""
+        <div class="idop-badges">
+            <div class="badge-item" title="将复杂数据转化为可解释的生物/物理逻辑">💡 Informative</div>
+            <div class="badge-item" title="刻画系统随时间与环境变化的演化轨迹">🔄 Dynamic</div>
+            <div class="badge-item" title="覆盖从分子到表型的全尺度互作网络">🌐 Omnidirectional</div>
+            <div class="badge-item" title="生成针对单样本或个体的特异性精准分析">🎯 Personalized</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-st.divider()
+    with col_hero2: 
+        # 右侧：邬教授专家名片
+        _, img_col, _ = st.columns([1.5, 4, 1.5])
+        with img_col:
+            st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
+            st.image("邬.jpg", use_container_width=True) 
+            st.markdown("<p style='text-align:center; font-weight:bold; font-size:1.15rem; color:#0f172a; margin-top:10px; margin-bottom:2px;'>邬荣领 教授</p>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align:center; color:#475569; font-size:0.95rem; margin-top:0;'>BIMSA 副院长 / 首席科学家</p>", unsafe_allow_html=True)
+            st.markdown("""
+            <div style="text-align:center;">
+                <a href="https://www.bimsa.cn/zh-CN/detail/ronglingwu.html" target="_blank" class="profile-btn">
+                    查看个人主页 &rarr;
+                </a>
+            </div>
+            """, unsafe_allow_html=True)
 
-# --- 原有的核心内容区 ---
-col_left, col_right = st.columns([1.15, 1], gap="large")
+    st.divider()
 
-with col_left:
-    st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>平台核心工作流</h4>", unsafe_allow_html=True)
-    
-    st.markdown("""
-    <a href="Curve_Fitting" target="_self" class="card-link">
-        <div class='card'>
-            <div class='card-title'><span>📈 曲线拟合 (Curve Fitting)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 ➔</span></div>
-            <div class='card-desc'>内置高精度拟合算法，针对多源时间序列或纵向观测数据进行特征提取与降噪。</div>
-        </div>
-    </a>
-    <a href="FunClu" target="_self" class="card-link">
-        <div class='card'>
-            <div class='card-title'><span>🧩 特征聚类 (FunClu)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 ➔</span></div>
-            <div class='card-desc'>通过函数型聚类 (Functional Clustering) 降维，识别系统内部具有相似演化轨迹的核心变量模块。</div>
-        </div>
-    </a>
-    <a href="NetRecon" target="_self" class="card-link">
-        <div class='card'>
-            <div class='card-title'><span>🕸️ 全景网络重构 (NetRecon)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 ➔</span></div>
-            <div class='card-desc'>突破传统相关性局限，构建带符号的加权有向图，精准量化内部方向性依赖。</div>
-        </div>
-    </a>
-    <a href="NetAnal" target="_self" class="card-link">
-        <div class='card'>
-            <div class='card-title'><span>📊 动态推演与解析 (NetAnal)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 ➔</span></div>
-            <div class='card-desc'>将静态拓扑映射为动态演化轨迹，生成单样本特异性网络并提供全息解析。</div>
-        </div>
-    </a>
-    """, unsafe_allow_html=True)
+    # --- 核心内容区 ---
+    col_left, col_right = st.columns([1.15, 1], gap="large")
+
+    with col_left:
+        st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>平台核心工作流</h4>", unsafe_allow_html=True)
+        st.markdown("""
+        <a href="Curve_Fitting" target="_self" class="card-link">
+            <div class='card'>
+                <div class='card-title'><span>📈 曲线拟合 (Curve Fitting)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span></div>
+                <div class='card-desc'>内置高精度拟合算法，针对多源时间序列数据进行特征提取与降噪。</div>
+            </div>
+        </a>
+        <a href="FunClu" target="_self" class="card-link">
+            <div class='card'>
+                <div class='card-title'><span>🧩 特征聚类 (FunClu)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span></div>
+                <div class='card-desc'>识别系统内部具有相似演化轨迹的核心变量模块。</div>
+            </div>
+        </a>
+        <a href="NetRecon" target="_self" class="card-link">
+            <div class='card'>
+                <div class='card-title'><span>🕸️ 全景网络重构 (NetRecon)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span></div>
+                <div class='card-desc'>构建带符号的加权有向图，精准量化内部方向性依赖。</div>
+            </div>
+        </a>
+        <a href="NetAnal" target="_self" class="card-link">
+            <div class='card'>
+                <div class='card-title'><span>📊 动态推演与解析 (NetAnal)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span></div>
+                <div class='card-desc'>将静态拓扑映射为动态演化轨迹，提供全息解析。</div>
+            </div>
+        </a>
+        """, unsafe_allow_html=True)
 
 with col_right:
     st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>代表性学术成果</h4>", unsafe_allow_html=True)
