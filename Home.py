@@ -1,36 +1,36 @@
-
 import streamlit as st
 from backend.utils import load_css, setup_sidebar
-from backend.auth import show_login_ui  # 导入我们刚刚写的登录框工具
+from backend.auth import show_login_ui
 
-# 1. 加载样式
-load_css()
-
-# 2. 加载侧边栏（它会自己判断要不要亮出菜单）
-setup_sidebar()
-
-# 3. 核心大门：如果没有登录，就把人拦在登录界面
-if not st.session_state.get("logged_in", False):
-    show_login_ui()
-
-# 如果已经登录了，才执行下面的内容
-else:
-    # 👇 这里往下，放你之前 Home.py 里原本写的那些介绍文字、图片、项目说明等！
-    st.title("🌟 欢迎来到 IDOP Network 分析平台")
-    st.write("太棒了，你已经成功登录！现在可以点击左侧菜单使用高级功能啦。")
-
-
-
-
-
-# 1. 基础设置
+# ==========================================
+# 1. 基础设置 (必须在第一行)
+# ==========================================
 st.set_page_config(page_title="idopNetwork", page_icon="TSA.png", layout="wide", initial_sidebar_state="expanded")
 
-# 一键加载全局样式和统一侧边栏！
+# 加载全局样式和侧边栏
 load_css()
 setup_sidebar()
 
-# 2. 主页专属 CSS（负责卡片和论文滚动框）
+# ==========================================
+# 2. 核心拦截门禁
+# ==========================================
+if not st.session_state.get("logged_in", False):
+    # 如果没登录，显示右上角登录按钮
+    show_login_ui()
+    
+    # 显示一个漂亮的门面介绍，但不给看具体内容
+    st.markdown("<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>idopNetwork：下一代数据分析平台</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#475569;font-size:1.2rem;'>一个面向复杂系统数据的可视化分析工作台。</p>", unsafe_allow_html=True)
+    st.info("💡 这是一个私有科研平台。请点击右上角的 **[🔑 登录 / 注册]** 认证身份后解锁全部功能。")
+    
+    # 强制切断！没登录的人绝对看不到下面的论文和工具链接
+    st.stop()
+
+# ==========================================
+# 3. 登录后的世界 (你原来的所有代码都在这里)
+# ==========================================
+
+# --- 原有的主页专属 CSS ---
 st.markdown("""
 <style>
 /* IDOP 静态标签 */
@@ -54,12 +54,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 4. 首屏横幅区 (标题上移)
+# --- 原有的首屏横幅区 ---
 col_hero1, col_hero2 = st.columns([1.3, 1], gap="large")
 with col_hero1: 
-    # 缩小了 margin-top，让标题靠上
-    st.markdown("<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>idopNetwork：下一代数据分析平台</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#475569;font-size:1.2rem;line-height:1.8;margin-top:1.5rem;'>一个面向复杂系统数据的可视化分析工作台，支持从静态数据出发构建动态推演与全景网络洞察。</p>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>欢迎回来, {st.session_state['current_user']}</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#475569;font-size:1.2rem;line-height:1.8;margin-top:1.5rem;'>idopNetwork 已解锁。您可以开始构建动态推演与全景网络洞察。</p>", unsafe_allow_html=True)
     
     st.markdown("""
     <div class="idop-badges">
@@ -78,13 +77,12 @@ with col_hero2:
 
 st.divider()
 
-# 5. 核心内容区 (1.15:1 比例)
+# --- 原有的核心内容区 ---
 col_left, col_right = st.columns([1.15, 1], gap="large")
 
 with col_left:
     st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>平台核心工作流</h4>", unsafe_allow_html=True)
     
-    # 修复了 href 路径，Streamlit 会自动忽略文件名前缀的 "1_" 并将空格转义
     st.markdown("""
     <a href="Curve_Fitting" target="_self" class="card-link">
         <div class='card'>
@@ -101,13 +99,13 @@ with col_left:
     <a href="NetRecon" target="_self" class="card-link">
         <div class='card'>
             <div class='card-title'><span>🕸️ 全景网络重构 (NetRecon)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 ➔</span></div>
-            <div class='card-desc'>突破传统相关性局限，构建带符号的加权有向图。精准量化复杂系统内部的方向性依赖 (Directional Dependence)。</div>
+            <div class='card-desc'>突破传统相关性局限，构建带符号的加权有向图，精准量化内部方向性依赖。</div>
         </div>
     </a>
     <a href="NetAnal" target="_self" class="card-link">
         <div class='card'>
             <div class='card-title'><span>📊 动态推演与解析 (NetAnal)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 ➔</span></div>
-            <div class='card-desc'>依托 qdODEs 理论模型，将静态拓扑映射为动态演化轨迹，生成单样本特异性网络并提供全息解析。</div>
+            <div class='card-desc'>将静态拓扑映射为动态演化轨迹，生成单样本特异性网络并提供全息解析。</div>
         </div>
     </a>
     """, unsafe_allow_html=True)
@@ -115,7 +113,7 @@ with col_left:
 with col_right:
     st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>代表性学术成果</h4>", unsafe_allow_html=True)
     
-    # 46 篇论文全收录，按年份降序，年份加粗，期刊斜体，带 📄 图标
+    # 这里就是你那长长的 46 篇论文列表
     papers_html = """
     <div class='scroll-box'>
         <div class="paper-item"><div class="paper-title">📄 Graph statistics theory of individualized quantitative genetics under haplotype-resolved genome assembly.</div><div class="paper-authors">Sun, L., Bian, Y., Yang, D., et al. (<b>2026</b>). <i>Proceedings of the National Academy of Sciences</i>.<br><a class="paper-link" href="https://doi.org/10.1073/pnas.2600004123" target="_blank">🔗 doi: 10.1073/pnas.2600004123</a></div></div>
@@ -168,16 +166,25 @@ with col_right:
     """
     st.markdown(papers_html, unsafe_allow_html=True)
 
-st.divider()
-
-# 🌟 底部淡化、居中
+# --- 原有的底部版权 ---
 st.markdown(
-    """
-    <div style="text-align:center; color:#94a3b8; font-size:0.9rem; line-height:1.8; margin-top: 2rem; margin-bottom: 2rem;">
-        复杂系统拓扑统计理论及应用北京市重点实验室<br/>
-        北京雁栖湖应用数学研究院<br>
-        <span style='font-size:0.85rem; opacity: 0.8;'>idopNetwork v2.0</span>
-    </div>
-    """,
-    unsafe_allow_html=True,
+    """<div style="text-align:center; color:#94a3b8; font-size:0.9rem; margin: 3rem 0;">
+        复杂系统拓扑统计理论及应用北京市重点实验室 · 北京雁栖湖应用数学研究院 · idopNetwork v2.0
+    </div>""", unsafe_allow_html=True
 )
+
+
+# 只有当你用 admin 账号登录时才显示
+if st.session_state.get("current_user") == "郭佳泽":
+    st.divider()
+    st.subheader("🛠️ 注册人员信息后台")
+    from backend.auth import load_users
+    import pandas as pd
+
+    all_data = load_users()
+    # 将复杂的 JSON 转换成整齐的表格
+    df = pd.DataFrame.from_dict(all_data, orient='index')
+    # 隐藏密码列，保护隐私
+    if "password" in df.columns:
+        df = df.drop(columns=["password"])
+    st.dataframe(df, use_container_width=True)
