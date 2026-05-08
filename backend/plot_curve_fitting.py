@@ -141,9 +141,11 @@ def plot_curve_fitting(
     st.pyplot(fig)
 
     # ==========================================
-    # 🌟 2. 学术级多格式导出引擎
+    # 🌟 2. 学术级多格式导出引擎 (带唯一Key防冲突)
     # ==========================================
-    # 将图像保存到内存缓冲中 (不产生本地垃圾文件)
+    import uuid # 引入随机ID生成库
+    
+    # 将图像保存到内存缓冲中
     buf_png = io.BytesIO()
     fig.savefig(buf_png, format="png", dpi=300, bbox_inches='tight')
     buf_png.seek(0)
@@ -156,15 +158,18 @@ def plot_curve_fitting(
     fig.savefig(buf_svg, format="svg", bbox_inches='tight')
     buf_svg.seek(0)
 
-    # 在界面上并排生成三个优雅的下载按钮
+    # 动态生成一个唯一的 ID，防止同一个页面多次调用画图函数时按钮冲突
+    unique_id = str(uuid.uuid4())[:8]
+
+    # 在界面上并排生成三个优雅的下载按钮，并加上 unique_id
     st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
     col_dl1, col_dl2, col_dl3, _ = st.columns([1.2, 1.2, 1.2, 2])
     with col_dl1:
-        st.download_button("📥 高清 PNG (300dpi)", data=buf_png, file_name="idopNetwork_plot.png", mime="image/png")
+        st.download_button("📥 高清 PNG (300dpi)", data=buf_png, file_name="idopNetwork_plot.png", mime="image/png", key=f"dl_png_{unique_id}")
     with col_dl2:
-        st.download_button("📥 矢量 PDF", data=buf_pdf, file_name="idopNetwork_plot.pdf", mime="application/pdf")
+        st.download_button("📥 矢量 PDF", data=buf_pdf, file_name="idopNetwork_plot.pdf", mime="application/pdf", key=f"dl_pdf_{unique_id}")
     with col_dl3:
-        st.download_button("📥 矢量 SVG", data=buf_svg, file_name="idopNetwork_plot.svg", mime="image/svg+xml")
+        st.download_button("📥 矢量 SVG", data=buf_svg, file_name="idopNetwork_plot.svg", mime="image/svg+xml", key=f"dl_svg_{unique_id}")
 
     # 清理内存
     plt.close(fig)
