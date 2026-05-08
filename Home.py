@@ -105,7 +105,7 @@ else:
             st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
             _, center_img_col, _ = st.columns([1, 2, 1])
             with center_img_col:
-                st.image("wu.jpg", width=150)  # 通过子列居中，确保与下方文字同轴
+                st.image("wu.jpg", width=200)  # 通过子列居中，确保与下方文字同轴
             st.markdown("<p style='text-align:center; font-weight:bold; font-size:1.15rem; color:#0f172a; margin-top:4px; margin-bottom:2px;'>邬荣领 教授</p>", unsafe_allow_html=True)
             st.markdown("<p style='text-align:center; color:#475569; font-size:0.95rem; margin-top:0; margin-bottom:4px;'>BIMSA 副院长 / 首席科学家</p>", unsafe_allow_html=True)
             st.markdown("""
