@@ -94,7 +94,7 @@ def load_css():
 
 
 def setup_sidebar():
-    """全局统一的侧边栏组件（带权限控制版）"""
+    """全局统一的侧边栏组件（带拦截与退出登录功能）"""
     with st.sidebar:
         # 1. 放置统一的 Logo
         st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True) 
@@ -104,22 +104,19 @@ def setup_sidebar():
         
         st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
         
-        # 2. 🌟 权限控制核心逻辑 🌟
-        # 判断 session_state 里的 "logged_in" 是不是 True
+        # 2. 权限控制：登录了才显示菜单
         if st.session_state.get("logged_in", False):
-            # 登录了：大门敞开，显示所有功能
             st.page_link("Home.py", label="Home", icon=":material/home:")
             st.page_link("pages/1_Curve Fitting.py", label="Curve Fitting", icon=":material/timeline:")
             st.page_link("pages/2_FunClu.py", label="FunClu", icon=":material/category:") 
             st.page_link("pages/3_NetRecon.py", label="NetRecon", icon=":material/hub:") 
             st.page_link("pages/4_NetAnal.py", label="NetAnal", icon=":material/insights:")
             
-            # 加一条分割线，放个欢迎语和退出按钮
             st.markdown("<hr style='margin: 1.5rem 0; border-color: #cbd5e1;'>", unsafe_allow_html=True)
             st.markdown(f"<p style='color:#334155; font-weight:bold;'>👋 欢迎, {st.session_state['current_user']}</p>", unsafe_allow_html=True)
             if st.button("退出登录"):
                 st.session_state["logged_in"] = False
                 st.rerun()
         else:
-            # 没登录：只能看到登录入口
-            st.page_link("Home.py", label="请先登录", icon=":material/login:")
+            # 没登录时，侧边栏只有一行提示，不给任何 page_link 按钮！
+            st.markdown("<p style='color:#ef4444; font-weight:bold; text-align:center;'>🔒 请先在右上角登录</p>", unsafe_allow_html=True)

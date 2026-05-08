@@ -1,3 +1,17 @@
+# === 在你 pages 文件夹下的每一个 py 文件开头都加上这三行！ ===
+import streamlit as st
+from backend.utils import load_css, setup_sidebar
+
+load_css()
+setup_sidebar()
+
+# 🔒 拦截未登录用户：
+if not st.session_state.get("logged_in", False):
+    st.warning("⚠️ 权限不足！请先回到 [Home] 页面登录系统。")
+    st.stop() # 这一行会直接斩断下面的代码，不给未登录的人执行
+
+
+
 import io
 import zipfile
 
