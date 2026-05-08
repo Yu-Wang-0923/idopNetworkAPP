@@ -143,6 +143,92 @@ def _fit_idop_network_from_curve_sample(
     }
 
 
+def _adjacency_to_from_to(adj_df: pd.DataFrame, *, eps: float = 1e-12) -> pd.DataFrame:
+    """将邻接矩阵转换为边表（保留自环，忽略绝对值很小的权重）。"""
+    rows: list[dict[str, str | float]] = []
+    for to_node in adj_df.index:
+        for from_node in adj_df.columns:
+            weight = float(adj_df.loc[to_node, from_node])
+            if abs(weight) < eps:
+                continue
+            rows.append(
+                {
+                    "from": str(from_node),
+                    "to": str(to_node),
+                    "weight": weight,
+                    "type": "+" if weight > 0 else "-",
+                }
+            )
+    if not rows:
+        return pd.DataFrame(columns=["from", "to", "weight", "type"])
+    return pd.DataFrame(rows, columns=["from", "to", "weight", "type"])
+
+
+def _params_to_df(params: dict[str, object]) -> pd.DataFrame:
+    """参数字典转 param-value 两列表格。"""
+    return pd.DataFrame(
+        [{"param": key, "value": value} for key, value in params.items()],
+        columns=["param", "value"],
+    )
+
+
+def _collect_network_export_artifacts(
+    network: dict,
+    *,
+    extra_params: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """统一提取一个网络导出的 adjacency/effect/from_to/params。"""
+    adj_df: pd.DataFrame = network["adj_df"]
+    effect_df_list: list[pd.DataFrame] = network["effect_df_list"]
+    model: IDOPRegressor = network["model"]
+
+    effect_map = {
+        str(target): effect_df
+        for target, effect_df in zip(adj_df.index, effect_df_list)
+    }
+    from_to_df = _adjacency_to_from_to(adj_df)
+
+    params: dict[str, object] = {
+        "solver": model.solver,
+        "max_order": int(model.max_order),
+        "alpha": float(model.alpha),
+        "mix": float(model.mix),
+        "nonneg_self": bool(model.nonneg_self),
+        "max_interactions": int(model.max_interactions),
+        "basis_kind": model.basis_kind,
+        "basis_type": model.basis_type,
+        "ebic_gamma": float(model.ebic_gamma),
+        "mse": float(model.mse_) if model.mse_ is not None else np.nan,
+        "n_nodes": int(adj_df.shape[0]),
+        "n_edges_nonzero": int(from_to_df.shape[0]),
+    }
+    if extra_params:
+        params.update(extra_params)
+
+    return {
+        "adj_df": adj_df,
+        "effect_map": effect_map,
+        "from_to_df": from_to_df,
+        "params_df": _params_to_df(params),
+    }
+
+
+def _build_singlelayer_export_zip(result: dict) -> bytes:
+    """打包单层 IdopNetwork 导出 ZIP。"""
+    artifacts = _collect_network_export_artifacts(
+        result,
+        extra_params={"condition": result.get("condition", "")},
+    )
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("adjacency_matrix.csv", artifacts["adj_df"].to_csv(index=True))
+        zf.writestr("from_to.csv", artifacts["from_to_df"].to_csv(index=False))
+        zf.writestr("params.csv", artifacts["params_df"].to_csv(index=False))
+        for target_name, effect_df in artifacts["effect_map"].items():
+            zf.writestr(f"effect/{target_name}.csv", effect_df.to_csv(index=True))
+    return buffer.getvalue()
+
+
 def _build_multilayer_export_zip(
     *,
     result: dict,
@@ -159,17 +245,55 @@ def _build_multilayer_export_zip(
             )
 
         for cond_name, network in result["inter_cluster"].items():
-            zf.writestr(
-                f"inter_cluster/{cond_name}/adjacency_matrix.csv",
-                network["adj_df"].to_csv(index=True),
+            artifacts = _collect_network_export_artifacts(
+                network,
+                extra_params={
+                    "layer": "inter_cluster",
+                    "condition": cond_name,
+                    "cluster": "",
+                },
             )
+            base_dir = f"inter_cluster/{cond_name}"
+            zf.writestr(
+                f"{base_dir}/adjacency_matrix.csv",
+                artifacts["adj_df"].to_csv(index=True),
+            )
+            zf.writestr(f"{base_dir}/from_to.csv", artifacts["from_to_df"].to_csv(index=False))
+            zf.writestr(f"{base_dir}/params.csv", artifacts["params_df"].to_csv(index=False))
+            for target_name, effect_df in artifacts["effect_map"].items():
+                zf.writestr(
+                    f"{base_dir}/effect/{target_name}.csv",
+                    effect_df.to_csv(index=True),
+                )
 
         for cond_name, cluster_map in result["intra_cluster"].items():
             for cluster_name, network in cluster_map.items():
-                zf.writestr(
-                    f"intra_cluster/{cond_name}/{cluster_name}/adjacency_matrix.csv",
-                    network["adj_df"].to_csv(index=True),
+                artifacts = _collect_network_export_artifacts(
+                    network,
+                    extra_params={
+                        "layer": "intra_cluster",
+                        "condition": cond_name,
+                        "cluster": cluster_name,
+                    },
                 )
+                base_dir = f"intra_cluster/{cond_name}/{cluster_name}"
+                zf.writestr(
+                    f"{base_dir}/adjacency_matrix.csv",
+                    artifacts["adj_df"].to_csv(index=True),
+                )
+                zf.writestr(
+                    f"{base_dir}/from_to.csv",
+                    artifacts["from_to_df"].to_csv(index=False),
+                )
+                zf.writestr(
+                    f"{base_dir}/params.csv",
+                    artifacts["params_df"].to_csv(index=False),
+                )
+                for target_name, effect_df in artifacts["effect_map"].items():
+                    zf.writestr(
+                        f"{base_dir}/effect/{target_name}.csv",
+                        effect_df.to_csv(index=True),
+                    )
 
         skipped_df = pd.DataFrame(result.get("skipped", []))
         if not skipped_df.empty:
@@ -585,8 +709,27 @@ with tab1:
 
     # ========== Tab 1_3 Export ==========
     with tab1_3:
-        if st.session_state.netrecon_result is not None:
-            st.info("Single-layer export functionality is to be updated...")
+        result = st.session_state.netrecon_result
+        if result is not None:
+            try:
+                export_zip = _build_singlelayer_export_zip(result)
+            except Exception as e:
+                st.error(f"Single-layer export failed: {e}")
+            else:
+                st.markdown("**Export contents**")
+                st.write(
+                    "- `adjacency_matrix.csv`: 邻接矩阵。\n"
+                    "- `from_to.csv`: 边表（`from,to,weight,type`，包含自环，`type` 为 `+/-`）。\n"
+                    "- `params.csv`: 本次网络拟合参数与统计量。\n"
+                    "- `effect/*.csv`: 每个目标节点一个 effect 分解表。"
+                )
+                st.download_button(
+                    label="Download Single-Layer IdopNetwork ZIP",
+                    data=export_zip,
+                    file_name="single_layer_idopnetwork_export.zip",
+                    mime="application/zip",
+                    key="netrecon_single_export_download",
+                )
         else:
             st.info("Please run IdopNetwork Construction first.")
 
@@ -925,17 +1068,33 @@ with tab2:
     with tab2_3:
         multilayer_result = st.session_state.netrecon_multilayer_result
         if multilayer_result is not None:
-            export_zip = _build_multilayer_export_zip(
-                result=multilayer_result,
-                labels_df=labels_df,
-                cluster_sizes_df=cluster_sizes_df,
-            )
-            st.download_button(
-                label="Download Multi-Layer IdopNetwork ZIP",
-                data=export_zip,
-                file_name="multi_layer_idopnetwork_export.zip",
-                mime="application/zip",
-                key="netrecon_ml_export_download",
-            )
+            try:
+                export_zip = _build_multilayer_export_zip(
+                    result=multilayer_result,
+                    labels_df=labels_df,
+                    cluster_sizes_df=cluster_sizes_df,
+                )
+            except Exception as e:
+                st.error(f"Multi-layer export failed: {e}")
+            else:
+                st.markdown("**Export contents**")
+                st.write(
+                    "- `metadata/labels.csv`, `metadata/cluster_sizes.csv`, `metadata/skipped_networks.csv`.\n"
+                    "- `inter_cluster/<condition>/adjacency_matrix.csv`.\n"
+                    "- `inter_cluster/<condition>/from_to.csv`.\n"
+                    "- `inter_cluster/<condition>/params.csv`.\n"
+                    "- `inter_cluster/<condition>/effect/*.csv`.\n"
+                    "- `intra_cluster/<condition>/<cluster>/adjacency_matrix.csv`.\n"
+                    "- `intra_cluster/<condition>/<cluster>/from_to.csv`.\n"
+                    "- `intra_cluster/<condition>/<cluster>/params.csv`.\n"
+                    "- `intra_cluster/<condition>/<cluster>/effect/*.csv`."
+                )
+                st.download_button(
+                    label="Download Multi-Layer IdopNetwork ZIP",
+                    data=export_zip,
+                    file_name="multi_layer_idopnetwork_export.zip",
+                    mime="application/zip",
+                    key="netrecon_ml_export_download",
+                )
         else:
             st.info("Please run Multi-Layer IdopNetwork Construction first.")
