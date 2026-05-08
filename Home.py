@@ -132,3 +132,19 @@ st.markdown(
         复杂系统拓扑统计理论及应用北京市重点实验室 · 北京雁栖湖应用数学研究院 · idopNetwork v2.0
     </div>""", unsafe_allow_html=True
 )
+
+
+# 只有当你用 admin 账号登录时才显示
+if st.session_state.get("current_user") == "郭佳泽":
+    st.divider()
+    st.subheader("🛠️ 注册人员信息后台")
+    from backend.auth import load_users
+    import pandas as pd
+
+    all_data = load_users()
+    # 将复杂的 JSON 转换成整齐的表格
+    df = pd.DataFrame.from_dict(all_data, orient='index')
+    # 隐藏密码列，保护隐私
+    if "password" in df.columns:
+        df = df.drop(columns=["password"])
+    st.dataframe(df, use_container_width=True)
