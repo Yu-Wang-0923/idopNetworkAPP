@@ -1,5 +1,27 @@
+
 import streamlit as st
 from backend.utils import load_css, setup_sidebar
+from backend.auth import show_login_ui  # 导入我们刚刚写的登录框工具
+
+# 1. 加载样式
+load_css()
+
+# 2. 加载侧边栏（它会自己判断要不要亮出菜单）
+setup_sidebar()
+
+# 3. 核心大门：如果没有登录，就把人拦在登录界面
+if not st.session_state.get("logged_in", False):
+    show_login_ui()
+
+# 如果已经登录了，才执行下面的内容
+else:
+    # 👇 这里往下，放你之前 Home.py 里原本写的那些介绍文字、图片、项目说明等！
+    st.title("🌟 欢迎来到 IDOP Network 分析平台")
+    st.write("太棒了，你已经成功登录！现在可以点击左侧菜单使用高级功能啦。")
+
+
+
+
 
 # 1. 基础设置
 st.set_page_config(page_title="idopNetwork", page_icon="TSA.png", layout="wide", initial_sidebar_state="expanded")
