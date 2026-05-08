@@ -103,7 +103,7 @@ else:
         _, img_col, _ = st.columns([1.5, 4, 1.5])
         with img_col:
             st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
-            st.image("邬.jpg", use_container_width=True) 
+            st.image("wu.jpg", use_container_width=True) 
             st.markdown("<p style='text-align:center; font-weight:bold; font-size:1.15rem; color:#0f172a; margin-top:10px; margin-bottom:2px;'>邬荣领 教授</p>", unsafe_allow_html=True)
             st.markdown("<p style='text-align:center; color:#475569; font-size:0.95rem; margin-top:0;'>BIMSA 副院长 / 首席科学家</p>", unsafe_allow_html=True)
             st.markdown("""
