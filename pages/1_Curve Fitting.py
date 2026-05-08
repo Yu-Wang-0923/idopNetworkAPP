@@ -124,7 +124,7 @@ with tab1:
                                 with tab_color:
                                     col1, col2 = st.columns(2)
                                     with col1:
-                                        color_scatter = st.color_picker("Data Color", value="#FF7678")
+                                        color_scatter = st.color_picker("Data Color", value="#1F77B4")
                                         # color_curve = st.color_picker("Curve Color", value="#A06EA5")
                                     with col2:
                                         subfig_background_color = st.color_picker("Subfig Background Color", value="#FFFFFF")
@@ -200,7 +200,7 @@ with tab1:
                                         with tab_color:
                                             col1, col2 = st.columns(2)
                                             with col1:
-                                                color_scatter = st.color_picker("Data Color", value="#FF7678")
+                                                color_scatter = st.color_picker("Data Color", value="#1F77B4")
                                                 # color_curve = st.color_picker("Curve Color", value="#A06EA5")
                                             with col2:
                                                 subfig_background_color = st.color_picker("Subfig Background Color", value="#FFFFFF")
