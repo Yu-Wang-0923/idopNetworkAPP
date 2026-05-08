@@ -18,7 +18,7 @@ plt.rcParams["axes.unicode_minus"] = False
 # ── 辅助函数 ──────────────────────────────────────────────────────────────────
 
 def load_css():
-    """强制注入的全局核心样式，彻底解决闪烁和颜色失效问题"""
+    """强制注入的全局核心样式，彻底解决闪烁、颜色失效以及图标上色问题"""
     st.markdown("""
     <style>
     /* 1. 强制页面主背景色为浅灰白 */
@@ -27,7 +27,7 @@ def load_css():
     /* 2. 暴力隐藏自带的顶部白边和丑陋的默认导航栏 */
     header, footer, [data-testid="stSidebarNav"] { display: none !important; }
 
-    /* 3. 🌟 强制侧边栏变成高级深灰蓝！ */
+    /* 3. 强制侧边栏变成高级深灰蓝！ */
     [data-testid="stSidebar"] {
         background-color: #334155 !important;
         background-image: none !important;
@@ -56,34 +56,34 @@ def load_css():
     /* 🌟 7. 精准给侧边栏 Material 图标上色，告别单调！ 🌟 */
     /* ======================================================== */
     
-    /* 让图标稍微放大一点点，显得更精神 */
+    /* 让侧边栏的图标整体稍微放大，显得更饱满、更好看 */
     [data-testid="stSidebar"] span[data-testid="stWidgetLabel"] span {
         font-size: 1.25rem !important;
     }
 
-    /* 1. Home 按钮：亮蓝色 */
+    /* 给第一个按钮 (Home) 的图标染上亮蓝色 */
     .stPageLink:nth-of-type(1) span[data-testid="stWidgetLabel"] span {
-        color: #38bdf8 !important; /* 科技浅蓝 */
+        color: #38bdf8 !important;
     }
 
-    /* 2. Curve Fitting 按钮：浅绿色 */
+    /* 给第二个按钮 (Curve Fitting) 的图标染上浅绿色 */
     .stPageLink:nth-of-type(2) span[data-testid="stWidgetLabel"] span {
-        color: #4ade80 !important; /* 嫩绿/增长 */
+        color: #4ade80 !important;
     }
 
-    /* 3. FunClu 按钮：暖橙色 */
+    /* 给第三个按钮 (FunClu) 的图标染上橙黄色 */
     .stPageLink:nth-of-type(3) span[data-testid="stWidgetLabel"] span {
-        color: #fb923c !important; /* 橙黄/分类 */
+        color: #fb923c !important;
     }
 
-    /* 4. NetRecon 按钮：渐变淡紫/粉紫 */
+    /* 给第四个按钮 (NetRecon) 的图标染上淡紫色 */
     .stPageLink:nth-of-type(4) span[data-testid="stWidgetLabel"] span {
-        color: #c084fc !important; /* 紫色/复杂拓扑 */
+        color: #c084fc !important;
     }
 
-    /* 5. NetAnal 按钮：亮粉红/玫瑰红 */
+    /* 给第五个按钮 (NetAnal) 的图标染上亮粉色 */
     .stPageLink:nth-of-type(5) span[data-testid="stWidgetLabel"] span {
-        color: #f43f5e !important; /* 深度解析/洞察 */
+        color: #f43f5e !important;
     }
     </style>
     """, unsafe_allow_html=True)
