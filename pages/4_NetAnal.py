@@ -121,10 +121,28 @@ with tab1:
                 )
 
             default_max_x = float(suggest_max_x(from_to_df))
-            col1, col2 = st.columns([1, 1])
+            col1, col2, col3 = st.columns([1.2, 1, 1])
             with col1:
+                normalize_label = st.selectbox(
+                    "Weight scaling",
+                    options=[
+                        "auto (rescale to [-1, 1] before +100 offset)",
+                        "raw (only +100 offset)",
+                    ],
+                    index=0,
+                    key="netanal_glmy_normalize",
+                    help=(
+                        "auto：先把 weight 等比缩放到 [-1, 1] 再加 +100 offset，"
+                        "适合任意量级；barcode 输出会乘回原始 |weight| max，"
+                        "横轴仍是原始 weight 尺度。"
+                        "\nraw：保持原 GLMY1.py 行为（仅 +100 offset），"
+                        "适合 weight 已经在 [-1, 1] 量级（如相关系数）。"
+                    ),
+                )
+                normalize_mode = "auto" if normalize_label.startswith("auto") else "raw"
+            with col2:
                 max_x = st.number_input(
-                    "Barcode max_x (auto from |weight| max)",
+                    "Barcode max_x",
                     min_value=0.01,
                     value=round(default_max_x, 4),
                     step=0.1,
@@ -132,8 +150,8 @@ with tab1:
                     key="netanal_glmy_max_x",
                     help="Barcode 横轴右端位置；默认按 |weight| 最大值 + 10% buffer 自适应。",
                 )
-            with col2:
-                st.caption("Auto suggestion")
+            with col3:
+                st.caption("Auto suggestion (max_x)")
                 st.code(f"{default_max_x:.4f}", language="text")
 
             run_clicked = st.button(
@@ -150,7 +168,7 @@ with tab1:
                 )
                 with st.spinner(spinner_msg):
                     try:
-                        glmy_result = run_glmy(from_to_df)
+                        glmy_result = run_glmy(from_to_df, normalize=normalize_mode)
                     except Exception as e:
                         st.error(f"GLMY 运行失败：{e}")
                         glmy_result = None
@@ -178,6 +196,11 @@ with tab1:
                 }
                 st.markdown("**Betti number summary** (number of bars per dimension)")
                 st.json(summary)
+                st.caption(
+                    f"normalize = `{glmy_result.get('normalize', 'auto')}`，"
+                    f"scale_factor = `{glmy_result.get('scale_factor', 1.0):.6g}`；"
+                    "barcode 横轴仍为原始 weight 尺度。"
+                )
 
                 fig = plot_glmy_barcode(
                     homology,

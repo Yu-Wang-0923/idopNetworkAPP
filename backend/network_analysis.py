@@ -16,7 +16,7 @@ import sys
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import pandas as pd
 
@@ -27,6 +27,8 @@ GLMY_WEIGHT_OFFSET: float = 100.0
 # Linux 上首跑要预热 Wine prefix，给宽一些；Windows 仍用较短超时。
 GLMY_TIMEOUT_SEC: int = 30 if sys.platform == "win32" else 120
 WINE_PREFIX_DIR: Path = BACKEND_DIR.parent / ".wine_prefix"
+
+NormalizeMode = Literal["auto", "raw"]
 
 
 # ── ZIP 解析 ──────────────────────────────────────────────────────────────────
@@ -82,18 +84,32 @@ def load_from_to_from_zip(zip_bytes: bytes, member_path: str) -> pd.DataFrame:
 def build_glmy_input(
     from_to_df: pd.DataFrame,
     *,
+    normalize: NormalizeMode = "auto",
     weight_offset: float = GLMY_WEIGHT_OFFSET,
-) -> tuple[str, dict[str, int], int]:
+) -> tuple[str, dict[str, int], int, float]:
     """把 from_to 表构造为 GLMY.exe 的 stdin 字符串。
+
+    GLMY.exe 要求**权重为正**，且对量级敏感（原 ``GLMY1.py`` 的 +100 偏移
+    是按 [-1, 1] 量级的相关系数设计的）。当 ``weight`` 量级远超 1（如几百到
+    几千）时，``weight + 100`` 仍可能为负或者 offset 完全失效，导致 GLMY 输出
+    空 homology。本函数支持先把权重缩放到 [-1, 1] 再加 offset。
 
     Parameters
     ----------
     from_to_df: 含 ``from``/``to``/``weight`` 三列的 DataFrame。
-    weight_offset: 加在 ``weight`` 上的偏移，确保权重为正（GLMY.exe 要求）。
+    normalize:
+        - ``"auto"``（默认）: ``scale = max(|weight|, eps)``；GLMY 输入用
+          ``weight / scale + offset``。
+        - ``"raw"``: 不缩放，直接 ``weight + offset``（适合权重已在 [-1, 1] 量级时）。
+    weight_offset: 加在 (缩放后) weight 上的偏移，确保 GLMY 收到的全是正数。
 
     Returns
     -------
-    input_str, vertex_id_map, n_vertices_plus_one
+    input_str, vertex_id_map, n_vertices_plus_one, scale_factor
+        ``scale_factor`` 表示「缩放因子」：``auto`` 模式下等于 ``max(|weight|)``，
+        ``raw`` 模式下恒为 1.0。后续 ``_strip_offset_from_homology`` 会乘回这个
+        因子，让 barcode 的 birth/death 仍处在原始 weight 尺度。
+
         ``input_str`` 形如::
 
             v1,v2,...,vN
@@ -110,15 +126,24 @@ def build_glmy_input(
     vertex_id_map = {name: idx + 1 for idx, name in enumerate(vertices)}
     input_v = ",".join(str(vertex_id_map[name]) for name in vertices)
 
+    if normalize == "auto":
+        abs_max = float(from_to_df["weight"].abs().max())
+        # eps 防 0；权重全为 0 时退化为 raw 模式（scale=1）
+        scale_factor = abs_max if abs_max > 1e-12 else 1.0
+    elif normalize == "raw":
+        scale_factor = 1.0
+    else:  # pragma: no cover - 类型校验
+        raise ValueError(f"未知 normalize 模式: {normalize!r}")
+
     edges_lines: list[str] = []
     for _, row in from_to_df.iterrows():
         u = vertex_id_map[str(row["from"])]
         v = vertex_id_map[str(row["to"])]
-        w = float(row["weight"]) + weight_offset
+        w = float(row["weight"]) / scale_factor + weight_offset
         edges_lines.append(f"({u},{v},{w})")
 
     input_str = input_v + "\n" + "\n".join(edges_lines) + "\n#\n4\ny"
-    return input_str, vertex_id_map, len(vertices) + 1
+    return input_str, vertex_id_map, len(vertices) + 1, scale_factor
 
 
 # ── GLMY.exe 调用 ────────────────────────────────────────────────────────────
@@ -127,8 +152,13 @@ def _strip_offset_from_homology(
     homology: dict[str, list[list[float]]],
     *,
     weight_offset: float,
+    scale_factor: float = 1.0,
 ) -> dict[str, list[list[float]]]:
-    """把 homology.json 中 birth/death 减去偏移；``-1`` 表示无穷区间，保持不变。"""
+    """把 homology.json 中 birth/death 还原到原始 weight 尺度。
+
+    流程：``(value - weight_offset) * scale_factor``。``-1`` 代表无穷区间，
+    保持原值。
+    """
     processed: dict[str, list[list[float]]] = {}
     for key, value_list in homology.items():
         new_list: list[list[float]] = []
@@ -136,7 +166,8 @@ def _strip_offset_from_homology(
             new_sub: list[float] = []
             for item in sublist:
                 if item != -1 and isinstance(item, (int, float)):
-                    new_sub.append(round(float(item) - weight_offset, 6))
+                    restored = (float(item) - weight_offset) * scale_factor
+                    new_sub.append(round(restored, 6))
                 else:
                     new_sub.append(item)
             new_list.append(new_sub)
@@ -174,9 +205,14 @@ def _build_glmy_command(exe: Path) -> tuple[list[str], dict[str, str]]:
 
     if shutil.which("wine") is None:
         raise FileNotFoundError(
-            "Wine 未安装。"
-            "如部署在 Streamlit Community Cloud，请确认仓库根存在 `packages.txt` "
-            "（包含 `wine`）并在 Manage app 里执行 Reboot app 让 apt 重新安装系统依赖。"
+            "Wine 未安装。修复步骤（按顺序操作）：\n"
+            "  1. 确认仓库根有 `packages.txt`，内容包含 `wine` 与 `xvfb`；\n"
+            "  2. `git push` 把 `packages.txt` 推到远端（**仅修改不推送 Cloud 拿不到**）；\n"
+            "  3. 在 Streamlit Community Cloud → 你的 App → Manage app → "
+            "**Reboot app**（关键：rerun 不会触发 apt，只有 Reboot 会重装系统包）；\n"
+            "  4. 等 Build 日志出现 `apt-get install ... wine ...`，再回页面 Run GLMY；\n"
+            "  5. 若 Reboot 后日志报 `Unable to locate package wine`，说明镜像默认 apt "
+            "源里没有 wine —— 把这条日志贴出来，我们换 `wine64` / `wine-stable` 之类的包名。"
         )
 
     cmd: list[str] = []
@@ -196,6 +232,7 @@ def run_glmy(
     from_to_df: pd.DataFrame,
     *,
     exe_path: Path | str | None = None,
+    normalize: NormalizeMode = "auto",
     weight_offset: float = GLMY_WEIGHT_OFFSET,
     timeout: int = GLMY_TIMEOUT_SEC,
 ) -> dict[str, Any]:
@@ -234,8 +271,8 @@ def run_glmy(
         except OSError:
             pass
 
-    input_str, vertex_id_map, _ = build_glmy_input(
-        from_to_df, weight_offset=weight_offset
+    input_str, vertex_id_map, _, scale_factor = build_glmy_input(
+        from_to_df, normalize=normalize, weight_offset=weight_offset
     )
 
     command, env = _build_glmy_command(exe)
@@ -279,7 +316,11 @@ def run_glmy(
         with homology_path.open("r", encoding="utf-8") as f:
             homology_raw = json.load(f)
 
-    homology = _strip_offset_from_homology(homology_raw, weight_offset=weight_offset)
+    homology = _strip_offset_from_homology(
+        homology_raw,
+        weight_offset=weight_offset,
+        scale_factor=scale_factor,
+    )
 
     return {
         "homology_raw": homology_raw,
@@ -290,6 +331,8 @@ def run_glmy(
         "vertex_id_map": vertex_id_map,
         "input_str": input_str,
         "command": command,
+        "normalize": normalize,
+        "scale_factor": scale_factor,
     }
 
 
