@@ -103,16 +103,17 @@ else:
         _, img_col, _ = st.columns([1.5, 4, 1.5])
         with img_col:
             st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
-            st.image("wu.jpg", width=150)  # 尺寸小一点，固定宽度 150px
-            st.markdown("<p style='text-align:center; font-weight:bold; font-size:1.15rem; color:#0f172a; margin-top:10px; margin-bottom:2px;'>邬荣领 教授</p>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align:center; color:#475569; font-size:0.95rem; margin-top:0;'>BIMSA 副院长 / 首席科学家</p>", unsafe_allow_html=True)
             st.markdown("""
-            <div style="text-align:center;">
-                <a href="https://www.bimsa.cn/zh-CN/detail/ronglingwu.html" target="_blank" class="profile-btn">
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <img src="wu.jpg" width="150" style="display:block; margin-bottom: 8px;">
+                <p style="text-align:center; font-weight:bold; font-size:1.15rem; color:#0f172a; margin-top:0; margin-bottom:2px;">邬荣领 教授</p>
+                <p style="text-align:center; color:#475569; font-size:0.95rem; margin-top:0;">BIMSA 副院长 / 首席科学家</p>
+                <a href="https://www.bimsa.cn/zh-CN/detail/ronglingwu.html" target="_blank" class="profile-btn" style="margin-top: 10px;">
                     查看个人主页 &rarr;
                 </a>
             </div>
             """, unsafe_allow_html=True)
+     
        
 
     st.divider()
