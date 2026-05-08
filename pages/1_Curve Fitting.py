@@ -3,7 +3,7 @@ import zipfile
 
 import streamlit as st
 
-# 🌟 修改 1：换上统一的小图标，保持侧边栏默认展开
+# 🌟 修改 1：换上统一的小图标，保持侧边栏默认展开 222
 st.set_page_config(page_title="Curve Fitting", page_icon="TSA.png", layout="wide", initial_sidebar_state="expanded")
 
 import numpy as np
