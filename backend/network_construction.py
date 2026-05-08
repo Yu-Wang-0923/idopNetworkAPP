@@ -914,16 +914,33 @@ class IDOPRegressor:
             effect_df_list.append(collapsed)
         return effect_df_list
 
-    def adjacency_matrix(self, power_function_sample_df: pd.DataFrame) -> pd.DataFrame:
-        """G = sum_r Θ^(r) D^(r), ψ_k^(r)=sum_τ φ_k^(r)(τ)。"""
+    def adjacency_matrix(
+        self,
+        power_function_sample_df: pd.DataFrame,
+        aggregation: str = "mean",
+    ) -> pd.DataFrame:
+        """计算邻接矩阵，可选按离散点均值或积分聚合基函数列。
+
+        Parameters
+        ----------
+        power_function_sample_df : pd.DataFrame
+            输入功率函数采样矩阵。
+        aggregation : str, default "mean"
+            邻接矩阵列聚合方式：
+            - "mean"：对离散采样点直接取算术均值；
+            - "integral"：按 index 作为自变量做梯形积分。
+        """
         if self.coef_ is None:
             raise RuntimeError("call fit before adjacency_matrix")
+        if aggregation not in ("mean", "integral"):
+            raise ValueError("aggregation 必须为 'mean' 或 'integral'")
         X = self._design(power_function_sample_df)
         basis_int_df = X.drop(columns=["intercept"])
         m = power_function_sample_df.shape[1]
         max_order = self.max_order
         targets = list(self.coef_.columns)
         names = list(power_function_sample_df.columns)
+        x_axis = basis_int_df.index.to_numpy(dtype=float, copy=False)
         G = np.zeros((m, m), dtype=float)
         for r in range(max_order):
             theta_r = np.zeros((m, m), dtype=float)
@@ -932,6 +949,10 @@ class IDOPRegressor:
                 col_idx = k * max_order + r
                 col_name = basis_int_df.columns[col_idx]
                 theta_r[:, k] = self.coef_.loc[col_name, targets].values.astype(float)
-                psi[k] = float(basis_int_df.iloc[:, col_idx].sum())
+                col_values = basis_int_df.iloc[:, col_idx].to_numpy(dtype=float, copy=False)
+                if aggregation == "integral":
+                    psi[k] = float(np.trapezoid(col_values, x=x_axis))
+                else:
+                    psi[k] = float(np.mean(col_values))
             G += theta_r * psi[np.newaxis, :]
         return pd.DataFrame(G, index=targets, columns=names)

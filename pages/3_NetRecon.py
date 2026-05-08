@@ -114,6 +114,7 @@ def _fit_idop_network_from_curve_sample(
     max_interactions: int,
     basis_kind: str,
     monotonic_mode: str,
+    adjacency_aggregation: str,
 ) -> dict:
     """复用单层 IdopNetwork 流程，从 curve_sample 构建一个网络。"""
     if curve_sample_df.shape[1] < 2:
@@ -134,7 +135,10 @@ def _fit_idop_network_from_curve_sample(
     model.fit(curve_sample_scaled, curve_sample_df)
     predicted_df = model.predict(curve_sample_scaled)
     effect_df_list = model.effect(curve_sample_scaled)
-    adj_df = model.adjacency_matrix(curve_sample_scaled)
+    adj_df = model.adjacency_matrix(
+        curve_sample_scaled,
+        aggregation=str(adjacency_aggregation),
+    )
     design_X = model._design(curve_sample_scaled)
     response_Y = curve_sample_df.reindex(design_X.index)
     return {
@@ -146,6 +150,7 @@ def _fit_idop_network_from_curve_sample(
         "predicted_df": predicted_df,
         "effect_df_list": effect_df_list,
         "adj_df": adj_df,
+        "adjacency_aggregation": str(adjacency_aggregation),
     }
 
 
@@ -420,7 +425,10 @@ def _build_singlelayer_export_zip(result: dict) -> bytes:
     """打包单层 IdopNetwork 导出 ZIP。"""
     artifacts = _collect_network_export_artifacts(
         result,
-        extra_params={"condition": result.get("condition", "")},
+        extra_params={
+            "condition": result.get("condition", ""),
+            "adjacency_aggregation": result.get("adjacency_aggregation", "mean"),
+        },
     )
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
@@ -470,6 +478,7 @@ def _build_multilayer_export_zip(
                     "layer": "inter_cluster",
                     "condition": cond_name,
                     "cluster": "",
+                    "adjacency_aggregation": network.get("adjacency_aggregation", "mean"),
                 },
             )
             base_dir = f"inter_cluster/{cond_name}"
@@ -499,6 +508,9 @@ def _build_multilayer_export_zip(
                         "layer": "intra_cluster",
                         "condition": cond_name,
                         "cluster": cluster_name,
+                        "adjacency_aggregation": network.get(
+                            "adjacency_aggregation", "mean"
+                        ),
                     },
                 )
                 base_dir = f"intra_cluster/{cond_name}/{cluster_name}"
@@ -686,6 +698,12 @@ with tab1:
                             value=0,
                             step=1,
                         )
+                        adjacency_aggregation = st.selectbox(
+                            "adjacency_aggregation",
+                            options=["mean", "integral"],
+                            index=0,
+                            help="邻接矩阵列聚合方式：mean=离散点均值，integral=按 index 梯形积分。",
+                        )
                     submit_run = st.form_submit_button("Run IdopNetwork")
 
             if submit_run:
@@ -714,7 +732,10 @@ with tab1:
                     model.fit(curve_sample_scaled, curve_sample_df)
                     predicted_df = model.predict(curve_sample_scaled)
                     effect_df_list = model.effect(curve_sample_scaled)
-                    adj_df = model.adjacency_matrix(curve_sample_scaled)
+                    adj_df = model.adjacency_matrix(
+                        curve_sample_scaled,
+                        aggregation=str(adjacency_aggregation),
+                    )
                     design_X = model._design(curve_sample_scaled)
                     response_Y = curve_sample_df.reindex(design_X.index)
                 except Exception as e:
@@ -732,6 +753,7 @@ with tab1:
                         "predicted_df": predicted_df,
                         "effect_df_list": effect_df_list,
                         "adj_df": adj_df,
+                        "adjacency_aggregation": str(adjacency_aggregation),
                     }
                     st.success("Done")
 
@@ -1141,6 +1163,13 @@ with tab2:
                             step=1,
                             key="netrecon_ml_top_k",
                         )
+                        ml_adjacency_aggregation = st.selectbox(
+                            "adjacency_aggregation",
+                            options=["mean", "integral"],
+                            index=0,
+                            key="netrecon_ml_adjacency_aggregation",
+                            help="邻接矩阵列聚合方式：mean=离散点均值，integral=按 index 梯形积分。",
+                        )
                     submit_multilayer = st.form_submit_button("Run Multi-Layer IdopNetwork")
 
             if submit_multilayer:
@@ -1165,6 +1194,7 @@ with tab2:
                         "max_interactions": int(ml_top_k),
                         "basis_kind": str(ml_basis_kind),
                         "monotonic_mode": str(ml_monotonic_mode),
+                        "adjacency_aggregation": str(ml_adjacency_aggregation),
                     }
                     inter_cluster: dict[str, dict] = {}
                     intra_cluster: dict[str, dict[str, dict]] = {}
