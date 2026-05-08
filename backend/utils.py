@@ -51,6 +51,40 @@ def load_css():
         font-size: 1.1rem !important; 
         line-height: 1.6 !important;
     }
+
+    /* ======================================================== */
+    /* 🌟 7. 精准给侧边栏 Material 图标上色，告别单调！ 🌟 */
+    /* ======================================================== */
+    
+    /* 让图标稍微放大一点点，显得更精神 */
+    [data-testid="stSidebar"] span[data-testid="stWidgetLabel"] span {
+        font-size: 1.25rem !important;
+    }
+
+    /* 1. Home 按钮：亮蓝色 */
+    .stPageLink:nth-of-type(1) span[data-testid="stWidgetLabel"] span {
+        color: #38bdf8 !important; /* 科技浅蓝 */
+    }
+
+    /* 2. Curve Fitting 按钮：浅绿色 */
+    .stPageLink:nth-of-type(2) span[data-testid="stWidgetLabel"] span {
+        color: #4ade80 !important; /* 嫩绿/增长 */
+    }
+
+    /* 3. FunClu 按钮：暖橙色 */
+    .stPageLink:nth-of-type(3) span[data-testid="stWidgetLabel"] span {
+        color: #fb923c !important; /* 橙黄/分类 */
+    }
+
+    /* 4. NetRecon 按钮：渐变淡紫/粉紫 */
+    .stPageLink:nth-of-type(4) span[data-testid="stWidgetLabel"] span {
+        color: #c084fc !important; /* 紫色/复杂拓扑 */
+    }
+
+    /* 5. NetAnal 按钮：亮粉红/玫瑰红 */
+    .stPageLink:nth-of-type(5) span[data-testid="stWidgetLabel"] span {
+        color: #f43f5e !important; /* 深度解析/洞察 */
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -58,7 +92,7 @@ def load_css():
 def setup_sidebar():
     """全局统一的侧边栏组件"""
     with st.sidebar:
-        # 1. 放置统一的 Logo（修复了之前丢失的代码）
+        # 1. 放置统一的 Logo
         st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True) 
         col1, col2, col3 = st.columns([1, 3.5, 1])
         with col2:
