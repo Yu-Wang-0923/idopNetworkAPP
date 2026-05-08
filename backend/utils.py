@@ -91,3 +91,22 @@ def load_css():
     }
     </style>
     """, unsafe_allow_html=True)
+
+
+def setup_sidebar():
+    """全局统一的侧边栏组件"""
+    with st.sidebar:
+        # 1. 放置统一的 Logo
+        st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True) 
+        col1, col2, col3 = st.columns([1, 3.5, 1])
+        with col2:
+            st.image("TSA.png", use_container_width=True)
+        
+        # 2. 放置统一的导航按钮（Material Icons 极简风）
+        st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
+        
+        st.page_link("Home.py", label="Home", icon=":material/home:")
+        st.page_link("pages/1_Curve Fitting.py", label="Curve Fitting", icon=":material/timeline:")
+        st.page_link("pages/2_FunClu.py", label="FunClu", icon=":material/category:") 
+        st.page_link("pages/3_NetRecon.py", label="NetRecon", icon=":material/hub:") 
+        st.page_link("pages/4_NetAnal.py", label="NetAnal", icon=":material/insights:")
