@@ -118,7 +118,7 @@ def _fit_idop_network_from_curve_sample(
     if curve_sample_df.shape[1] < 2:
         raise ValueError("至少需要 2 条曲线才能构建交互网络")
 
-    curve_sample_scaled = data_transformation(curve_sample_df, "rescale_to_0_1")
+    curve_sample_scaled = data_transformation(curve_sample_df, "rescale_to_-1_1")
     model = IDOPRegressor(
         max_order=int(max_order),
         solver=str(solver),
@@ -678,7 +678,7 @@ with tab1:
 
             if submit_run:
                 try:
-                    curve_sample_scaled = data_transformation(curve_sample_df, "rescale_to_-1_1")
+                    curve_sample_scaled = data_transformation(curve_sample_df, "rescale_to_0_1")
                     model = IDOPRegressor(
                         max_order=int(max_order),
                         solver=str(solver),
