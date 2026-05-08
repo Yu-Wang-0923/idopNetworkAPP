@@ -21,7 +21,7 @@ if not st.session_state.get("logged_in", False):
     # 显示一个漂亮的门面介绍，但不给看具体内容
     st.markdown("<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>idopNetwork：下一代数据分析平台</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color:#475569;font-size:1.2rem;'>一个面向复杂系统数据的可视化分析工作台。</p>", unsafe_allow_html=True)
-    st.info("💡 这是一个私有科研平台。请点击右上角的 **[🔑 登录 / 注册]** 认证身份后解锁全部功能。")
+    st.info("💡 请点击右上角的 **[🔑 登录 / 注册]** 认证身份后解锁全部功能。")
     
     # 强制切断！没登录的人绝对看不到下面的论文和工具链接
     st.stop()
@@ -54,26 +54,84 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+/* 教授简介滚动框 */
+.bio-scroll-box {
+    height: 180px; 
+    overflow-y: auto; 
+    background: #f8fafc; 
+    padding: 1rem; 
+    border-radius: 8px; 
+    border: 1px solid #e2e8f0;
+    font-size: 0.95rem;
+    color: #475569;
+    line-height: 1.6;
+}
+/* 个人主页按钮样式 */
+.profile-btn {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 6px 15px;
+    background-color: #3b82f6;
+    color: white !important;
+    text-decoration: none !important;
+    border-radius: 5px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.profile-btn:hover {
+    background-color: #2563eb;
+    box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
+}
+
+
+
 # --- 原有的首屏横幅区 ---
 col_hero1, col_hero2 = st.columns([1.3, 1], gap="large")
 with col_hero1: 
-    st.markdown(f"<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>欢迎回来, {st.session_state['current_user']}</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#475569;font-size:1.2rem;line-height:1.8;margin-top:1.5rem;'>idopNetwork 已解锁。您可以开始构建动态推演与全景网络洞察。</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>idopNetwork：下一代数据分析平台</h1>", unsafe_allow_html=True)
+    # 这里增加了描述深度，填补空位
+    st.markdown("""
+    <p style='color:#475569;font-size:1.15rem;line-height:1.7;margin-top:1.2rem;'>
+        idopNetwork 是一套基于 <b>邬荣领教授</b> 提出的统计力学框架构建的复杂系统分析体系。
+        通过将静态的观测数据映射到高维拓扑空间，我们能够突破传统统计学的局限，实现对系统内部运作机理的深度还原。
+    </p>
+    """, unsafe_allow_html=True)
     
     st.markdown("""
     <div class="idop-badges">
-        <div class="badge-item">💡 Informative</div>
-        <div class="badge-item">🔄 Dynamic</div>
-        <div class="badge-item">🌐 Omnidirectional</div>
-        <div class="badge-item">🎯 Personalized</div>
+        <div class="badge-item" title="将复杂数据转化为可解释的生物/物理逻辑">💡 Informative</div>
+        <div class="badge-item" title="刻画系统随时间与环境变化的演化轨迹">🔄 Dynamic</div>
+        <div class="badge-item" title="覆盖从分子到表型的全尺度互作网络">🌐 Omnidirectional</div>
+        <div class="badge-item" title="生成针对单样本或个体的特异性精准分析">🎯 Personalized</div>
     </div>
     """, unsafe_allow_html=True)
 
+
+
 with col_hero2: 
-    _, img_col, _ = st.columns([1, 6, 1])
-    with img_col:
-        st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
-        st.image("IDOP.png", use_container_width=True)
+    # 创建一个带边框的白色卡片区域
+    with st.container():
+        # 这里建议放邬教授的照片，如果想闪屏切换，可以后续加入多张图片轮播的HTML组件
+        # 目前使用单张照片确保专业性
+        col_img_left, col_info_right = st.columns([0.4, 0.6])
+        
+        with col_img_left:
+            # 请确保你有一张邬教授的照片命名为 "wu.jpg" 放在根目录，或者用链接
+            st.image("https://www.bimsa.cn/upload/images/2023/1/22153247291.jpg", use_container_width=True) # 这里是BIMSA官网的头像链接
+            st.markdown("<p style='text-align:center; font-weight:bold; color:#0f172a; margin-top:5px;'>邬荣领 教授</p>", unsafe_allow_html=True)
+
+        with col_info_right:
+            st.markdown("<p style='color:#1e293b; font-weight:bold; margin-bottom:5px;'>BIMSA 副院长 / 首席科学家</p>", unsafe_allow_html=True)
+            # 滚动简介框
+            st.markdown("""
+            <div class="bio-scroll-box">
+                邬荣领教授，现任北京雁栖湖应用数学研究院（BIMSA）副院长、清华大学丘成桐数学科学中心曾思明讲席教授。
+                他是美国科学促进会（AAAS）和美国统计学会（ASA）会士。其研究核心在于利用跨学科方法揭示复杂性状的遗传控制机制。
+                他提出的“统计力学模型”成功地将进化学、发育生物学原理与动态统计网络相结合，为人类疾病预防和动植物育种提供了全新的计算平台。
+                迄今已在 Nature Reviews Genetics, PNAS 等国际顶刊发表SCI论文400余篇。
+            </div>
+            <a href="https://www.bimsa.cn/zh-CN/detail/ronglingwu.html" target="_blank" class="profile-btn">查看 BIMSA 完整简历 ➔</a>
+            """, unsafe_allow_html=True)
 
 st.divider()
 
@@ -169,7 +227,9 @@ with col_right:
 # --- 原有的底部版权 ---
 st.markdown(
     """<div style="text-align:center; color:#94a3b8; font-size:0.9rem; margin: 3rem 0;">
-        复杂系统拓扑统计理论及应用北京市重点实验室 · 北京雁栖湖应用数学研究院 · idopNetwork v2.0
+        复杂系统拓扑统计理论及应用北京市重点实验室 
+               北京雁栖湖应用数学研究院 
+                 idopNetwork v2.0
     </div>""", unsafe_allow_html=True
 )
 
