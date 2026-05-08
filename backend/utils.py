@@ -10,6 +10,8 @@ import streamlit as st
 STATIC_DIR = Path(__file__).parent.parent / "static"
 CSS_PATH = STATIC_DIR / "css" / "custom_style.css"
 FONT_PATH = STATIC_DIR / "SimHei.ttf"
+BACKEND_DIR = Path(__file__).parent
+GLMY_EXE_PATH = BACKEND_DIR / "GLMY.exe"
 
 font_prop = fm.FontProperties(fname=FONT_PATH)
 plt.rcParams["axes.unicode_minus"] = False
