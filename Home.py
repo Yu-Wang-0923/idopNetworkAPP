@@ -31,6 +31,7 @@ if not st.session_state.get("logged_in", False):
 # ==========================================
 
 # --- 原有的主页专属 CSS ---
+# --- 替换整个主页专属 CSS 块 ---
 st.markdown("""
 <style>
 /* IDOP 静态标签 */
@@ -51,10 +52,8 @@ st.markdown("""
 .paper-title {font-weight: 600; color: #0f172a; font-size: 1.05rem;}
 .paper-authors {color: #475569; font-size: 0.9rem; line-height: 1.5; margin-top: 0.3rem;}
 .paper-link {color: #3b82f6; font-size: 0.85rem; text-decoration: none;}
-</style>
-""", unsafe_allow_html=True)
 
-/* 教授简介滚动框 */
+/* 👇 这里是新加的：教授简介滚动框 */
 .bio-scroll-box {
     height: 180px; 
     overflow-y: auto; 
@@ -66,7 +65,7 @@ st.markdown("""
     color: #475569;
     line-height: 1.6;
 }
-/* 个人主页按钮样式 */
+/* 👇 这里是新加的：个人主页按钮样式 */
 .profile-btn {
     display: inline-block;
     margin-top: 10px;
@@ -82,6 +81,8 @@ st.markdown("""
     background-color: #2563eb;
     box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
 }
+</style>
+""", unsafe_allow_html=True)
 
 
 
