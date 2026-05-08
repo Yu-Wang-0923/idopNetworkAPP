@@ -699,7 +699,7 @@ with tab1:
                             raise ValueError(
                                 "启用 monotonic_mode 时，请将 max_interactions (Top-K) 设为 0。"
                             )
-                    curve_sample_scaled = data_transformation(curve_sample_df, "rescale_to_0_1") # rescale_to_-1_1 #########################################################################
+                    curve_sample_scaled = data_transformation(curve_sample_df, "rescale_to_-1_1") # rescale_to_-1_1 #########################################################################
                     model = IDOPRegressor(
                         max_order=int(max_order),
                         solver=str(solver),
