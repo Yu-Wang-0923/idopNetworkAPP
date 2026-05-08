@@ -1,5 +1,6 @@
 import io
 import json
+import sys
 
 import matplotlib.pyplot as plt
 import streamlit as st
@@ -112,6 +113,13 @@ with tab1:
         elif not GLMY_EXE_PATH.exists():
             st.error(f"未找到 GLMY 可执行文件：{GLMY_EXE_PATH}")
         else:
+            if sys.platform != "win32":
+                st.info(
+                    "当前运行环境非 Windows（如 Streamlit Community Cloud 的 Linux 容器），"
+                    "GLMY 通过 Wine 调用 `GLMY.exe`。**首次运行需要 30–90s** 预热 Wine prefix，"
+                    "之后会快很多。"
+                )
+
             default_max_x = float(suggest_max_x(from_to_df))
             col1, col2 = st.columns([1, 1])
             with col1:
@@ -135,7 +143,12 @@ with tab1:
             )
 
             if run_clicked:
-                with st.spinner("Running GLMY.exe ..."):
+                spinner_msg = (
+                    "Running GLMY.exe ..."
+                    if sys.platform == "win32"
+                    else "Running GLMY.exe via Wine (首次启动较慢，请耐心) ..."
+                )
+                with st.spinner(spinner_msg):
                     try:
                         glmy_result = run_glmy(from_to_df)
                     except Exception as e:

@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import re
+import shutil
 import subprocess
+import sys
 import tempfile
 import zipfile
 from pathlib import Path
@@ -17,11 +20,13 @@ from typing import Any
 
 import pandas as pd
 
-from backend.utils import GLMY_EXE_PATH
+from backend.utils import BACKEND_DIR, GLMY_EXE_PATH
 
 
 GLMY_WEIGHT_OFFSET: float = 100.0
-GLMY_TIMEOUT_SEC: int = 30
+# Linux 上首跑要预热 Wine prefix，给宽一些；Windows 仍用较短超时。
+GLMY_TIMEOUT_SEC: int = 30 if sys.platform == "win32" else 120
+WINE_PREFIX_DIR: Path = BACKEND_DIR.parent / ".wine_prefix"
 
 
 # ── ZIP 解析 ──────────────────────────────────────────────────────────────────
@@ -139,6 +144,54 @@ def _strip_offset_from_homology(
     return processed
 
 
+def _resolve_wine_prefix() -> str:
+    """选一个可写目录作 ``WINEPREFIX``：仓库内优先，失败则退回 ``$HOME/.wine_prefix``。"""
+    candidates: list[Path] = [WINE_PREFIX_DIR]
+    home = os.environ.get("HOME")
+    if home:
+        candidates.append(Path(home) / ".wine_prefix")
+    for path in candidates:
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+            probe = path / ".write_probe"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink(missing_ok=True)
+            return str(path)
+        except OSError:
+            continue
+    return tempfile.mkdtemp(prefix="wineprefix_")
+
+
+def _build_glmy_command(exe: Path) -> tuple[list[str], dict[str, str]]:
+    """根据当前平台决定如何执行 GLMY.exe，并准备子进程环境变量。
+
+    - Windows: 直接 ``[exe]``。
+    - 其它平台: 用 ``xvfb-run -a wine exe`` 包一层；若 ``xvfb-run`` 缺失则回退
+      ``wine exe``。同时注入 ``WINEPREFIX`` / ``WINEDEBUG`` 等环境变量。
+    """
+    if sys.platform == "win32":
+        return [str(exe)], dict(os.environ)
+
+    if shutil.which("wine") is None:
+        raise FileNotFoundError(
+            "Wine 未安装。"
+            "如部署在 Streamlit Community Cloud，请确认仓库根存在 `packages.txt` "
+            "（包含 `wine`）并在 Manage app 里执行 Reboot app 让 apt 重新安装系统依赖。"
+        )
+
+    cmd: list[str] = []
+    if shutil.which("xvfb-run") is not None:
+        cmd.extend(["xvfb-run", "-a"])
+    cmd.extend(["wine", str(exe)])
+
+    env = dict(os.environ)
+    env["WINEPREFIX"] = _resolve_wine_prefix()
+    env.setdefault("WINEDEBUG", "-all")
+    env.setdefault("WINEDLLOVERRIDES", "mscoree=d;mshtml=d")
+    env.setdefault("DISPLAY", ":0")
+    return cmd, env
+
+
 def run_glmy(
     from_to_df: pd.DataFrame,
     *,
@@ -148,7 +201,12 @@ def run_glmy(
 ) -> dict[str, Any]:
     """调用 GLMY.exe 并解析 ``homology.json``。
 
-    每次调用在独立的临时目录里运行（GLMY.exe 会在 cwd 写出 ``homology.json``），
+    - **Windows**：直接 ``subprocess.run([exe])``；
+    - **Linux / macOS（如 Streamlit Cloud 容器）**：通过 ``xvfb-run -a wine`` 调用，
+      ``WINEPREFIX`` 优先放仓库内 ``.wine_prefix``，`packages.txt` 中需声明
+      ``wine`` 与 ``xvfb``。
+
+    每次调用在独立的临时目录里运行（GLMY.exe 在 cwd 写出 ``homology.json``），
     避免污染服务进程工作目录。
 
     Returns
@@ -163,21 +221,30 @@ def run_glmy(
             "returncode": int,
             "vertex_id_map": {name: id},
             "input_str": str,
+            "command": [...],               # 实际执行命令，用于排错
         }
     """
     exe = Path(exe_path) if exe_path is not None else GLMY_EXE_PATH
     if not exe.exists():
         raise FileNotFoundError(f"未找到 GLMY 可执行文件: {exe}")
 
+    if sys.platform != "win32":
+        try:
+            os.chmod(exe, 0o755)
+        except OSError:
+            pass
+
     input_str, vertex_id_map, _ = build_glmy_input(
         from_to_df, weight_offset=weight_offset
     )
+
+    command, env = _build_glmy_command(exe)
 
     with tempfile.TemporaryDirectory(prefix="glmy_") as tmpdir:
         tmp_path = Path(tmpdir)
         try:
             proc = subprocess.run(
-                [str(exe)],
+                command,
                 input=input_str,
                 cwd=str(tmp_path),
                 capture_output=True,
@@ -186,16 +253,24 @@ def run_glmy(
                 errors="replace",
                 timeout=timeout,
                 check=False,
+                env=env,
             )
+        except FileNotFoundError as e:
+            raise FileNotFoundError(
+                f"无法启动 GLMY 调用链 {command!r}：{e}。\n"
+                "如部署在 Streamlit Community Cloud，请确认 `packages.txt` 含 "
+                "`wine` 与 `xvfb`，并 Reboot app 让 apt 安装系统依赖。"
+            ) from e
         except subprocess.TimeoutExpired as e:
             raise TimeoutError(
-                f"GLMY.exe 执行超过 {timeout}s 未返回。"
+                f"GLMY 执行超过 {timeout}s 未返回（命令: {command!r}）。"
             ) from e
 
         homology_path = tmp_path / "homology.json"
         if not homology_path.exists():
             raise RuntimeError(
-                "GLMY.exe 未生成 homology.json。\n"
+                "GLMY 未生成 homology.json。\n"
+                f"command={command!r}\n"
                 f"returncode={proc.returncode}\n"
                 f"stdout=\n{proc.stdout}\n"
                 f"stderr=\n{proc.stderr}"
@@ -214,6 +289,7 @@ def run_glmy(
         "returncode": proc.returncode,
         "vertex_id_map": vertex_id_map,
         "input_str": input_str,
+        "command": command,
     }
 
 
