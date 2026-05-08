@@ -89,7 +89,7 @@ st.markdown("""
 # --- 原有的首屏横幅区 ---
 col_hero1, col_hero2 = st.columns([1.3, 1], gap="large")
 with col_hero1: 
-    st.markdown("<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>idopNetwork：下一代数据分析平台</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>idopNetwork</h1>", unsafe_allow_html=True)
     # 这里增加了描述深度，填补空位
     st.markdown("""
     <p style='color:#475569;font-size:1.15rem;line-height:1.7;margin-top:1.2rem;'>
@@ -121,17 +121,7 @@ with col_hero2:
             st.image("wu.jpg", use_container_width=True) 
             st.markdown("<p style='text-align:center; font-weight:bold; color:#0f172a; margin-top:5px;'>邬荣领 教授</p>", unsafe_allow_html=True)
 
-        with col_info_right:
-            st.markdown("<p style='color:#1e293b; font-weight:bold; margin-bottom:5px;'>BIMSA 副院长 / 首席科学家</p>", unsafe_allow_html=True)
-            # 滚动简介框
-            st.markdown("""
-            <div class="bio-scroll-box">
-                邬荣领教授，现任北京雁栖湖应用数学研究院（BIMSA）副院长、清华大学丘成桐数学科学中心曾思明讲席教授。
-                他是美国科学促进会（AAAS）和美国统计学会（ASA）会士。其研究核心在于利用跨学科方法揭示复杂性状的遗传控制机制。
-                他提出的“统计力学模型”成功地将进化学、发育生物学原理与动态统计网络相结合，为人类疾病预防和动植物育种提供了全新的计算平台。
-                迄今已在 Nature Reviews Genetics, PNAS 等国际顶刊发表SCI论文400余篇。
-            </div>
-            <a href="https://www.bimsa.cn/zh-CN/detail/ronglingwu.html" target="_blank" class="profile-btn">查看 BIMSA 完整简历 ➔</a>
+            <a href="https://www.bimsa.cn/zh-CN/detail/ronglingwu.html" target="_blank" class="profile-btn">查看个人主页 ➔</a>
             """, unsafe_allow_html=True)
 
 st.divider()
