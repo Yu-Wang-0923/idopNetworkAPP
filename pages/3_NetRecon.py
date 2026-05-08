@@ -172,6 +172,11 @@ def _params_to_df(params: dict[str, object]) -> pd.DataFrame:
     )
 
 
+def _to_csv_utf8_sig_bytes(df: pd.DataFrame, *, index: bool) -> bytes:
+    """DataFrame 导出为 UTF-8-SIG 编码的 CSV 字节串。"""
+    return df.to_csv(index=index).encode("utf-8-sig")
+
+
 def _collect_network_export_artifacts(
     network: dict,
     *,
@@ -221,11 +226,23 @@ def _build_singlelayer_export_zip(result: dict) -> bytes:
     )
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("adjacency_matrix.csv", artifacts["adj_df"].to_csv(index=True))
-        zf.writestr("from_to.csv", artifacts["from_to_df"].to_csv(index=False))
-        zf.writestr("params.csv", artifacts["params_df"].to_csv(index=False))
+        zf.writestr(
+            "adjacency_matrix.csv",
+            _to_csv_utf8_sig_bytes(artifacts["adj_df"], index=True),
+        )
+        zf.writestr(
+            "from_to.csv",
+            _to_csv_utf8_sig_bytes(artifacts["from_to_df"], index=False),
+        )
+        zf.writestr(
+            "params.csv",
+            _to_csv_utf8_sig_bytes(artifacts["params_df"], index=False),
+        )
         for target_name, effect_df in artifacts["effect_map"].items():
-            zf.writestr(f"effect/{target_name}.csv", effect_df.to_csv(index=True))
+            zf.writestr(
+                f"effect/{target_name}.csv",
+                _to_csv_utf8_sig_bytes(effect_df, index=True),
+            )
     return buffer.getvalue()
 
 
@@ -238,10 +255,14 @@ def _build_multilayer_export_zip(
     """把 Multi-Layer IdopNetwork 邻接矩阵与元数据打包为 ZIP。"""
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("metadata/labels.csv", labels_df.to_csv(index=False))
+        zf.writestr(
+            "metadata/labels.csv",
+            _to_csv_utf8_sig_bytes(labels_df, index=False),
+        )
         if not cluster_sizes_df.empty:
             zf.writestr(
-                "metadata/cluster_sizes.csv", cluster_sizes_df.to_csv(index=False)
+                "metadata/cluster_sizes.csv",
+                _to_csv_utf8_sig_bytes(cluster_sizes_df, index=False),
             )
 
         for cond_name, network in result["inter_cluster"].items():
@@ -256,14 +277,20 @@ def _build_multilayer_export_zip(
             base_dir = f"inter_cluster/{cond_name}"
             zf.writestr(
                 f"{base_dir}/adjacency_matrix.csv",
-                artifacts["adj_df"].to_csv(index=True),
+                _to_csv_utf8_sig_bytes(artifacts["adj_df"], index=True),
             )
-            zf.writestr(f"{base_dir}/from_to.csv", artifacts["from_to_df"].to_csv(index=False))
-            zf.writestr(f"{base_dir}/params.csv", artifacts["params_df"].to_csv(index=False))
+            zf.writestr(
+                f"{base_dir}/from_to.csv",
+                _to_csv_utf8_sig_bytes(artifacts["from_to_df"], index=False),
+            )
+            zf.writestr(
+                f"{base_dir}/params.csv",
+                _to_csv_utf8_sig_bytes(artifacts["params_df"], index=False),
+            )
             for target_name, effect_df in artifacts["effect_map"].items():
                 zf.writestr(
                     f"{base_dir}/effect/{target_name}.csv",
-                    effect_df.to_csv(index=True),
+                    _to_csv_utf8_sig_bytes(effect_df, index=True),
                 )
 
         for cond_name, cluster_map in result["intra_cluster"].items():
@@ -279,25 +306,28 @@ def _build_multilayer_export_zip(
                 base_dir = f"intra_cluster/{cond_name}/{cluster_name}"
                 zf.writestr(
                     f"{base_dir}/adjacency_matrix.csv",
-                    artifacts["adj_df"].to_csv(index=True),
+                    _to_csv_utf8_sig_bytes(artifacts["adj_df"], index=True),
                 )
                 zf.writestr(
                     f"{base_dir}/from_to.csv",
-                    artifacts["from_to_df"].to_csv(index=False),
+                    _to_csv_utf8_sig_bytes(artifacts["from_to_df"], index=False),
                 )
                 zf.writestr(
                     f"{base_dir}/params.csv",
-                    artifacts["params_df"].to_csv(index=False),
+                    _to_csv_utf8_sig_bytes(artifacts["params_df"], index=False),
                 )
                 for target_name, effect_df in artifacts["effect_map"].items():
                     zf.writestr(
                         f"{base_dir}/effect/{target_name}.csv",
-                        effect_df.to_csv(index=True),
+                        _to_csv_utf8_sig_bytes(effect_df, index=True),
                     )
 
         skipped_df = pd.DataFrame(result.get("skipped", []))
         if not skipped_df.empty:
-            zf.writestr("metadata/skipped_networks.csv", skipped_df.to_csv(index=False))
+            zf.writestr(
+                "metadata/skipped_networks.csv",
+                _to_csv_utf8_sig_bytes(skipped_df, index=False),
+            )
 
     return buffer.getvalue()
 
