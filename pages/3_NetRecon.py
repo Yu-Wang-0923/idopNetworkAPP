@@ -133,10 +133,14 @@ def _fit_idop_network_from_curve_sample(
     predicted_df = model.predict(curve_sample_scaled)
     effect_df_list = model.effect(curve_sample_scaled)
     adj_df = model.adjacency_matrix(curve_sample_scaled)
+    design_X = model._design(curve_sample_scaled)
+    response_Y = curve_sample_df.reindex(design_X.index)
     return {
         "model": model,
         "curve_sample_df": curve_sample_df,
         "curve_sample_scaled": curve_sample_scaled,
+        "design_X": design_X,
+        "response_Y": response_Y,
         "predicted_df": predicted_df,
         "effect_df_list": effect_df_list,
         "adj_df": adj_df,
@@ -216,6 +220,197 @@ def _collect_network_export_artifacts(
         "from_to_df": from_to_df,
         "params_df": _params_to_df(params),
     }
+
+
+def _summarize_df_for_debug(name: str, df: pd.DataFrame) -> dict[str, object]:
+    """生成调试面板中的数值摘要。"""
+    arr = df.to_numpy(dtype=float, copy=False)
+    finite = np.isfinite(arr)
+    finite_arr = arr[finite] if finite.any() else np.array([np.nan])
+    return {
+        "name": name,
+        "shape": str(arr.shape),
+        "n_nan": int(np.isnan(arr).sum()),
+        "n_inf": int(np.isinf(arr).sum()),
+        "min": float(np.min(finite_arr)) if finite.any() else float("nan"),
+        "max": float(np.max(finite_arr)) if finite.any() else float("nan"),
+        "abs_max": float(np.max(np.abs(finite_arr))) if finite.any() else float("nan"),
+        "mean": float(np.mean(finite_arr)) if finite.any() else float("nan"),
+        "std": float(np.std(finite_arr)) if finite.any() else float("nan"),
+        "n_zero": int((arr == 0).sum()),
+    }
+
+
+def _plot_matrix_lines_for_debug(
+    df: pd.DataFrame,
+    title: str,
+    x_label: str,
+    *,
+    exclude_intercept: bool = False,
+) -> None:
+    """绘制矩阵列随 index 变化的折线图（Debug 用）。"""
+    cols = [c for c in df.columns if c != "intercept"] if exclude_intercept else list(df.columns)
+    if not cols:
+        st.caption("没有可绘制的矩阵列。")
+        return
+
+    fig, ax = plt.subplots(figsize=(12, 4.5))
+    try:
+        x_idx = df.index.astype(float).to_numpy(dtype=float, copy=False)
+        if not np.all(np.isfinite(x_idx)):
+            raise ValueError("non-finite float index")
+    except (TypeError, ValueError):
+        x_idx = np.arange(len(df), dtype=float)
+    for col in cols:
+        ax.plot(
+            x_idx,
+            df[col].to_numpy(dtype=float, copy=False),
+            linewidth=1.0,
+            alpha=0.75,
+        )
+    ax.set_xlabel(x_label, fontproperties=font_prop)
+    ax.set_ylabel("列取值", fontproperties=font_prop)
+    ax.set_title(title, fontproperties=font_prop)
+    ax.grid(True, alpha=0.35)
+    fig.tight_layout()
+    st.pyplot(fig, use_container_width=True)
+    plt.close(fig)
+
+
+def _plot_bic_curve_for_debug(
+    df: pd.DataFrame | None,
+    title: str,
+    x_col: str,
+    x_label: str,
+    *,
+    log_x: bool = False,
+) -> None:
+    """绘制 BIC 搜索轨迹（Debug 用）。"""
+    if df is None or df.empty:
+        st.caption("没有可用的 BIC 搜索轨迹。")
+        return
+    plot_df = (
+        df.replace([np.inf, -np.inf], np.nan)
+        .dropna(subset=[x_col, "bic"])
+        .sort_values(x_col)
+    )
+    if plot_df.empty:
+        st.caption("没有可绘制的 BIC 点。")
+        return
+
+    fig, ax = plt.subplots(figsize=(6, 3.6))
+    ax.plot(
+        plot_df[x_col].to_numpy(dtype=float, copy=False),
+        plot_df["bic"].to_numpy(dtype=float, copy=False),
+        marker="o",
+        linewidth=1.4,
+    )
+    if "selected" in plot_df.columns:
+        selected = plot_df[plot_df["selected"].astype(bool)]
+        if not selected.empty:
+            ax.scatter(
+                selected[x_col].to_numpy(dtype=float, copy=False),
+                selected["bic"].to_numpy(dtype=float, copy=False),
+                color="red",
+                s=50,
+                zorder=3,
+            )
+    if log_x:
+        ax.set_xscale("log")
+    ax.set_xlabel(x_label, fontproperties=font_prop)
+    ax.set_ylabel("BIC", fontproperties=font_prop)
+    ax.set_title(title, fontproperties=font_prop)
+    ax.grid(True, alpha=0.35)
+    fig.tight_layout()
+    st.pyplot(fig, use_container_width=True)
+    plt.close(fig)
+
+
+def _render_multilayer_debug_panel(network: dict) -> None:
+    """多层网络 Debug 面板，展示与单层一致的核心矩阵与统计。"""
+    model_dbg: IDOPRegressor = network["model"]
+    cs_raw: pd.DataFrame = network["curve_sample_df"]
+    cs_scl: pd.DataFrame = network["curve_sample_scaled"]
+    X_dbg: pd.DataFrame = network["design_X"]
+    Y_dbg: pd.DataFrame = network["response_Y"]
+    pred: pd.DataFrame = network["predicted_df"]
+    coef: pd.DataFrame = model_dbg.coef_
+    basis_raw_dbg = polynomial_basis_expansion(
+        cs_scl,
+        model_dbg.max_order,
+        kind=model_dbg.basis_kind,
+    )
+
+    basis_label = model_dbg.basis_kind.capitalize()
+    summary_rows = [
+        _summarize_df_for_debug("curve_sample (raw)", cs_raw),
+        _summarize_df_for_debug("curve_sample (scaled to [-1,1])", cs_scl),
+        _summarize_df_for_debug(f"basis raw = {basis_label} before integral", basis_raw_dbg),
+        _summarize_df_for_debug(f"design X = [intercept | {basis_label} integral]", X_dbg),
+        _summarize_df_for_debug("response Y = curve_sample (raw)", Y_dbg),
+        _summarize_df_for_debug("coef_", coef),
+        _summarize_df_for_debug("predicted", pred),
+    ]
+    st.markdown("**Numeric summary**")
+    st.dataframe(pd.DataFrame(summary_rows), use_container_width=True)
+
+    st.markdown(
+        f"`max_order` = **{model_dbg.max_order}** &nbsp; | &nbsp; "
+        f"`solver` = **{model_dbg.solver}** &nbsp; | &nbsp; "
+        f"`alpha` = **{model_dbg.alpha}** &nbsp; | &nbsp; "
+        f"`basis_kind` = **{model_dbg.basis_kind}** &nbsp; | &nbsp; "
+        f"`mse_` = **{model_dbg.mse_}**"
+    )
+    if model_dbg.solver == "asgl":
+        bic_left, bic_right = st.columns(2)
+        with bic_left:
+            st.markdown("**BIC vs max_order**")
+            _plot_bic_curve_for_debug(
+                model_dbg.bic_order_path_,
+                "BIC 选择 max_order",
+                "max_order",
+                "max_order",
+            )
+        with bic_right:
+            st.markdown("**BIC vs alpha**")
+            _plot_bic_curve_for_debug(
+                model_dbg.bic_alpha_path_,
+                "BIC 选择 alpha",
+                "alpha",
+                "alpha",
+                log_x=True,
+            )
+
+    st.markdown("**curve_sample (raw) — head**")
+    st.dataframe(cs_raw.head(), use_container_width=True)
+    st.markdown("**curve_sample (scaled) — head**")
+    st.dataframe(cs_scl.head(), use_container_width=True)
+    left_col, right_col = st.columns(2)
+    with left_col:
+        st.markdown("**basis matrix before integral — head (first 8 cols)**")
+        st.dataframe(basis_raw_dbg.iloc[:5, :8], use_container_width=True)
+        st.markdown("**basis matrix before integral — 沿 index 折线图**")
+        _plot_matrix_lines_for_debug(
+            basis_raw_dbg,
+            "积分前基函数矩阵（全部列）",
+            "basis_raw.index",
+        )
+    with right_col:
+        st.markdown("**design matrix X — head (first 8 cols)**")
+        st.dataframe(X_dbg.iloc[:5, :8], use_container_width=True)
+        st.markdown("**design matrix X — 沿 index 折线图（不含 intercept）**")
+        _plot_matrix_lines_for_debug(
+            X_dbg,
+            "设计矩阵 X（全部列，不含 intercept）",
+            "design_X.index",
+            exclude_intercept=True,
+        )
+    st.markdown("**response Y — head**")
+    st.dataframe(Y_dbg.head(), use_container_width=True)
+    st.markdown("**coef_**")
+    st.dataframe(coef, use_container_width=True)
+    st.markdown("**predicted — head**")
+    st.dataframe(pred.head(), use_container_width=True)
 
 
 def _build_singlelayer_export_zip(result: dict) -> bytes:
@@ -992,6 +1187,11 @@ with tab2:
 
             multilayer_result = st.session_state.netrecon_multilayer_result
             if multilayer_result is not None:
+                available_intra = {
+                    cond_name: cluster_map
+                    for cond_name, cluster_map in multilayer_result["intra_cluster"].items()
+                    if cluster_map
+                }
                 # 嵌套 Tab 展示结果
                 tab2_2_1, tab2_2_2, tab2_2_3, tab2_2_4 = st.tabs(["Network", "Effect Decomposition", "Adjacency Matrix", "Debug"])
 
@@ -1046,11 +1246,6 @@ with tab2:
                     else:
                         st.warning("No inter-cluster network was built.")
 
-                    available_intra = {
-                        cond_name: cluster_map
-                        for cond_name, cluster_map in multilayer_result["intra_cluster"].items()
-                        if cluster_map
-                    }
                     if available_intra:
                         st.markdown("### Intra-Cluster Network")
                         intra_condition = st.selectbox(
@@ -1076,7 +1271,53 @@ with tab2:
 
                 # ========== Tab 2_2_2 Effect Decomposition ==========
                 with tab2_2_2:
-                    st.info("Effect Decomposition for Multi-Layer IdopNetwork is to be updated...")
+                    has_inter = bool(multilayer_result["inter_cluster"])
+                    has_intra = bool(available_intra)
+                    layer_options = []
+                    if has_inter:
+                        layer_options.append("inter_cluster")
+                    if has_intra:
+                        layer_options.append("intra_cluster")
+
+                    if not layer_options:
+                        st.warning("No built network available for effect decomposition.")
+                    else:
+                        effect_layer = st.selectbox(
+                            "Layer",
+                            options=layer_options,
+                            key="netrecon_ml_effect_layer",
+                        )
+                        if effect_layer == "inter_cluster":
+                            effect_condition = st.selectbox(
+                                "Condition",
+                                options=list(multilayer_result["inter_cluster"].keys()),
+                                key="netrecon_ml_effect_inter_condition",
+                            )
+                            effect_network = multilayer_result["inter_cluster"][effect_condition]
+                            st.markdown(f"当前网络: `inter_cluster / {effect_condition}`")
+                        else:
+                            effect_condition = st.selectbox(
+                                "Condition",
+                                options=list(available_intra.keys()),
+                                key="netrecon_ml_effect_intra_condition",
+                            )
+                            effect_cluster = st.selectbox(
+                                "Cluster",
+                                options=list(available_intra[effect_condition].keys()),
+                                key="netrecon_ml_effect_intra_cluster",
+                            )
+                            effect_network = available_intra[effect_condition][effect_cluster]
+                            st.markdown(
+                                f"当前网络: `intra_cluster / {effect_condition} / {effect_cluster}`"
+                            )
+
+                        plot_effect(
+                            quasi_dynamic_df=effect_network["curve_sample_df"],
+                            curve_df=effect_network["predicted_df"],
+                            effect_df_list=effect_network["effect_df_list"],
+                            intercept=effect_network["model"].coef_.loc["intercept"],
+                            plot_ncols=4,
+                        )
 
                 # ========== Tab 2_2_3 Adjacency Matrix ==========
                 with tab2_2_3:
@@ -1092,7 +1333,47 @@ with tab2:
 
                 # ========== Tab 2_2_4 Debug ==========
                 with tab2_2_4:
-                    st.info("Debug panel for Multi-Layer IdopNetwork is to be updated...")
+                    has_inter = bool(multilayer_result["inter_cluster"])
+                    has_intra = bool(available_intra)
+                    layer_options = []
+                    if has_inter:
+                        layer_options.append("inter_cluster")
+                    if has_intra:
+                        layer_options.append("intra_cluster")
+
+                    if not layer_options:
+                        st.warning("No built network available for debug panel.")
+                    else:
+                        debug_layer = st.selectbox(
+                            "Layer",
+                            options=layer_options,
+                            key="netrecon_ml_debug_layer",
+                        )
+                        if debug_layer == "inter_cluster":
+                            debug_condition = st.selectbox(
+                                "Condition",
+                                options=list(multilayer_result["inter_cluster"].keys()),
+                                key="netrecon_ml_debug_inter_condition",
+                            )
+                            debug_network = multilayer_result["inter_cluster"][debug_condition]
+                            st.markdown(f"当前网络: `inter_cluster / {debug_condition}`")
+                        else:
+                            debug_condition = st.selectbox(
+                                "Condition",
+                                options=list(available_intra.keys()),
+                                key="netrecon_ml_debug_intra_condition",
+                            )
+                            debug_cluster = st.selectbox(
+                                "Cluster",
+                                options=list(available_intra[debug_condition].keys()),
+                                key="netrecon_ml_debug_intra_cluster",
+                            )
+                            debug_network = available_intra[debug_condition][debug_cluster]
+                            st.markdown(
+                                f"当前网络: `intra_cluster / {debug_condition} / {debug_cluster}`"
+                            )
+
+                        _render_multilayer_debug_panel(debug_network)
 
     # ========== Tab 2_3 Export ==========
     with tab2_3:
