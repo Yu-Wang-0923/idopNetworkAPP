@@ -117,8 +117,8 @@ with col_hero2:
         col_img_left, col_info_right = st.columns([0.4, 0.6])
         
         with col_img_left:
-            # 请确保你有一张邬教授的照片命名为 "wu.jpg" 放在根目录，或者用链接
-            st.image("https://www.bimsa.cn/upload/images/2023/1/22153247291.jpg", use_container_width=True) # 这里是BIMSA官网的头像链接
+            # 改为使用根目录下的本地图片：
+            st.image("wu.jpg", use_container_width=True) 
             st.markdown("<p style='text-align:center; font-weight:bold; color:#0f172a; margin-top:5px;'>邬荣领 教授</p>", unsafe_allow_html=True)
 
         with col_info_right:
