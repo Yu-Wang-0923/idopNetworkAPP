@@ -1,44 +1,36 @@
-
 import streamlit as st
 from backend.utils import load_css, setup_sidebar
 from backend.auth import show_login_ui
 
 # ==========================================
-# 1. 基础配置（必须是 Streamlit 命令的第一行）
+# 1. 基础设置 (必须在第一行)
 # ==========================================
-st.set_page_config(
-    page_title="idopNetwork", 
-    page_icon="TSA.png", 
-    layout="wide", 
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="idopNetwork", page_icon="TSA.png", layout="wide", initial_sidebar_state="expanded")
 
-# ==========================================
-# 2. 加载全局样式和侧边栏
-# ==========================================
-# 这一套组合拳，全页只准出现这一次！
+# 加载全局样式和侧边栏
 load_css()
 setup_sidebar()
 
 # ==========================================
-# 3. 登录拦截逻辑
+# 2. 核心拦截门禁
 # ==========================================
-# 如果没登录，显示右上角登录按钮并锁定页面
 if not st.session_state.get("logged_in", False):
+    # 如果没登录，显示右上角登录按钮
     show_login_ui()
     
-    # 没登录时，主页只显示一个精美的门面
+    # 显示一个漂亮的门面介绍，但不给看具体内容
     st.markdown("<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>idopNetwork：下一代数据分析平台</h1>", unsafe_allow_html=True)
-    st.info("💡 请点击右上角的 **[🔑 登录 / 注册]** 按钮，认证成功后解锁全部高级功能。")
+    st.markdown("<p style='color:#475569;font-size:1.2rem;'>一个面向复杂系统数据的可视化分析工作台。</p>", unsafe_allow_html=True)
+    st.info("💡 这是一个私有科研平台。请点击右上角的 **[🔑 登录 / 注册]** 认证身份后解锁全部功能。")
     
-    # 没登录时，用 st.stop() 强制切断后续代码执行，防止数据泄露
+    # 强制切断！没登录的人绝对看不到下面的论文和工具链接
     st.stop()
 
 # ==========================================
-# 4. 已登录用户看到的完整内容（全部写在下面）
+# 3. 登录后的世界 (你原来的所有代码都在这里)
 # ==========================================
 
-# 主页专属 CSS 样式
+# --- 原有的主页专属 CSS ---
 st.markdown("""
 <style>
 /* IDOP 静态标签 */
@@ -58,14 +50,15 @@ st.markdown("""
 .paper-item:last-child {border-bottom: none;}
 .paper-title {font-weight: 600; color: #0f172a; font-size: 1.05rem;}
 .paper-authors {color: #475569; font-size: 0.9rem; line-height: 1.5; margin-top: 0.3rem;}
+.paper-link {color: #3b82f6; font-size: 0.85rem; text-decoration: none;}
 </style>
 """, unsafe_allow_html=True)
 
-# 首屏横幅区
+# --- 原有的首屏横幅区 ---
 col_hero1, col_hero2 = st.columns([1.3, 1], gap="large")
 with col_hero1: 
-    st.markdown("<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>idopNetwork：下一代数据分析平台</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#475569;font-size:1.2rem;line-height:1.8;margin-top:1.5rem;'>欢迎回来，<b>{}</b>！您已进入全功能模式。</p>".format(st.session_state['current_user']), unsafe_allow_html=True)
+    st.markdown(f"<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>欢迎回来, {st.session_state['current_user']}</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#475569;font-size:1.2rem;line-height:1.8;margin-top:1.5rem;'>idopNetwork 已解锁。您可以开始构建动态推演与全景网络洞察。</p>", unsafe_allow_html=True)
     
     st.markdown("""
     <div class="idop-badges">
@@ -84,11 +77,12 @@ with col_hero2:
 
 st.divider()
 
-# 核心内容区 (工作流 + 论文)
+# --- 原有的核心内容区 ---
 col_left, col_right = st.columns([1.15, 1], gap="large")
 
 with col_left:
     st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>平台核心工作流</h4>", unsafe_allow_html=True)
+    
     st.markdown("""
     <a href="Curve_Fitting" target="_self" class="card-link">
         <div class='card'>
@@ -99,19 +93,42 @@ with col_left:
     <a href="FunClu" target="_self" class="card-link">
         <div class='card'>
             <div class='card-title'><span>🧩 特征聚类 (FunClu)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 ➔</span></div>
-            <div class='card-desc'>通过函数型聚类识别系统内部具有相似演化轨迹的核心变量模块。</div>
+            <div class='card-desc'>通过函数型聚类 (Functional Clustering) 降维，识别系统内部具有相似演化轨迹的核心变量模块。</div>
+        </div>
+    </a>
+    <a href="NetRecon" target="_self" class="card-link">
+        <div class='card'>
+            <div class='card-title'><span>🕸️ 全景网络重构 (NetRecon)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 ➔</span></div>
+            <div class='card-desc'>突破传统相关性局限，构建带符号的加权有向图，精准量化内部方向性依赖。</div>
+        </div>
+    </a>
+    <a href="NetAnal" target="_self" class="card-link">
+        <div class='card'>
+            <div class='card-title'><span>📊 动态推演与解析 (NetAnal)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 ➔</span></div>
+            <div class='card-desc'>将静态拓扑映射为动态演化轨迹，生成单样本特异性网络并提供全息解析。</div>
         </div>
     </a>
     """, unsafe_allow_html=True)
 
 with col_right:
     st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>代表性学术成果</h4>", unsafe_allow_html=True)
-    # (此处省略你之前的 papers_html 内容，直接粘贴即可)
-    st.markdown("<div class='scroll-box'>你的论文列表内容...</div>", unsafe_allow_html=True)
+    
+    # 这里就是你那长长的 46 篇论文列表
+    papers_html = """
+    <div class='scroll-box'>
+        <div class="paper-item"><div class="paper-title">📄 Graph statistics theory of individualized quantitative genetics under haplotype-resolved genome assembly.</div><div class="paper-authors">Sun, L., et al. (<b>2026</b>). <i>PNAS</i>.</div></div>
+        <div class="paper-item"><div class="paper-title">📄 A statistical mechanics model to decode tissue crosstalk during graft formation.</div><div class="paper-authors">Dong, A., et al. (<b>2026</b>). <i>Advanced Science</i>.</div></div>
+        <div class="paper-item"><div class="paper-title">📄 An omnigenic interactome model to chart the genetic architecture of individual plants.</div><div class="paper-authors">Fa, C., et al. (<b>2026</b>). <i>Horticulture Research</i>.</div></div>
+        <div class="paper-item"><div class="paper-title">📄 Network stress: A wiring diagram of whole stress genes.</div><div class="paper-authors">Wang, Y., & Wu, R. (<b>2026</b>). <i>Horticulture Research</i>.</div></div>
+        <div class="paper-item"><div class="paper-title">📄 Statistical learning of stochastic complex systems via the yau-yau nonlinear filter.</div><div class="paper-authors">Xu, S., et al. (<b>2026</b>). <i>The Innovation</i>.</div></div>
+        <div style="color: #94a3b8; text-align: center; font-size: 0.8rem;">已加载全部代表性成果</div>
+    </div>
+    """
+    st.markdown(papers_html, unsafe_allow_html=True)
 
-# 底部版权
+# --- 原有的底部版权 ---
 st.markdown(
-    """<div style="text-align:center; color:#94a3b8; font-size:0.9rem; margin: 2rem 0;">
-        复杂系统拓扑统计理论及应用北京市重点实验室 · 北京雁栖湖应用数学研究院
+    """<div style="text-align:center; color:#94a3b8; font-size:0.9rem; margin: 3rem 0;">
+        复杂系统拓扑统计理论及应用北京市重点实验室 · 北京雁栖湖应用数学研究院 · idopNetwork v2.0
     </div>""", unsafe_allow_html=True
 )
