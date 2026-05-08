@@ -35,10 +35,10 @@ def load_css():
         else "header, footer, [data-testid=\"stSidebarNav\"] { display: none !important; }"
     )
 
-    st.markdown(f"""
+    css = """
     <style>
     .stApp { background-color: #f8fafc !important; }
-    {header_css}
+    __HEADER_CSS__
     [data-testid="stSidebar"] {
         background-color: #f1f5f9 !important;
         background-image: none !important;
@@ -59,7 +59,8 @@ def load_css():
     .stPageLink:nth-of-type(4) span[data-testid="stWidgetLabel"] span { color: #7c3aed !important; }
     .stPageLink:nth-of-type(5) span[data-testid="stWidgetLabel"] span { color: #e11d48 !important; }
     </style>
-    """, unsafe_allow_html=True)
+    """
+    st.markdown(css.replace("__HEADER_CSS__", header_css), unsafe_allow_html=True)
 
 def setup_sidebar():
     """全局统一的侧边栏组件"""
