@@ -114,8 +114,8 @@ def plot_network(adj_df: pd.DataFrame, target_node: str = "") -> None:
 
     edges = []
     weights = []
-    for target in adj_df.index:
-        for source in adj_df.columns:
+    for source in adj_df.index:
+        for target in adj_df.columns:
             if source == target:
                 continue
             w = float(adj_df.loc[target, source])
