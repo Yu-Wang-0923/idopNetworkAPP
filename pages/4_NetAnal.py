@@ -116,7 +116,7 @@ with tab1:
                     )
 
                 st.markdown(f"**Source:** `{chosen_member}`")
-                st.dataframe(from_to_df, use_container_width=True, height=320)
+                st.dataframe(from_to_df, width="stretch", height=320)
 
     # ========== Tab 1_2 GLMY Analysis ==========
     with tab1_2:
@@ -197,7 +197,7 @@ with tab1:
                     homology,
                     max_x=float(st.session_state.get("netanal_glmy_result_max_x", default_max_x)),
                 )
-                st.pyplot(fig, use_container_width=True)
+                st.pyplot(fig, width="stretch")
 
                 # PNG / PDF 下载
                 png_buf = io.BytesIO()
@@ -255,7 +255,7 @@ with tab1:
             col_m3.metric("|Effect| max", f"{m3_df['Effect'].abs().max():.4f}")
 
             st.markdown(f"**Source:** `{m3_csv_path.name}` (repo root)")
-            st.dataframe(m3_df, use_container_width=True, height=240)
+            st.dataframe(m3_df, width="stretch", height=240)
 
             col_p1, col_p2 = st.columns([1, 1])
             with col_p1:
@@ -324,7 +324,7 @@ with tab1:
                         st.session_state.get("netanal_m3_max_x_used", M3_DEFAULT_MAX_X)
                     ),
                 )
-                st.pyplot(m3_fig, use_container_width=True)
+                st.pyplot(m3_fig, width="stretch")
 
                 m3_png_buf = io.BytesIO()
                 m3_fig.savefig(m3_png_buf, format="png", dpi=200, bbox_inches="tight")
@@ -369,7 +369,7 @@ with tab1:
         paper_df = paper_3_2_dataframe()
 
         st.markdown("**Paper §3.2 filtered digraph (Effect = filtration index)**")
-        st.dataframe(paper_df, use_container_width=True, height=240)
+        st.dataframe(paper_df, width="stretch", height=240)
 
         st.markdown("**论文给出的标准答案（用作对照）**")
         expected_table = pd.DataFrame(
@@ -448,7 +448,7 @@ with tab1:
                     )
                 ),
             )
-            st.pyplot(paper_fig, use_container_width=True)
+            st.pyplot(paper_fig, width="stretch")
 
             paper_png_buf = io.BytesIO()
             paper_fig.savefig(paper_png_buf, format="png", dpi=200, bbox_inches="tight")

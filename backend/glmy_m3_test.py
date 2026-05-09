@@ -182,19 +182,21 @@ def betti_summary(
 def paper_3_2_dataframe() -> pd.DataFrame:
     """返回论文 §3.2 / Figure 1 的 filtered digraph，作为 path-homology 地面真值。
 
-    .. warning::
-        当前为**待补占位**。原 ``glmy_M3_test.py`` 的 ``paper_3_2_dataframe()``
-        实现在最近一次提交中遗失（配套 docstring/数据未一并提交），仓库里没有
-        该函数的可用历史版本，因此无法在不接触论文原文边集的情况下复原。
-
-        调用方应捕获 ``NotImplementedError`` 并向用户提示"待补数据"，避免页面
-        整体崩溃。补全时只需返回三列 DataFrame：``From``, ``To``, ``Effect``，
-        其中 ``Effect`` 取该边在 §3.2 滤波过程 G0..G5 中首次出现的 filtration
-        index（1..5），``run_digraph_on_m3`` 即可直接消费。
+    论文给出的过滤过程为 ``G0 = {1, 2, 3}``,
+    ``G1 = G0 ∪ {21}``, ``G2 = G1 ∪ {12}``,
+    ``G3 = G2 ∪ {23}``, ``G4 = G3 ∪ {31}``,
+    ``G5 = G4 ∪ {13}``。这里的 ``Effect`` 即每条有向边首次出现的
+    filtration index；``G0`` 中的顶点由边端点集合隐式恢复。
     """
-    raise NotImplementedError(
-        "paper_3_2_dataframe() 尚未实现：原仓库提交遗失了 §3.2 边集数据，"
-        "需补充论文 §3.2 / Figure 1 的 (From, To, filtration_index) 三列后再启用。"
+    return pd.DataFrame(
+        [
+            {"From": "2", "To": "1", "Effect": 1},
+            {"From": "1", "To": "2", "Effect": 2},
+            {"From": "2", "To": "3", "Effect": 3},
+            {"From": "3", "To": "1", "Effect": 4},
+            {"From": "1", "To": "3", "Effect": 5},
+        ],
+        columns=list(REQUIRED_M3_COLUMNS),
     )
 
 
