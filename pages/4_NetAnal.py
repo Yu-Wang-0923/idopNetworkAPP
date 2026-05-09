@@ -127,12 +127,15 @@ with tab1:
             with col1:
                 max_x = st.number_input(
                     "Barcode max_x",
-                    min_value=0.01,
+                    min_value=1e-9,
                     value=round(default_max_x, 4),
                     step=0.1,
                     format="%.4f",
                     key="netanal_glmy_max_x",
-                    help="Barcode 横轴右端位置；默认按 |weight| 最大值 + 10% buffer 自适应。",
+                    help=(
+                        "Barcode 横轴右端位置；默认按 |weight| 最大值 + 10% buffer "
+                        "自适应。仅作图横轴范围，**不**对 weight 做任何归一化。"
+                    ),
                 )
             with col2:
                 st.caption("Auto suggestion (max_x)")
@@ -180,7 +183,8 @@ with tab1:
                 st.json(summary)
                 st.caption(
                     f"backend = `python`，weight_offset = `{glmy_result.get('weight_offset', 100.0):g}`；"
-                    "barcode 横轴已减回偏移，对应 `from_to.csv` 中的原始 weight/Effect 尺度。"
+                    "barcode 横轴已减回 +offset 偏移，对应 `from_to.csv` 中的原始 "
+                    "weight/Effect 尺度，**未做任何归一化**。"
                 )
 
                 fig = plot_glmy_barcode(

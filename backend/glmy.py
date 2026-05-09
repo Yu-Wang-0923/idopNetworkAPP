@@ -5,8 +5,13 @@ compute barcode data without the legacy external executable.
 
 Algorithm inputs match the historical ``GLMY.exe`` convention: vertices as
 integers ``1..n`` in sorted order, edge weights ``weight + offset`` with
-default ``offset=100``, then birth/death values are shifted back by ``offset``
-for display (``-1`` kept as infinity sentinel).
+default ``offset=100``. Birth/death values are then **shifted back** by
+``offset`` for display (``-1`` kept as the infinity sentinel).
+
+The ``+ offset / - offset`` pair is a numerical *shift* needed because the
+underlying path-homology filtration assumes non-negative, well-separated
+weights — it is **not** a normalisation of the user-supplied weights into
+``[-1, 1]`` or any other interval.
 """
 from __future__ import annotations
 
@@ -34,12 +39,24 @@ def _sorted_vertex_names(from_to_df: pd.DataFrame) -> list[str]:
     return sorted(names, key=_vertex_sort_key)
 
 
-def _normalise_bar_value(
+def _restore_bar_endpoint(
     value: Any,
     *,
     weight_offset: float,
 ) -> float | int:
-    """Round endpoints and map computed filtration values back to user scale."""
+    """Restore a barcode endpoint to the user's weight scale.
+
+    This is **not** a normalisation. The pipeline shifts every input weight by
+    ``+ weight_offset`` before running the path-homology algorithm; this helper
+    undoes that shift for the corresponding ``birth`` / ``death`` values, so
+    the returned numbers live in the same scale as the original
+    ``weight`` / ``Effect`` column.
+
+    Conventions
+    -----------
+    * ``value == -1`` is the infinity sentinel and is passed through unchanged.
+    * Any other value is returned as ``round(float(value) - weight_offset, 6)``.
+    """
     if value == -1:
         return -1
     restored = float(value) - weight_offset
@@ -112,9 +129,11 @@ def compute_glmy_homology(
     dim:
         Compute homology dimensions ``0`` through ``dim - 1``.
     weight_offset:
-        Internally uses ``weight + weight_offset`` then subtracts it from all
-        finite barcode endpoints (``-1`` unchanged), matching the old
-        ``GLMY.exe`` JSON processing step.
+        Numerical shift applied internally: edges are passed to ``Digraph`` as
+        ``weight + weight_offset``, and finite barcode endpoints have the same
+        offset subtracted on the way out (``-1`` unchanged). This shift is
+        **not** a normalisation — output endpoints stay in the original
+        ``weight`` scale.
 
     Returns
     -------
@@ -140,8 +159,8 @@ def compute_glmy_homology(
                 continue
             bars.append(
                 [
-                    _normalise_bar_value(bar[0], weight_offset=weight_offset),
-                    _normalise_bar_value(bar[1], weight_offset=weight_offset),
+                    _restore_bar_endpoint(bar[0], weight_offset=weight_offset),
+                    _restore_bar_endpoint(bar[1], weight_offset=weight_offset),
                 ]
             )
         homology[key] = bars

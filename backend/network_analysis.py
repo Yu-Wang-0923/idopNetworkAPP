@@ -114,9 +114,19 @@ def suggest_max_x(
     from_to_df: pd.DataFrame,
     *,
     buffer_ratio: float = 0.1,
-    floor: float = 1.0,
+    floor: float = 1e-9,
 ) -> float:
-    """根据 ``weight`` 绝对值最大值估计 barcode 横轴范围。"""
+    """估计 barcode 横轴右端的自适应建议值（**不**归一化 weight）。
+
+    取 ``|weight|.max() * (1 + buffer_ratio)`` 作为 barcode 横轴右端建议值，
+    barcode 数值本身不变；这只是绘图时的 ``xlim`` 自适应，不会改写
+    ``from_to.csv`` 中的 ``weight``。
+
+    历史版本曾把 ``floor`` 设为 ``1.0``，在 ``|weight|.max() < 1`` 时强制
+    把横轴拉到 ``[-1.0, 1.1]``，视觉上很像把 weight 归一化到 ``[-1, 1]`` ——
+    但其实数据没动，只是横轴被 floor 钉住了。这里把 ``floor`` 降到 ``1e-9``，
+    仅作为**空表 / 全零兜底**，避免返回 ``0`` 让横轴退化。
+    """
     if from_to_df.empty:
         return floor
     abs_max = float(from_to_df["weight"].abs().max())
