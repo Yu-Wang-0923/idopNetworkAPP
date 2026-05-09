@@ -21,7 +21,7 @@ def plot_effect(
     plot_ncols: int = 4,
     plot_max_vars: int = 0,
 ) -> None:
-    """在子图网格上叠加 effect：截距并入自效应，自效应红线，其余交互绿线。"""
+    """在子图网格上叠加 effect：截距并入自效应，自效应红线，其余交互绿线。""" # 
     ncols = max(1, plot_ncols)
     cols = list(quasi_dynamic_df.columns)
     if plot_max_vars > 0:
