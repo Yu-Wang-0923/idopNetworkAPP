@@ -22,6 +22,17 @@ from backend.network_analysis import (
 )
 from backend.plot_network_analysis import plot_glmy_barcode
 
+# M3 self-test：用 backend.Digraph 复刻原 GLMY1.py 流程，仅用于诊断。
+from glmy_M3_test import (
+    DEFAULT_DIM as M3_DEFAULT_DIM,
+    DEFAULT_M3_CSV,
+    DEFAULT_MAX_X as M3_DEFAULT_MAX_X,
+    DEFAULT_WEIGHT_OFFSET as M3_DEFAULT_WEIGHT_OFFSET,
+    betti_summary as m3_betti_summary,
+    load_m3_dataframe,
+    run_digraph_on_m3,
+)
+
 load_css()
 setup_sidebar()
 
@@ -64,7 +75,7 @@ with tab1:
             st.error("ZIP 中没有找到任何 `from_to.csv`。")
             zip_bytes = None
 
-    tab1_1, tab1_2 = st.tabs(["Uploaded Data", "GLMY Analysis"])
+    tab1_1, tab1_2, tab1_3 = st.tabs(["Uploaded Data", "GLMY Analysis", "M3 Self-test"])
 
     # ========== Tab 1_1 Uploaded Data ==========
     with tab1_1:
@@ -208,6 +219,132 @@ with tab1:
                     file_name=f"{base_name}_homology.json",
                     mime="application/json",
                     key="netanal_glmy_json_download",
+                )
+
+    # ========== Tab 1_3 M3 Self-test ==========
+    with tab1_3:
+        st.markdown(
+            "**目的**：用 `backend.Digraph` 复刻原 `GLMY1.py` 的内部流水线（"
+            "`weight = Effect + 100` → `Digraph.get_persistence` → 端点减 100），"
+            "对仓库根 `M3.csv` 跑一遍 path homology，**不**走 ZIP 上传、**不**调外部 "
+            "`GLMY.exe`，仅用于诊断 barcode 是否与原 EXE 路径一致。"
+        )
+
+        m3_csv_path = DEFAULT_M3_CSV
+        try:
+            m3_df = load_m3_dataframe(m3_csv_path)
+        except Exception as e:
+            st.error(f"读取 `{m3_csv_path.name}` 失败：{e}")
+            m3_df = None
+
+        if m3_df is not None:
+            m3_nodes = sorted(set(m3_df["From"]).union(set(m3_df["To"])))
+            col_m1, col_m2, col_m3 = st.columns(3)
+            col_m1.metric("Edges", f"{len(m3_df):,}")
+            col_m2.metric("Nodes", f"{len(m3_nodes):,}")
+            col_m3.metric("|Effect| max", f"{m3_df['Effect'].abs().max():.4f}")
+
+            st.markdown(f"**Source:** `{m3_csv_path.name}` (repo root)")
+            st.dataframe(m3_df, use_container_width=True, height=240)
+
+            col_p1, col_p2 = st.columns([1, 1])
+            with col_p1:
+                m3_max_x = st.number_input(
+                    "Barcode max_x (M3)",
+                    min_value=0.01,
+                    value=float(M3_DEFAULT_MAX_X),
+                    step=0.1,
+                    format="%.4f",
+                    key="netanal_m3_max_x",
+                    help=(
+                        "原 GLMY1.py 的默认值是 2.0；横轴范围为 [-max_x, max_x*1.1]。"
+                    ),
+                )
+            with col_p2:
+                st.caption("Default (matches original GLMY1.py)")
+                st.code(f"{M3_DEFAULT_MAX_X:.4f}", language="text")
+
+            run_m3_clicked = st.button(
+                "Run M3 self-test",
+                type="primary",
+                key="netanal_m3_run_btn",
+            )
+
+            if run_m3_clicked:
+                with st.spinner("Running backend.Digraph on M3.csv ..."):
+                    try:
+                        m3_homology, m3_vertex_map = run_digraph_on_m3(
+                            m3_df,
+                            dim=M3_DEFAULT_DIM,
+                            weight_offset=M3_DEFAULT_WEIGHT_OFFSET,
+                        )
+                    except Exception as e:
+                        st.error(f"M3 self-test 失败：{e}")
+                        m3_homology = None
+                        m3_vertex_map = None
+                if m3_homology is not None:
+                    st.session_state["netanal_m3_homology"] = m3_homology
+                    st.session_state["netanal_m3_vertex_map"] = m3_vertex_map
+                    st.session_state["netanal_m3_max_x_used"] = float(m3_max_x)
+
+            m3_homology = st.session_state.get("netanal_m3_homology")
+            m3_vertex_map = st.session_state.get("netanal_m3_vertex_map")
+
+            if m3_homology is None:
+                st.info("Click **Run M3 self-test** to compute homology and draw the barcode.")
+            else:
+                st.markdown("**Vertex map (name → integer id)**")
+                st.json(m3_vertex_map or {})
+
+                st.markdown(
+                    "**Betti number summary**（barcode 条数；与原 `GLMY.exe` 在 "
+                    "`Effect+100` 流程下应对齐）"
+                )
+                st.json(m3_betti_summary(m3_homology, dim=M3_DEFAULT_DIM))
+
+                st.caption(
+                    "barcode 横轴已减回 +100 偏移；β₀ 的 birth 来源于 "
+                    "`backend.Digraph` 中顶点权重 0，因此还原后会出现在 -100 附近 ——"
+                    "这是诊断 barcode 是否被横轴范围裁掉的关键信号。"
+                )
+
+                m3_fig = plot_glmy_barcode(
+                    m3_homology,
+                    max_x=float(
+                        st.session_state.get("netanal_m3_max_x_used", M3_DEFAULT_MAX_X)
+                    ),
+                )
+                st.pyplot(m3_fig, use_container_width=True)
+
+                m3_png_buf = io.BytesIO()
+                m3_fig.savefig(m3_png_buf, format="png", dpi=200, bbox_inches="tight")
+                m3_pdf_buf = io.BytesIO()
+                m3_fig.savefig(m3_pdf_buf, format="pdf", bbox_inches="tight")
+                plt.close(m3_fig)
+
+                col_md1, col_md2, col_md3 = st.columns(3)
+                col_md1.download_button(
+                    label="Download M3 barcode PNG",
+                    data=m3_png_buf.getvalue(),
+                    file_name="M3_barcode.png",
+                    mime="image/png",
+                    key="netanal_m3_png_download",
+                )
+                col_md2.download_button(
+                    label="Download M3 barcode PDF",
+                    data=m3_pdf_buf.getvalue(),
+                    file_name="M3_barcode.pdf",
+                    mime="application/pdf",
+                    key="netanal_m3_pdf_download",
+                )
+                col_md3.download_button(
+                    label="Download M3 homology.json",
+                    data=json.dumps(m3_homology, indent=2, ensure_ascii=False).encode(
+                        "utf-8"
+                    ),
+                    file_name="M3_homology.json",
+                    mime="application/json",
+                    key="netanal_m3_json_download",
                 )
 
 
