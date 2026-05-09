@@ -1,6 +1,5 @@
 import io
 import json
-import sys
 
 import matplotlib.pyplot as plt
 import streamlit as st
@@ -12,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 # ========== 加载 CSS ==========
-from backend.utils import GLMY_EXE_PATH, load_css, setup_sidebar
+from backend.utils import load_css, setup_sidebar
 from backend.network_analysis import (
     list_from_to_members,
     member_display_label,
@@ -39,7 +38,8 @@ with tab1:
         "上传 **NetRecon → Export** 导出的 ZIP（"
         "`single_layer_idopnetwork_export.zip` 或 "
         "`multi_layer_idopnetwork_export.zip`），"
-        "对其中的 `from_to.csv` 调用 GLMY 计算同调群（β₀–β₃）并展示 barcode 图。"
+        "对其中的 `from_to.csv` 使用内置 Python GLMY/path homology "
+        "实现计算同调群（β₀–β₃）并展示 barcode 图。"
     )
 
     uploaded_zip = st.file_uploader(
@@ -110,37 +110,10 @@ with tab1:
             st.info("Please upload a ZIP and pick a sub-network in **Uploaded Data** first.")
         elif from_to_df.empty:
             st.warning("当前选择的 `from_to.csv` 为空，无法运行 GLMY。")
-        elif not GLMY_EXE_PATH.exists():
-            st.error(f"未找到 GLMY 可执行文件：{GLMY_EXE_PATH}")
         else:
-            if sys.platform != "win32":
-                st.info(
-                    "当前运行环境非 Windows（如 Streamlit Community Cloud 的 Linux 容器），"
-                    "GLMY 通过 Wine 调用 `GLMY.exe`。**首次运行需要 30–90s** 预热 Wine prefix，"
-                    "之后会快很多。"
-                )
-
             default_max_x = float(suggest_max_x(from_to_df))
-            col1, col2, col3 = st.columns([1.2, 1, 1])
+            col1, col2 = st.columns([1, 1])
             with col1:
-                normalize_label = st.selectbox(
-                    "Weight scaling",
-                    options=[
-                        "auto (rescale to [-1, 1] before +100 offset)",
-                        "raw (only +100 offset)",
-                    ],
-                    index=0,
-                    key="netanal_glmy_normalize",
-                    help=(
-                        "auto：先把 weight 等比缩放到 [-1, 1] 再加 +100 offset，"
-                        "适合任意量级；barcode 输出会乘回原始 |weight| max，"
-                        "横轴仍是原始 weight 尺度。"
-                        "\nraw：保持原 GLMY1.py 行为（仅 +100 offset），"
-                        "适合 weight 已经在 [-1, 1] 量级（如相关系数）。"
-                    ),
-                )
-                normalize_mode = "auto" if normalize_label.startswith("auto") else "raw"
-            with col2:
                 max_x = st.number_input(
                     "Barcode max_x",
                     min_value=0.01,
@@ -150,7 +123,7 @@ with tab1:
                     key="netanal_glmy_max_x",
                     help="Barcode 横轴右端位置；默认按 |weight| 最大值 + 10% buffer 自适应。",
                 )
-            with col3:
+            with col2:
                 st.caption("Auto suggestion (max_x)")
                 st.code(f"{default_max_x:.4f}", language="text")
 
@@ -161,14 +134,9 @@ with tab1:
             )
 
             if run_clicked:
-                spinner_msg = (
-                    "Running GLMY.exe ..."
-                    if sys.platform == "win32"
-                    else "Running GLMY.exe via Wine (首次启动较慢，请耐心) ..."
-                )
-                with st.spinner(spinner_msg):
+                with st.spinner("Running Python GLMY/path homology ..."):
                     try:
-                        glmy_result = run_glmy(from_to_df, normalize=normalize_mode)
+                        glmy_result = run_glmy(from_to_df)
                     except Exception as e:
                         st.error(f"GLMY 运行失败：{e}")
                         glmy_result = None
@@ -197,9 +165,7 @@ with tab1:
                 st.markdown("**Betti number summary** (number of bars per dimension)")
                 st.json(summary)
                 st.caption(
-                    f"normalize = `{glmy_result.get('normalize', 'auto')}`，"
-                    f"scale_factor = `{glmy_result.get('scale_factor', 1.0):.6g}`；"
-                    "barcode 横轴仍为原始 weight 尺度。"
+                    "backend = `python`；barcode 横轴使用 `from_to.csv` 中的原始 weight 尺度。"
                 )
 
                 fig = plot_glmy_barcode(
@@ -239,20 +205,6 @@ with tab1:
                     mime="application/json",
                     key="netanal_glmy_json_download",
                 )
-
-                with st.expander("GLMY raw stdout / stderr"):
-                    st.text_area(
-                        "stdout",
-                        value=glmy_result.get("stdout", ""),
-                        height=160,
-                        key="netanal_glmy_stdout_text",
-                    )
-                    st.text_area(
-                        "stderr",
-                        value=glmy_result.get("stderr", ""),
-                        height=80,
-                        key="netanal_glmy_stderr_text",
-                    )
 
 
 # ========== Tab 2 Machine Learning ==========

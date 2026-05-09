@@ -6,9 +6,6 @@ __pycache__/
 .venv/
 venv/
 
-# Wine prefix (auto-generated when running GLMY.exe via wine on Linux)
-.wine_prefix/
-
 # OS / IDE
 .DS_Store
 Thumbs.db

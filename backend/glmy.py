@@ -1,83 +1,100 @@
-import io
-import zipfile
-import numpy as np
+"""Pure Python GLMY/path homology helpers.
+
+This module wraps :class:`backend.Digraph.Digraph` so the Streamlit page can
+compute barcode data without the legacy external executable.
+"""
+from __future__ import annotations
+
+from typing import Any
+
 import pandas as pd
-import streamlit as st
 
-# ========== 页面设置 ==========
-st.set_page_config(page_title="Network Construction", page_icon="TSA.png", layout="wide", initial_sidebar_state="expanded")
-
-# ========== 加载 CSS ==========
-from backend.utils import load_css, setup_sidebar
-load_css()
-setup_sidebar()
-
-# ========== 页面标题 ==========
-st.title("Network Construction", text_alignment="center")
-
-# ========== 侧边栏 ==========
-# with st.sidebar:
-#     st.write("To Be Updated...")
-#     st.divider()
+from backend.Digraph import Digraph
 
 
-# ========== Tabs ==========
-tab1, tab2 = st.tabs(["IdopNetwork", "Multi-Layer IdopNetwork"])
+DEFAULT_DIMENSION: int = 4
 
 
-# ========== Tab 1 IdopNetwork ==========
-with tab1:
-    st.write("uploaded_zip 待更新...")
+def _normalise_bar_value(value: Any) -> float | int:
+    """Return a JSON-friendly numeric barcode endpoint."""
+    if value == -1:
+        return -1
+    return round(float(value), 6)
 
-    tab1_1, tab1_2, tab1_3 = st.tabs(["Data Overview", "IdopNetwork Construction", "Export"])
-    
-    # ========== Tab 1_1 Data Overview ==========
-    with tab1_1:
-        st.write("待更新...")
 
-    # ========== Tab 1_2 IdopNetwork Construction ==========
-    with tab1_2:
-        st.write("待更新...")
+def build_weighted_digraph(
+    from_to_df: pd.DataFrame,
+) -> tuple[list[str], list[list[Any]], dict[str, int]]:
+    """Build ``Digraph`` inputs from a ``from_to.csv`` DataFrame.
 
-    tab1_2_1, tab1_2_2, tab1_2_3, tab1_2_4 = st.tabs(["Network", "Effect Decomposition", "Adjacency Matrix", "Debug"])
-        
-        # ========== Tab 1_2_1 Network ==========
-        with tab1_2_1:
-            st.write("待更新...")
+    Parameters
+    ----------
+    from_to_df:
+        DataFrame containing ``from``, ``to`` and ``weight`` columns.
 
-        # ========== Tab 1_2_2 Effect Decomposition ==========
-        with tab1_2_2:
-            st.write("待更新...")
+    Returns
+    -------
+    vertices, weighted_edges, vertex_id_map
+        ``vertices`` keeps node names as strings. ``weighted_edges`` has
+        ``[source, target, weight]`` rows accepted by ``Digraph``.
+    """
+    required = {"from", "to", "weight"}
+    missing = required - set(from_to_df.columns)
+    if missing:
+        raise ValueError(f"from_to 数据缺少必需列: {sorted(missing)}")
+    if from_to_df.empty:
+        raise ValueError("from_to.csv 为空，无法运行 GLMY。")
 
-        # ========== Tab 1_2_3 Adjacency Matrix ==========
-        with tab1_2_3:
-            st.write("待更新...")
+    clean_df = from_to_df.copy()
+    clean_df["from"] = clean_df["from"].astype(str)
+    clean_df["to"] = clean_df["to"].astype(str)
+    clean_df["weight"] = pd.to_numeric(clean_df["weight"], errors="coerce")
+    clean_df = clean_df.dropna(subset=["weight"])
+    if clean_df.empty:
+        raise ValueError("from_to.csv 中没有有效的数值型 weight，无法运行 GLMY。")
 
-        # ========== Tab 1_2_4 Debug ==========
-        with tab1_2_4:
-            st.write("待更新...")
+    vertices = sorted(set(clean_df["from"]).union(set(clean_df["to"])))
+    vertex_id_map = {name: idx + 1 for idx, name in enumerate(vertices)}
+    weighted_edges: list[list[Any]] = [
+        [str(row["from"]), str(row["to"]), float(row["weight"])]
+        for _, row in clean_df.iterrows()
+    ]
+    return vertices, weighted_edges, vertex_id_map
 
-    # ========== Tab 1_3 Export ==========
-    with tab1_3:
-        st.write("待更新...")
 
-# ========== Tab 2 Multi-Layer IdopNetwork ==========
-with tab2:
-    st.write("uploaded_zip 待更新...")
+def compute_glmy_homology(
+    from_to_df: pd.DataFrame,
+    *,
+    dim: int = DEFAULT_DIMENSION,
+) -> tuple[dict[str, list[list[float | int]]], dict[str, int]]:
+    """Compute persistent path homology with the bundled Python algorithm.
 
-    tab2_1, tab2_2, tab2_3 = st.tabs(["Data Overview", "Multi-Layer IdopNetwork Construction", "Export"])
+    Parameters
+    ----------
+    from_to_df:
+        DataFrame containing ``from``, ``to`` and ``weight`` columns.
+    dim:
+        Compute homology dimensions ``0`` through ``dim - 1``.
 
-    # ========== Tab 2_1 Data Overview ==========
-    with tab2_1:
-        st.write("待更新...")
+    Returns
+    -------
+    homology, vertex_id_map
+        ``homology`` is compatible with ``plot_glmy_barcode``.
+    """
+    if dim < 1:
+        raise ValueError("dim 必须为正整数。")
 
-    # ========== Tab 2_2 IdopNetwork Construction ==========
-    with tab2_2:
-        st.write("待更新...")
+    vertices, weighted_edges, vertex_id_map = build_weighted_digraph(from_to_df)
+    digraph = Digraph(vertices, weighted_edges, dim)
+    digraph.get_persistence()
 
-    tab2_2_1, tab2_2_2, tab2_2_3, tab2_2_4 = st.tabs(["Network", "Effect Decomposition", "Adjacency Matrix", "Debug"])
-
-    # ========== Tab 2_3 Export ==========
-    with tab2_3:
-        st.write("待更新...")
-
+    homology: dict[str, list[list[float | int]]] = {}
+    for dimension in range(dim):
+        key = str(dimension)
+        bars: list[list[float | int]] = []
+        for bar in digraph.diagram.get(key, []):
+            if len(bar) < 2:
+                continue
+            bars.append([_normalise_bar_value(bar[0]), _normalise_bar_value(bar[1])])
+        homology[key] = bars
+    return homology, vertex_id_map
