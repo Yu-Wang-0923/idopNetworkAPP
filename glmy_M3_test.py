@@ -87,13 +87,27 @@ def build_digraph_inputs(
 
     复刻原 ``GLMY1.py`` 的 ``generation_unfiltered_data``：顶点用字符串
     ``sorted`` 排序后映射到 ``1..n``，边权 = ``Effect + weight_offset``。
+
+    自环（``From == To``）被静默丢弃：path-homology 的 allowed paths 要求
+    相邻顶点不同；``backend.Digraph`` 内部未做过滤，自环会让 boundary 退化
+    为单元素 set 并把对应顶点的 β₀ 无穷条直接配对掉。M3.csv 本身没有自环，
+    这里加过滤只是为了与主流水线保持一致。
     """
-    vertices = sorted(set(df["From"]).union(set(df["To"])))
+    work = df.copy()
+    work["From"] = work["From"].astype(str)
+    work["To"] = work["To"].astype(str)
+    self_loop_mask = work["From"] == work["To"]
+    if self_loop_mask.any():
+        work = work.loc[~self_loop_mask].reset_index(drop=True)
+    if work.empty:
+        raise ValueError("过滤掉自环后 M3 数据没有可用边，无法运行 Digraph。")
+
+    vertices = sorted(set(work["From"]).union(set(work["To"])))
     vertex_map: dict[str, int] = {name: idx + 1 for idx, name in enumerate(vertices)}
     v_int: list[int] = list(range(1, len(vertices) + 1))
 
     weighted_edges: list[list[Any]] = []
-    for _, row in df.iterrows():
+    for _, row in work.iterrows():
         u = vertex_map[str(row["From"])]
         v = vertex_map[str(row["To"])]
         weight = float(row["Effect"]) + float(weight_offset)

@@ -100,6 +100,15 @@ def build_weighted_digraph(
     if clean_df.empty:
         raise ValueError("from_to.csv 中没有有效的数值型 weight，无法运行 GLMY。")
 
+    # 丢弃自环：path-homology 的 allowed paths 要求相邻顶点不同。``Digraph``
+    # 内部未做过滤，自环会让 boundary set 退化为单元素并配对掉对应顶点的
+    # β₀ 无穷条，同时把高维 ``P[n]`` 污染成相邻重复的 non-allowed path。
+    self_loop_mask = clean_df["from"] == clean_df["to"]
+    if self_loop_mask.any():
+        clean_df = clean_df.loc[~self_loop_mask].reset_index(drop=True)
+    if clean_df.empty:
+        raise ValueError("过滤掉自环后 from_to 没有可用边，无法运行 GLMY。")
+
     ordered = _sorted_vertex_names(clean_df)
     vertex_id_map = {name: idx + 1 for idx, name in enumerate(ordered)}
     vertices_int = list(range(1, len(ordered) + 1))
