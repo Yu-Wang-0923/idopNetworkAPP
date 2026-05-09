@@ -2,6 +2,7 @@ import io
 import json
 
 import matplotlib.pyplot as plt
+import pandas as pd
 import streamlit as st
 
 st.set_page_config(
@@ -22,7 +23,7 @@ from backend.network_analysis import (
 )
 from backend.plot_network_analysis import plot_glmy_barcode
 
-# M3 self-test：用 backend.Digraph 复刻原 GLMY1.py 流程，仅用于诊断。
+# M3 / Paper §3.2 self-test：用 backend.Digraph 复刻原 GLMY1.py 流程，仅用于诊断。
 from glmy_M3_test import (
     DEFAULT_DIM as M3_DEFAULT_DIM,
     DEFAULT_M3_CSV,
@@ -30,8 +31,11 @@ from glmy_M3_test import (
     DEFAULT_WEIGHT_OFFSET as M3_DEFAULT_WEIGHT_OFFSET,
     betti_summary as m3_betti_summary,
     load_m3_dataframe,
+    paper_3_2_dataframe,
     run_digraph_on_m3,
 )
+
+PAPER_3_2_DEFAULT_MAX_X: float = 5.5
 
 load_css()
 setup_sidebar()
@@ -75,7 +79,9 @@ with tab1:
             st.error("ZIP 中没有找到任何 `from_to.csv`。")
             zip_bytes = None
 
-    tab1_1, tab1_2, tab1_3 = st.tabs(["Uploaded Data", "GLMY Analysis", "M3 Self-test"])
+    tab1_1, tab1_2, tab1_3, tab1_4 = st.tabs(
+        ["Uploaded Data", "GLMY Analysis", "M3 Self-test", "Paper §3.2 Self-test"]
+    )
 
     # ========== Tab 1_1 Uploaded Data ==========
     with tab1_1:
@@ -350,6 +356,130 @@ with tab1:
                     mime="application/json",
                     key="netanal_m3_json_download",
                 )
+
+    # ========== Tab 1_4 Paper §3.2 Self-test ==========
+    with tab1_4:
+        st.markdown(
+            "**目的**：用 `backend.Digraph` 跑刘祥 et al. *Computing (persistent) "
+            "embedded homology of graded vector spaces in chain complexes* §3.2 / "
+            "Figure 1 中的 filtered digraph，端点应与论文给出的 `(birth, death)` "
+            "pairs 一致，作为 path-homology 实现的**地面真值**回归。"
+        )
+
+        paper_df = paper_3_2_dataframe()
+
+        st.markdown("**Paper §3.2 filtered digraph (Effect = filtration index)**")
+        st.dataframe(paper_df, use_container_width=True, height=240)
+
+        st.markdown("**论文给出的标准答案（用作对照）**")
+        expected_table = pd.DataFrame(
+            [
+                {"dim": "β₀", "(birth, death)": "(0, ∞)", "type": "infinite — vertex 1"},
+                {"dim": "β₀", "(birth, death)": "(0, 1)", "type": "finite — vertex 2 ↔ arrow 21"},
+                {"dim": "β₀", "(birth, death)": "(0, 3)", "type": "finite — vertex 3 ↔ arrow 23"},
+                {"dim": "β₁", "(birth, death)": "(2, 5)", "type": "finite — arrow 12 ↔ path 213"},
+                {"dim": "β₂", "(birth, death)": "(5, ∞)", "type": "infinite — path 131"},
+                {"dim": "β₃", "(birth, death)": "—", "type": "empty"},
+            ]
+        )
+        st.table(expected_table)
+        st.caption(
+            "Trivial pairs ``(31, 231)`` 和 ``(13, 123)`` 在论文里 persistence = 0，"
+            "``backend.Digraph`` 内部已通过 ``death > birth`` 条件过滤掉，barcode 上不显示。"
+            "β₀ 中 birth = 0 的 bar 会被还原成 -100（顶点权重 0 减 +100 偏移），"
+            "横轴 ``[-max_x, max_x*1.1]`` 看不到 birth 端点 —— 这是与 M3 Self-test 一致的已知行为。"
+        )
+
+        col_pp1, col_pp2 = st.columns([1, 1])
+        with col_pp1:
+            paper_max_x = st.number_input(
+                "Barcode max_x (Paper §3.2)",
+                min_value=1e-9,
+                value=float(PAPER_3_2_DEFAULT_MAX_X),
+                step=0.5,
+                format="%.4f",
+                key="netanal_paper_max_x",
+                help="filtration max = 5；默认 5.5（+ 10% buffer），仅作图横轴范围。",
+            )
+        with col_pp2:
+            st.caption("Default (filtration max + 10% buffer)")
+            st.code(f"{PAPER_3_2_DEFAULT_MAX_X:.4f}", language="text")
+
+        run_paper_clicked = st.button(
+            "Run Paper §3.2 self-test",
+            type="primary",
+            key="netanal_paper_run_btn",
+        )
+
+        if run_paper_clicked:
+            with st.spinner("Running backend.Digraph on Paper §3.2 data ..."):
+                try:
+                    paper_homology, paper_vertex_map = run_digraph_on_m3(
+                        paper_df,
+                        dim=M3_DEFAULT_DIM,
+                        weight_offset=M3_DEFAULT_WEIGHT_OFFSET,
+                    )
+                except Exception as e:
+                    st.error(f"Paper §3.2 self-test 失败：{e}")
+                    paper_homology = None
+                    paper_vertex_map = None
+            if paper_homology is not None:
+                st.session_state["netanal_paper_homology"] = paper_homology
+                st.session_state["netanal_paper_vertex_map"] = paper_vertex_map
+                st.session_state["netanal_paper_max_x_used"] = float(paper_max_x)
+
+        paper_homology = st.session_state.get("netanal_paper_homology")
+        paper_vertex_map = st.session_state.get("netanal_paper_vertex_map")
+
+        if paper_homology is None:
+            st.info("Click **Run Paper §3.2 self-test** to compute homology and draw the barcode.")
+        else:
+            st.markdown("**Vertex map (name → integer id)**")
+            st.json(paper_vertex_map or {})
+
+            st.markdown("**Betti number summary (computed)**")
+            st.json(m3_betti_summary(paper_homology, dim=M3_DEFAULT_DIM))
+
+            paper_fig = plot_glmy_barcode(
+                paper_homology,
+                max_x=float(
+                    st.session_state.get(
+                        "netanal_paper_max_x_used", PAPER_3_2_DEFAULT_MAX_X
+                    )
+                ),
+            )
+            st.pyplot(paper_fig, use_container_width=True)
+
+            paper_png_buf = io.BytesIO()
+            paper_fig.savefig(paper_png_buf, format="png", dpi=200, bbox_inches="tight")
+            paper_pdf_buf = io.BytesIO()
+            paper_fig.savefig(paper_pdf_buf, format="pdf", bbox_inches="tight")
+            plt.close(paper_fig)
+
+            col_pd1, col_pd2, col_pd3 = st.columns(3)
+            col_pd1.download_button(
+                label="Download Paper §3.2 barcode PNG",
+                data=paper_png_buf.getvalue(),
+                file_name="paper_3_2_barcode.png",
+                mime="image/png",
+                key="netanal_paper_png_download",
+            )
+            col_pd2.download_button(
+                label="Download Paper §3.2 barcode PDF",
+                data=paper_pdf_buf.getvalue(),
+                file_name="paper_3_2_barcode.pdf",
+                mime="application/pdf",
+                key="netanal_paper_pdf_download",
+            )
+            col_pd3.download_button(
+                label="Download Paper §3.2 homology.json",
+                data=json.dumps(paper_homology, indent=2, ensure_ascii=False).encode(
+                    "utf-8"
+                ),
+                file_name="paper_3_2_homology.json",
+                mime="application/json",
+                key="netanal_paper_json_download",
+            )
 
 
 # ========== Tab 2 Machine Learning ==========

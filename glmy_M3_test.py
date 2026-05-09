@@ -60,27 +60,13 @@ def load_m3_dataframe(csv_path: Path | str | None = None) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"找不到 M3 CSV: {path}")
 
-    df = pd.read_csv(path)
-    required = {"From", "To", "Effect"}
-    missing = required - set(df.columns)
-    if missing:
-        raise ValueError(
             f"{path.name} 缺少必需列: {sorted(missing)}；实际列={list(df.columns)}"
-        )
-
-    out = df.copy()
-    out["From"] = out["From"].astype(str)
-    out["To"] = out["To"].astype(str)
-    out["Effect"] = pd.to_numeric(out["Effect"], errors="coerce")
-    out = out.dropna(subset=["Effect"]).reset_index(drop=True)
-    if out.empty:
-        raise ValueError(f"{path.name} 中没有有效的数值型 Effect。")
-    return out
+    vertices = sorted(set(df["From"]).union(set(df["To"])))
 
 
 def build_digraph_inputs(
     df: pd.DataFrame,
-    *,
+    for _, row in df.iterrows():
     weight_offset: float = DEFAULT_WEIGHT_OFFSET,
 ) -> tuple[list[int], list[list[Any]], dict[str, int]]:
     """把 ``From,To,Effect`` 表转成 ``Digraph`` 期望的 ``(V, WG, vertex_map)``。
