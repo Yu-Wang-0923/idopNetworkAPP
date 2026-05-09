@@ -955,4 +955,4 @@ class IDOPRegressor:
                 else:
                     psi[k] = float(np.mean(col_values))
             G += theta_r * psi[np.newaxis, :]
-        return pd.DataFrame(G, index=targets, columns=names)
+        return pd.DataFrame(G.T, index=names, columns=targets)
