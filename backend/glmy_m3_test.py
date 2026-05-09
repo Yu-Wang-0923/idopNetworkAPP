@@ -1,4 +1,4 @@
-"""GLMY 自检脚本：用 ``backend.Digraph`` 复刻原 ``GLMY1.py`` 流程跑 ``M3.csv``。
+"""GLMY 自检模块：用 ``backend.Digraph`` 复刻原 ``GLMY1.py`` 流程跑 ``M3.csv``。
 
 目的
 ----
@@ -17,30 +17,33 @@
     6. β₀..β₃ barcode 排序与原 ``draw_unfiltered_barcode`` 一致。
 
 * 输出：``homology`` dict，可被 ``backend.plot_network_analysis.plot_glmy_barcode``
-  直接消费；命令行入口会把 PNG/PDF 落到仓库根 ``M3_barcode.png/pdf``。
+  直接消费。
 
-本文件仅用于自检与前端 ``pages/4_NetAnal.py`` 的 *M3 Self-test* 子 tab 复用，
-不动 ``backend/glmy.py`` 与 ``backend/Digraph.py``。
+历史背景
+--------
+本文件原为仓库根的脚本 ``glmy_M3_test.py``，被前端 ``pages/4_NetAnal.py`` 直接
+``import``。Streamlit Cloud 上 ``pages/`` 子模块解析时找不到顶层脚本，且原文件
+本身存在 ``SyntaxError``（``load_m3_dataframe`` 函数体被截断、``build_digraph_inputs``
+形参列表混入 ``for`` 子句），导致 ``ImportError``。现按项目规范迁入 ``backend/``，
+由页面通过 ``from backend.glmy_m3_test import ...`` 引用。
 """
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
-REPO_ROOT: Path = Path(__file__).resolve().parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+from backend.Digraph import Digraph
 
-from backend.Digraph import Digraph  # noqa: E402
-
+REPO_ROOT: Path = Path(__file__).resolve().parent.parent
 DEFAULT_M3_CSV: Path = REPO_ROOT / "M3.csv"
 DEFAULT_DIM: int = 4
 DEFAULT_WEIGHT_OFFSET: float = 100.0
 DEFAULT_MAX_X: float = 2.0
+
+REQUIRED_M3_COLUMNS: tuple[str, str, str] = ("From", "To", "Effect")
 
 
 def load_m3_dataframe(csv_path: Path | str | None = None) -> pd.DataFrame:
@@ -54,19 +57,40 @@ def load_m3_dataframe(csv_path: Path | str | None = None) -> pd.DataFrame:
     Returns
     -------
     pd.DataFrame
-        三列 DataFrame，``Effect`` 强制转为数值；``From``/``To`` 转为字符串。
+        三列 DataFrame：``From``/``To`` 为字符串，``Effect`` 强制转为数值；
+        无效 ``Effect`` 行会被丢弃。
+
+    Raises
+    ------
+    FileNotFoundError
+        指定路径不存在。
+    ValueError
+        缺少必需列、或清洗后没有任何有效数据行。
     """
     path = Path(csv_path) if csv_path is not None else DEFAULT_M3_CSV
     if not path.exists():
         raise FileNotFoundError(f"找不到 M3 CSV: {path}")
 
+    df = pd.read_csv(path)
+    missing = set(REQUIRED_M3_COLUMNS) - set(df.columns)
+    if missing:
+        raise ValueError(
             f"{path.name} 缺少必需列: {sorted(missing)}；实际列={list(df.columns)}"
-    vertices = sorted(set(df["From"]).union(set(df["To"])))
+        )
+
+    df = df.loc[:, list(REQUIRED_M3_COLUMNS)].copy()
+    df["From"] = df["From"].astype(str)
+    df["To"] = df["To"].astype(str)
+    df["Effect"] = pd.to_numeric(df["Effect"], errors="coerce")
+    df = df.dropna(subset=["Effect"]).reset_index(drop=True)
+    if df.empty:
+        raise ValueError(f"{path.name} 中没有有效的数值型 Effect，无法运行 Digraph。")
+    return df
 
 
 def build_digraph_inputs(
     df: pd.DataFrame,
-    for _, row in df.iterrows():
+    *,
     weight_offset: float = DEFAULT_WEIGHT_OFFSET,
 ) -> tuple[list[int], list[list[Any]], dict[str, int]]:
     """把 ``From,To,Effect`` 表转成 ``Digraph`` 期望的 ``(V, WG, vertex_map)``。
@@ -155,6 +179,27 @@ def betti_summary(
     return {f"β{d}": len(homology.get(str(d), [])) for d in range(dim)}
 
 
+def paper_3_2_dataframe() -> pd.DataFrame:
+    """返回论文 §3.2 / Figure 1 的 filtered digraph，作为 path-homology 地面真值。
+
+    论文给出的过滤过程为 ``G0 = {1, 2, 3}``,
+    ``G1 = G0 ∪ {21}``, ``G2 = G1 ∪ {12}``,
+    ``G3 = G2 ∪ {23}``, ``G4 = G3 ∪ {31}``,
+    ``G5 = G4 ∪ {13}``。这里的 ``Effect`` 即每条有向边首次出现的
+    filtration index；``G0`` 中的顶点由边端点集合隐式恢复。
+    """
+    return pd.DataFrame(
+        [
+            {"From": "2", "To": "1", "Effect": 1},
+            {"From": "1", "To": "2", "Effect": 2},
+            {"From": "2", "To": "3", "Effect": 3},
+            {"From": "3", "To": "1", "Effect": 4},
+            {"From": "1", "To": "3", "Effect": 5},
+        ],
+        columns=list(REQUIRED_M3_COLUMNS),
+    )
+
+
 def _print_homology(homology: dict[str, list[list[float | int]]]) -> None:
     print("\n=== homology (already restored to Effect scale) ===")
     print(json.dumps(homology, indent=2, ensure_ascii=False))
@@ -169,7 +214,7 @@ def main(
     save_dir: Path | str | None = None,
 ) -> dict[str, list[list[float | int]]]:
     """命令行入口：跑 M3.csv 并保存 barcode PNG/PDF。"""
-    import matplotlib.pyplot as plt  # 延迟导入：函数式调用时不强制加载 matplotlib
+    import matplotlib.pyplot as plt
 
     from backend.plot_network_analysis import plot_glmy_barcode
 

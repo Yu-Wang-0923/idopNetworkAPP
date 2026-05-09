@@ -10,7 +10,7 @@ default ``offset=100``. Birth/death values are then **shifted back** by
 
 The ``+ offset / - offset`` pair is a numerical *shift* needed because the
 underlying path-homology filtration assumes non-negative, well-separated
-weights — it is **not** a normalisation of the user-supplied weights into
+weights — it is **not** a normalisation of the user-supplied weights into 
 ``[-1, 1]`` or any other interval.
 """
 from __future__ import annotations

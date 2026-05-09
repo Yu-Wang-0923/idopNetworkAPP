@@ -598,6 +598,7 @@ def plot_effect(
     plot_ncols: int = 4,
     plot_max_vars: int = 0,
 ) -> None:
+<<<<<<< HEAD
     """在子图网格上叠加 effect。
 
     - 原始 quasi-dynamic 数据：橙色散点
@@ -606,6 +607,10 @@ def plot_effect(
     - 非自身效应：每个 source 使用不同颜色
     """
     ncols = max(1, int(plot_ncols))
+=======
+    """在子图网格上叠加 effect：截距并入自效应，自效应红线，其余交互绿线。""" # 
+    ncols = max(1, plot_ncols)
+>>>>>>> a56cf7a3f6b289508985093d2cd8f0316196f270
     cols = list(quasi_dynamic_df.columns)
 
     if plot_max_vars > 0:
