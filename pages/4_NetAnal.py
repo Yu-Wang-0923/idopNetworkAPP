@@ -26,7 +26,7 @@ from backend.plot_network_analysis import plot_glmy_barcode
 load_css()
 setup_sidebar()
 
-st.title("Network Analysis", text_alignment="center")
+st.title("Network Analysis sss", text_alignment="center")
 
 
 # ========== Tabs ==========
