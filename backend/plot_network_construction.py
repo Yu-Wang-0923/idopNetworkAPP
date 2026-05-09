@@ -68,10 +68,16 @@ def _degree_table(
         indegree  = 列非零数
     """
     adj_df = _normalize_adjacency_matrix(adj_df)
-    edge_mat = adj_df.copy()
+    edge_arr = adj_df.to_numpy(dtype=float, copy=True)
 
     if not include_self_edges:
-        np.fill_diagonal(edge_mat.values, 0.0)
+        np.fill_diagonal(edge_arr, 0.0)
+
+    edge_mat = pd.DataFrame(
+        edge_arr,
+        index=adj_df.index,
+        columns=adj_df.columns,
+    )
 
     active = edge_mat.abs() > float(edge_threshold)
 
@@ -872,11 +878,12 @@ def plot_network(
         title = "有向交互网络"
 
     # 过滤后如果没有边
-    tmp = plot_adj.copy()
-    if not include_self_edges:
-        np.fill_diagonal(tmp.values, 0.0)
+    tmp_arr = plot_adj.to_numpy(dtype=float, copy=True)
 
-    if not (tmp.abs() > float(edge_threshold)).values.any():
+    if not include_self_edges:
+        np.fill_diagonal(tmp_arr, 0.0)
+
+    if not (np.abs(tmp_arr) > float(edge_threshold)).any():
         fig, ax = plt.subplots(figsize=(6, 6), dpi=300)
         ax.text(
             0.5,
