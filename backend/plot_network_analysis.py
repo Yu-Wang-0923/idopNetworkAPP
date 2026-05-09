@@ -53,6 +53,7 @@ def plot_glmy_barcode(
         axes = [axes]
 
     safe_max_x = float(max_x) if max_x and max_x > 0 else 1.0
+    visible_endpoints: list[float] = []
 
     for bars, ax, color, label in zip(bars_per_dim, axes, _DIM_COLORS, _DIM_LABELS):
         max_y = max(len(bars), 5)
@@ -68,6 +69,8 @@ def plot_glmy_barcode(
                 continue
             birth = float(bar[0])
             death = bar[1]
+            if birth >= -safe_max_x:
+                visible_endpoints.append(birth)
             if death == -1:
                 ax.plot(
                     [birth, safe_max_x],
@@ -89,13 +92,20 @@ def plot_glmy_barcode(
                 )
                 ax.add_patch(arrow)
             else:
+                finite_death = float(death)
+                if finite_death >= -safe_max_x:
+                    visible_endpoints.append(finite_death)
                 ax.plot(
-                    [birth, float(death)],
+                    [birth, finite_death],
                     [j, j],
                     color=color,
                     linewidth=2.5,
                 )
 
-    axes[-1].set_xlim([-safe_max_x, safe_max_x * 1.1])
+    min_visible_x = min(visible_endpoints, default=0.0)
+    left_x = min(0.0, min_visible_x)
+    if left_x < 0:
+        left_x *= 1.1
+    axes[-1].set_xlim([left_x, safe_max_x * 1.1])
     fig.tight_layout()
     return fig
