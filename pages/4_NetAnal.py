@@ -162,10 +162,14 @@ with tab1:
                     f"β{dim}": len(homology.get(str(dim), []))
                     for dim in (0, 1, 2, 3)
                 }
-                st.markdown("**Betti number summary** (number of bars per dimension)")
+                st.markdown(
+                    "**Betti number summary**：各维 **barcode 条数**（持久对个数），"
+                    "与旧版 ``GLMY.exe`` 在顶点编号与 ``weight+100`` 流程下应对齐。"
+                )
                 st.json(summary)
                 st.caption(
-                    "backend = `python`；barcode 横轴使用 `from_to.csv` 中的原始 weight 尺度。"
+                    f"backend = `python`，weight_offset = `{glmy_result.get('weight_offset', 100.0):g}`；"
+                    "barcode 横轴已减回偏移，对应 `from_to.csv` 中的原始 weight/Effect 尺度。"
                 )
 
                 fig = plot_glmy_barcode(

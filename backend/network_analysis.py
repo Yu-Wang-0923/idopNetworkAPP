@@ -13,7 +13,11 @@ from typing import Any
 
 import pandas as pd
 
-from backend.glmy import DEFAULT_DIMENSION, compute_glmy_homology
+from backend.glmy import (
+    DEFAULT_DIMENSION,
+    DEFAULT_WEIGHT_OFFSET,
+    compute_glmy_homology,
+)
 
 
 # ── ZIP 解析 ──────────────────────────────────────────────────────────────────
@@ -70,6 +74,7 @@ def run_glmy(
     from_to_df: pd.DataFrame,
     *,
     dim: int = DEFAULT_DIMENSION,
+    weight_offset: float = DEFAULT_WEIGHT_OFFSET,
 ) -> dict[str, Any]:
     """Compute GLMY/path homology with the bundled Python implementation.
 
@@ -79,6 +84,9 @@ def run_glmy(
         DataFrame containing ``from``, ``to`` and ``weight`` columns.
     dim:
         Compute homology dimensions ``0`` through ``dim - 1``.
+    weight_offset:
+        Legacy GLMY shift: internally uses ``weight + weight_offset``, then
+        subtracts it from barcode endpoints (except ``-1``).
 
     Returns
     -------
@@ -86,11 +94,16 @@ def run_glmy(
         Structure consumed by ``pages/4_NetAnal.py`` and
         ``plot_glmy_barcode``.
     """
-    homology, vertex_id_map = compute_glmy_homology(from_to_df, dim=dim)
+    homology, vertex_id_map = compute_glmy_homology(
+        from_to_df,
+        dim=dim,
+        weight_offset=weight_offset,
+    )
     return {
         "homology": homology,
         "vertex_id_map": vertex_id_map,
         "dimension": dim,
+        "weight_offset": weight_offset,
         "backend": "python",
     }
 
