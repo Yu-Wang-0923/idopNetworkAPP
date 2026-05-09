@@ -24,7 +24,7 @@ from backend.network_analysis import (
 from backend.plot_network_analysis import plot_glmy_barcode
 
 # M3 / Paper §3.2 self-test：用 backend.Digraph 复刻原 GLMY1.py 流程，仅用于诊断。
-from glmy_M3_test import (
+from backend.glmy_m3_test import (
     DEFAULT_DIM as M3_DEFAULT_DIM,
     DEFAULT_M3_CSV,
     DEFAULT_MAX_X as M3_DEFAULT_MAX_X,
