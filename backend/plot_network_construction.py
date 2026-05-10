@@ -473,6 +473,8 @@ def _draw_signed_edges(
     edge_alpha: float = 0.92,
     edge_width_min: float = 1.2,
     edge_width_max_add: float = 4.5,
+    reciprocal_rad: float = 0.30,
+    single_edge_rad: float = 0.00,
 ) -> None:
     """分别绘制正边和负边。"""
     edges = list(G.edges(data=True))
