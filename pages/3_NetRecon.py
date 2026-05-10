@@ -155,11 +155,16 @@ def _fit_idop_network_from_curve_sample(
 
 
 def _adjacency_to_from_to(adj_df: pd.DataFrame, *, eps: float = 1e-12) -> pd.DataFrame:
-    """将邻接矩阵转换为边表（保留自环，忽略绝对值很小的权重）。"""
+    """将邻接矩阵转换为边表（保留自环，忽略绝对值很小的权重）。
+
+    Direction rule:
+        adj_df.loc[source, target] = source -> target
+    """
     rows: list[dict[str, str | float]] = []
-    for to_node in adj_df.index:
-        for from_node in adj_df.columns:
-            weight = float(adj_df.loc[to_node, from_node])
+
+    for from_node in adj_df.index:
+        for to_node in adj_df.columns:
+            weight = float(adj_df.loc[from_node, to_node])
             if abs(weight) < eps:
                 continue
             rows.append(
@@ -170,10 +175,11 @@ def _adjacency_to_from_to(adj_df: pd.DataFrame, *, eps: float = 1e-12) -> pd.Dat
                     "type": "+" if weight > 0 else "-",
                 }
             )
+
     if not rows:
         return pd.DataFrame(columns=["from", "to", "weight", "type"])
-    return pd.DataFrame(rows, columns=["from", "to", "weight", "type"])
 
+    return pd.DataFrame(rows, columns=["from", "to", "weight", "type"])
 
 def _params_to_df(params: dict[str, object]) -> pd.DataFrame:
     """参数字典转 param-value 两列表格。"""
