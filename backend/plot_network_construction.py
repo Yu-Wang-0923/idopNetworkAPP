@@ -569,6 +569,7 @@ def _mirror_barh_degree(
     node_order: list[str] | None = None,
     title: str = "In-degree / Out-degree",
     bg_color: str = "white",
+    bar_height: float = 0.72,
 ) -> None:
     """右侧镜像出入度图：左入度，右出度。"""
     df = degree_df.copy()
@@ -581,17 +582,21 @@ def _mirror_barh_degree(
 
     y = np.arange(len(df))
 
+    # 左侧：入度
     ax.barh(
         y,
         -df["indegree"].values,
+        height=bar_height,
         label="In-degree",
         color="#7EA6C8",
         alpha=0.95,
     )
 
+    # 右侧：出度
     ax.barh(
         y,
         df["outdegree"].values,
+        height=bar_height,
         label="Out-degree",
         color="#D98C70",
         alpha=0.95,
@@ -612,13 +617,22 @@ def _mirror_barh_degree(
         1,
     )
 
-    ax.set_xlim(-xmax - 0.5, xmax + 0.5)
+    # 左右对称扩张
+    ax.set_xlim(-xmax - 0.8, xmax + 0.8)
+
     ax.set_xlabel("Degree", fontsize=11, fontproperties=font_prop)
     ax.set_title(title, fontsize=13, fontweight="bold", fontproperties=font_prop)
+
     ax.grid(axis="x", linestyle="--", alpha=0.3)
     ax.legend(frameon=False, loc="upper right", prop=font_prop)
     ax.invert_yaxis()
     ax.set_facecolor(bg_color)
+
+    # 让图框更像一张独立的小图
+    for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_color("#D9D9D9")
+        spine.set_linewidth(1.0)
 
 
 # =============================================================================
