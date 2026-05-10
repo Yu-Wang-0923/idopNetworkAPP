@@ -647,6 +647,7 @@ def plot_effect(
     - 非自身效应：每个 source 使用不同颜色（且不使用红色）
     - 全局图例中逐一列出每个非自身效应 source，对应颜色与图中一致
     """
+    st.caption("DEBUG: plot_effect new version loaded")
     ncols = max(1, int(plot_ncols))
 
     cols = list(quasi_dynamic_df.columns)
@@ -870,6 +871,7 @@ def plot_network(
     target_node:
         如果非空，则只展示“指向该 target_node 的边”。
     """
+    st.caption("DEBUG: plot_network new version loaded")
     try:
         adj_df = _normalize_adjacency_matrix(adj_df)
     except Exception as e:
