@@ -1008,16 +1008,58 @@ def plot_network(
         include_self_edges=include_self_edges,
     )
 
+    n_nodes = len(draw_nodes)
+
+    # 根据节点数动态调整图高
+    fig_height = max(7.5, 0.55 * n_nodes + 3.5)
+
     if show_degree_panel:
-        fig = plt.figure(figsize=(14, 8), dpi=180, facecolor="white")
-        gs = fig.add_gridspec(1, 2, width_ratios=[2.2, 1.1], wspace=0.15)
+        fig = plt.figure(figsize=(15.5, fig_height), dpi=180, facecolor="#F6F6F6")
+        gs = fig.add_gridspec(
+            1,
+            3,
+            width_ratios=[2.25, 0.18, 1.20],  # 中间一列专门留白
+            wspace=0.00,
+        )
+
         ax_net = fig.add_subplot(gs[0, 0])
-        ax_bar = fig.add_subplot(gs[0, 1])
+        ax_gap = fig.add_subplot(gs[0, 1])
+        ax_bar = fig.add_subplot(gs[0, 2])
+
+        ax_gap.axis("off")
     else:
-        fig, ax_net = plt.subplots(figsize=(8.5, 8.5), dpi=200, facecolor="white")
+        fig, ax_net = plt.subplots(figsize=(9.0, fig_height), dpi=200, facecolor="#F6F6F6")
         ax_bar = None
 
     ax_net.set_facecolor("white")
+
+    if ax_bar is not None:
+        ax_bar.set_facecolor("white")
+
+    # 给网络图 panel 加一个边框
+    net_border = plt.Rectangle(
+        (0, 0), 1, 1,
+        transform=ax_net.transAxes,
+        fill=False,
+        edgecolor="#D9D9D9",
+        linewidth=1.0,
+        zorder=10,
+        clip_on=False,
+    )
+    ax_net.add_patch(net_border)
+
+    # 给出入度图 panel 加一个边框
+    if ax_bar is not None:
+        bar_border = plt.Rectangle(
+            (0, 0), 1, 1,
+            transform=ax_bar.transAxes,
+            fill=False,
+            edgecolor="#D9D9D9",
+            linewidth=1.0,
+            zorder=10,
+            clip_on=False,
+        )
+        ax_bar.add_patch(bar_border)
 
     nx.draw_networkx_nodes(
         G,
@@ -1059,8 +1101,7 @@ def plot_network(
         fontproperties=font_prop,
     )
     ax_net.axis("off")
-    ax_net.set_aspect("equal")
-    ax_net.margins(0.16)
+    _center_network_axis(ax_net, pos, pad_ratio=0.32)
 
     legend_elements = [
         Line2D([0], [0], color=positive_edge_color, linewidth=2.8, label="正（促进）"),
@@ -1094,6 +1135,6 @@ def plot_network(
             bg_color="white",
         )
 
-    fig.tight_layout()
+    fig.subplots_adjust(left=0.04, right=0.98, top=0.92, bottom=0.10)
     st.pyplot(fig, use_container_width=True)
     plt.close(fig)
