@@ -648,18 +648,18 @@ def plot_effect(
     plot_ncols: int = 4,
     plot_max_vars: int = 0,
 ) -> None:
-
-    """在子图网格上叠加 effect。
+    """
+    在子图网格上叠加 effect。
 
     - 原始 quasi-dynamic 数据：橙色散点
     - 模型预测：蓝色粗线
     - 自效应：红色线，并加截距
-    - 非自身效应：每个 source 使用不同颜色
+    - 非自身效应：每个 source 使用不同颜色（且不使用红色）
+    - 全局图例中逐一列出每个非自身效应 source，对应颜色与图中一致
     """
     ncols = max(1, int(plot_ncols))
 
     cols = list(quasi_dynamic_df.columns)
-
     if plot_max_vars > 0:
         cols = cols[:plot_max_vars]
 
@@ -674,23 +674,43 @@ def plot_effect(
     )
     axs = np.array(axs).reshape(-1)
 
-    color_self = "#D62728"
-    color_pred = "#1F77B4"
-    color_data = "#F59E0B"
+    # 固定主颜色
+    color_self = "#D62728"   # 自效应专用红色
+    color_pred = "#1F77B4"   # 模型预测蓝色
+    color_data = "#F59E0B"   # 数据橙色
 
-    global_handles: list[tuple] = []
+    # 非自身效应颜色池：刻意避开红色
+    nonself_palette = [
+        "#2CA02C",  # 绿
+        "#9467BD",  # 紫
+        "#17BECF",  # 青
+        "#8C564B",  # 棕
+        "#7F7F7F",  # 灰
+        "#BCBD22",  # 橄榄
+        "#1B9E77",  # 深青绿
+        "#66A61E",  # 草绿
+        "#6A3D9A",  # 深紫
+        "#A6761D",  # 褐黄
+        "#4D908E",  # 蓝绿
+        "#577590",  # 灰蓝
+    ]
 
-    # 给非自身 source 固定颜色
+    # 为每个 source 固定一种非红色
     all_sources = list(quasi_dynamic_df.columns)
-    cmap = plt.get_cmap("tab20")
     cross_color_map = {
-        src: cmap(i % 20)
+        src: nonself_palette[i % len(nonself_palette)]
         for i, src in enumerate(all_sources)
     }
+
+    # 全局图例句柄
+    base_handles: list[tuple] = []
+    used_cross_sources: list[str] = []
+    used_cross_source_set: set[str] = set()
 
     for idx, c in enumerate(cols):
         ax = axs[idx]
 
+        # 原始数据
         h_scatter = ax.scatter(
             quasi_dynamic_df.index,
             quasi_dynamic_df[c],
@@ -701,6 +721,7 @@ def plot_effect(
             label="数据",
         )
 
+        # 模型预测
         h_pred = ax.plot(
             curve_df.index,
             curve_df[c],
@@ -719,11 +740,11 @@ def plot_effect(
         )
 
         h_self_line = None
-        h_cross_first = None
 
         for src in eff_df.columns:
             y = eff_df[src].to_numpy(dtype=float)
 
+            # 自效应：唯一红线
             if src == c:
                 y = y + icpt
                 h_self_line = ax.plot(
@@ -739,18 +760,22 @@ def plot_effect(
                 if np.allclose(y, 0.0, rtol=0.0, atol=1e-12):
                     continue
 
-                h_cross = ax.plot(
+                cross_color = cross_color_map.get(src, "#2CA02C")
+
+                ax.plot(
                     eff_df.index,
                     y,
-                    color=cross_color_map.get(src, "#666666"),
+                    color=cross_color,
                     linewidth=1.8,
                     alpha=0.88,
                     zorder=2,
                     label=f"{src} → {c}",
-                )[0]
+                )
 
-                if h_cross_first is None:
-                    h_cross_first = h_cross
+                # 记录全局图例中真正出现过的非自身效应 source
+                if src not in used_cross_source_set:
+                    used_cross_source_set.add(src)
+                    used_cross_sources.append(src)
 
         ax.axhline(
             y=0,
@@ -771,33 +796,48 @@ def plot_effect(
         for lab in ax.get_xticklabels() + ax.get_yticklabels():
             lab.set_fontproperties(font_prop)
 
+        # 基础图例句柄只收一次
         if idx == 0:
-            global_handles = [
+            base_handles = [
                 (h_scatter, "数据"),
                 (h_pred, "模型预测（Σ效应）"),
             ]
             if h_self_line is not None:
-                global_handles.append((h_self_line, "自效应（+截距）"))
-            if h_cross_first is not None:
-                global_handles.append((h_cross_first, "非自身效应"))
+                base_handles.append((h_self_line, "自效应（+截距）"))
 
+    # 多余空白子图关闭
     for ax in axs[n:]:
         ax.axis("off")
 
     plt.tight_layout()
 
-    if global_handles:
-        handles, labels = zip(*global_handles)
-        fig.legend(
-            handles,
-            labels,
-            loc="upper center",
-            bbox_to_anchor=(0.5, 1.02),
-            ncol=min(len(labels), 4),
-            fontsize=8,
-            frameon=True,
-            prop=font_prop,
+    # 全局图例：基础项 + 每一个非自身效应 source
+    legend_handles = [h for h, _ in base_handles]
+    legend_labels = [lab for _, lab in base_handles]
+
+    from matplotlib.lines import Line2D
+
+    for src in used_cross_sources:
+        legend_handles.append(
+            Line2D(
+                [0],
+                [0],
+                color=cross_color_map[src],
+                linewidth=2.0,
+            )
         )
+        legend_labels.append(f"非自身效应：{src}")
+
+    fig.legend(
+        legend_handles,
+        legend_labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.03),
+        ncol=min(5, len(legend_labels)),
+        fontsize=8,
+        frameon=True,
+        prop=font_prop,
+    )
 
     st.pyplot(fig, use_container_width=True)
     plt.close(fig)
