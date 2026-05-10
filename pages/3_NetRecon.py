@@ -793,46 +793,64 @@ with tab1:
                         key="netrecon_target_node",
                     )
 
-                    with st.expander("Network plot controls", expanded=False):
-                        cplot1, cplot2, cplot3 = st.columns(3)
+                    with st.expander("Network plot controls", expanded=True):
+                        cplot1, cplot2, cplot3, cplot4 = st.columns(4)
 
-                    with cplot1:
-                        render_network_plot = st.checkbox(
-                            "Render network plot",
-                            value=False,
-                            key="render_single_network_plot",
-                            help="勾选后才绘制网络图，避免页面自动渲染造成卡顿。",
+                        with cplot1:
+                            top_edges_for_plot = st.number_input(
+                                "Top edges for plot",
+                                min_value=1,
+                                max_value=500,
+                                value=60,
+                                step=1,
+                                key="single_top_edges_for_plot",
+                            )
+
+                        with cplot2:
+                            run_network_plot = st.button(
+                                "Run Network Plot",
+                                key="run_single_network_plot_btn",
+                            )
+
+                        with cplot3:
+                            run_network_degree_plot = st.button(
+                                "Run Network + Degree Plot",
+                                key="run_single_network_degree_plot_btn",
+                            )
+
+                        with cplot4:
+                            clear_network_plot = st.button(
+                                "Clear Plot",
+                                key="clear_single_network_plot_btn",
+                            )
+
+                    if run_network_plot:
+                        st.session_state["single_network_plot_mode"] = "network_only"
+
+                    if run_network_degree_plot:
+                        st.session_state["single_network_plot_mode"] = "network_degree"
+
+                    if clear_network_plot:
+                        st.session_state["single_network_plot_mode"] = None
+
+                    single_network_plot_mode = st.session_state.get("single_network_plot_mode", None)
+
+                    if single_network_plot_mode == "network_only":
+                        plot_network(
+                            result["adj_df"],
+                            target_node=target_node,
+                            top_edges=int(top_edges_for_plot),
+                            show_degree_panel=False,
                         )
-
-                    with cplot2:
-                        render_degree_panel = st.checkbox(
-                            "Render in/out degree panel",
-                            value=False,
-                            key="render_single_degree_panel",
-                            help="勾选后在网络图右侧绘制入度/出度图。",
+                    elif single_network_plot_mode == "network_degree":
+                        plot_network(
+                            result["adj_df"],
+                            target_node=target_node,
+                            top_edges=int(top_edges_for_plot),
+                            show_degree_panel=True,
                         )
-
-                    with cplot3:
-                        top_edges_for_plot = st.number_input(
-                            "Top edges for plot",
-                            min_value=1,
-                            max_value=500,
-                            value=60,
-                            step=1,
-                            key="single_top_edges_for_plot",
-                            help="只绘制绝对权重最大的若干条边，减少图像拥挤和渲染压力。",
-                        )
-
-                if render_network_plot:
-                    plot_network(
-                        result["adj_df"],
-                        target_node=target_node,
-                        top_edges=int(top_edges_for_plot),
-                        show_degree_panel=bool(render_degree_panel),
-                    )
-                else:
-                    st.info("Enable `Render network plot` to draw the network. Degree panel will only be drawn if enabled.")
-
+                    else:
+                        st.info("Click `Run Network Plot` or `Run Network + Degree Plot` to render.")
                 # ========== Tab 1_2_2 Effect Decomposition ==========
                 with tab1_2_2:
                     st.markdown("### Effect Decomposition")
