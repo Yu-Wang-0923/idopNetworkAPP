@@ -501,10 +501,15 @@ def _draw_signed_edges(
     edge_alpha: float = 0.92,
     edge_width_min: float = 1.2,
     edge_width_max_add: float = 4.5,
-    reciprocal_rad: float = 0.30,
-    single_edge_rad: float = 0.00,
+    reciprocal_rad: float = 0.40,
+    single_edge_rad: float = 0.08,
 ) -> None:
-    """分别绘制正边和负边。"""
+    """绘制有向边。
+
+    - 正边红色，负边蓝色
+    - 若 A->B 和 B->A 同时存在，则使用相反曲率，避免重合
+    - 若只有单向边，则使用 single_edge_rad
+    """
     edges = list(G.edges(data=True))
     if not edges:
         return
@@ -512,52 +517,37 @@ def _draw_signed_edges(
     max_abs_w = max(abs(float(d.get("weight", 1.0))) for _, _, d in edges)
     max_abs_w = max(max_abs_w, 1e-12)
 
-    pos_edges, pos_widths = [], []
-    neg_edges, neg_widths = [], []
+    edge_set = {(str(u), str(v)) for u, v, _ in edges}
 
     for u, v, d in edges:
+        u = str(u)
+        v = str(v)
+
         w = float(d.get("weight", 1.0))
         aw = abs(w)
+
         width = edge_width_min + edge_width_max_add * aw / max_abs_w
+        color = positive_edge_color if w >= 0 else negative_edge_color
 
-        if w >= 0:
-            pos_edges.append((u, v))
-            pos_widths.append(width)
+        # 双向边：两条边用相反曲率
+        if u != v and (v, u) in edge_set:
+            rad = float(reciprocal_rad) if u < v else -float(reciprocal_rad)
         else:
-            neg_edges.append((u, v))
-            neg_widths.append(width)
+            rad = float(single_edge_rad)
 
-    if pos_edges:
         nx.draw_networkx_edges(
             G,
             pos,
-            edgelist=pos_edges,
-            width=pos_widths,
-            edge_color=positive_edge_color,
+            edgelist=[(u, v)],
+            width=width,
+            edge_color=color,
             alpha=edge_alpha,
             arrows=True,
             arrowsize=arrowsize,
             arrowstyle="-|>",
-            connectionstyle="arc3,rad=0.18",
-            min_source_margin=18,
-            min_target_margin=18,
-            ax=ax,
-        )
-
-    if neg_edges:
-        nx.draw_networkx_edges(
-            G,
-            pos,
-            edgelist=neg_edges,
-            width=neg_widths,
-            edge_color=negative_edge_color,
-            alpha=edge_alpha,
-            arrows=True,
-            arrowsize=arrowsize,
-            arrowstyle="-|>",
-            connectionstyle="arc3,rad=-0.18",
-            min_source_margin=18,
-            min_target_margin=18,
+            connectionstyle=f"arc3,rad={rad}",
+            min_source_margin=22,
+            min_target_margin=22,
             ax=ax,
         )
 
