@@ -785,6 +785,8 @@ def plot_network(
     positive_edge_color: str = "#E74C3C",
     negative_edge_color: str = "#2F7ED8",
     show_degree_panel: bool = True,
+    reciprocal_rad: float = 0.30,
+    single_edge_rad: float = 0.00,
 ) -> None:
     """绘制有向加权网络图。
 
@@ -994,6 +996,8 @@ def plot_network(
         negative_edge_color=negative_edge_color,
         arrowsize=18,
         edge_alpha=0.92,
+        reciprocal_rad=reciprocal_rad,
+        single_edge_rad=single_edge_rad,
     )
 
     _draw_labels_with_font(
