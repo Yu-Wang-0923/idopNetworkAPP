@@ -461,7 +461,35 @@ def _draw_labels_with_font(
             zorder=5,
         )
 
+def _center_network_axis(
+    ax: plt.Axes,
+    pos: dict[str, np.ndarray],
+    *,
+    pad_ratio: float = 0.30,
+) -> None:
+    """让网络图在坐标轴中居中显示，并保证完整显示。"""
+    if not pos:
+        return
 
+    xy = np.array(list(pos.values()), dtype=float)
+    xs = xy[:, 0]
+    ys = xy[:, 1]
+
+    xmin, xmax = xs.min(), xs.max()
+    ymin, ymax = ys.min(), ys.max()
+
+    cx = (xmin + xmax) / 2.0
+    cy = (ymin + ymax) / 2.0
+
+    half_span = max((xmax - xmin) / 2.0, (ymax - ymin) / 2.0, 0.8)
+    half_span = half_span * (1.0 + pad_ratio)
+
+    ax.set_xlim(cx - half_span, cx + half_span)
+    ax.set_ylim(cy - half_span, cy + half_span)
+
+    ax.set_aspect("equal", adjustable="box")
+    ax.set_anchor("C")
+    
 def _draw_signed_edges(
     G: nx.DiGraph,
     pos: dict[str, np.ndarray],
