@@ -501,15 +501,10 @@ def _draw_signed_edges(
     edge_alpha: float = 0.92,
     edge_width_min: float = 1.2,
     edge_width_max_add: float = 4.5,
-    reciprocal_rad: float = 0.40,
-    single_edge_rad: float = 0.08,
+    reciprocal_rad: float = 0.48,
+    single_edge_rad: float = 0.10,
 ) -> None:
-    """绘制有向边。
-
-    - 正边红色，负边蓝色
-    - 若 A->B 和 B->A 同时存在，则使用相反曲率，避免重合
-    - 若只有单向边，则使用 single_edge_rad
-    """
+    """逐条绘制有向边，双向边使用相反曲率，避免重合。"""
     edges = list(G.edges(data=True))
     if not edges:
         return
@@ -525,11 +520,10 @@ def _draw_signed_edges(
 
         w = float(d.get("weight", 1.0))
         aw = abs(w)
-
         width = edge_width_min + edge_width_max_add * aw / max_abs_w
         color = positive_edge_color if w >= 0 else negative_edge_color
 
-        # 双向边：两条边用相反曲率
+        # 如果存在反向边 v -> u，则一条往上弯，一条往下弯
         if u != v and (v, u) in edge_set:
             rad = float(reciprocal_rad) if u < v else -float(reciprocal_rad)
         else:
@@ -546,8 +540,8 @@ def _draw_signed_edges(
             arrowsize=arrowsize,
             arrowstyle="-|>",
             connectionstyle=f"arc3,rad={rad}",
-            min_source_margin=22,
-            min_target_margin=22,
+            min_source_margin=26,
+            min_target_margin=26,
             ax=ax,
         )
 
