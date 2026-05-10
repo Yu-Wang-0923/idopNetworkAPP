@@ -854,13 +854,37 @@ with tab1:
                 # ========== Tab 1_2_2 Effect Decomposition ==========
                 with tab1_2_2:
                     st.markdown("### Effect Decomposition")
-                    plot_effect(
-                        quasi_dynamic_df=result["quasi_dynamic_df"],
-                        curve_df=result["predicted_df"],
-                        effect_df_list=result["effect_df_list"],
-                        intercept=result["model"].coef_.loc["intercept"],
-                        plot_ncols=4,
-                    )
+
+                    ceff1, ceff2 = st.columns(2)
+
+                    with ceff1:
+                        run_effect_plot = st.button(
+                            "Run Effect Decomposition Plot",
+                            key="run_single_effect_plot_btn",
+                        )
+
+                    with ceff2:
+                        clear_effect_plot = st.button(
+                            "Clear Effect Plot",
+                            key="clear_single_effect_plot_btn",
+                        )
+
+                    if run_effect_plot:
+                        st.session_state["single_effect_plot_render"] = True
+
+                    if clear_effect_plot:
+                        st.session_state["single_effect_plot_render"] = False
+
+                    if st.session_state.get("single_effect_plot_render", False):
+                        plot_effect(
+                            quasi_dynamic_df=result["quasi_dynamic_df"],
+                            curve_df=result["predicted_df"],
+                            effect_df_list=result["effect_df_list"],
+                            intercept=result["model"].coef_.loc["intercept"],
+                            plot_ncols=4,
+                        )
+                    else:
+                        st.info("Click `Run Effect Decomposition Plot` to render effect curves.")
 
                 # ========== Tab 1_2_3 Adjacency Matrix ==========
                 with tab1_2_3:
