@@ -501,10 +501,16 @@ def _draw_signed_edges(
     edge_alpha: float = 0.92,
     edge_width_min: float = 1.2,
     edge_width_max_add: float = 4.5,
-    reciprocal_rad: float = 0.48,
-    single_edge_rad: float = 0.10,
+    reciprocal_rad: float = 0.45,
+    single_edge_rad: float = 0.08,
 ) -> None:
-    """逐条绘制有向边，双向边使用相反曲率，避免重合。"""
+    """逐条绘制有向边。
+
+    注意：
+    NetworkX 的 arc3 rad 是相对于边方向的。
+    对 A->B 和 B->A，如果想让两条边分开，不能简单一个 +rad 一个 -rad；
+    更稳的做法是双向边都使用同一个 rad。
+    """
     edges = list(G.edges(data=True))
     if not edges:
         return
@@ -520,12 +526,15 @@ def _draw_signed_edges(
 
         w = float(d.get("weight", 1.0))
         aw = abs(w)
+
         width = edge_width_min + edge_width_max_add * aw / max_abs_w
         color = positive_edge_color if w >= 0 else negative_edge_color
 
-        # 如果存在反向边 v -> u，则一条往上弯，一条往下弯
+        # 关键修改：
+        # 如果存在反向边，A->B 和 B->A 都用同一个 rad。
+        # 因为边方向相反，同一个 rad 会落在物理上的两侧。
         if u != v and (v, u) in edge_set:
-            rad = float(reciprocal_rad) if u < v else -float(reciprocal_rad)
+            rad = float(reciprocal_rad)
         else:
             rad = float(single_edge_rad)
 
