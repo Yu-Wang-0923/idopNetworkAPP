@@ -1012,13 +1012,13 @@ def plot_network(
 
     pos = _get_layout(
         G,
-        layout=layout_to_use,
+        layout="hub_circular",
         seed=123,
         layout_scale=1.0,
         node_order=node_order,
         hub_nodes=hub_nodes,
-        hub_inner_radius=0.28,
-        hub_outer_radius=1.0,
+        hub_inner_radius=0.45,
+        hub_outer_radius=1.35,
         clockwise=True,
     )
 
