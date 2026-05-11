@@ -47,6 +47,13 @@ _CLUSTER_PROFILE_DEFAULT_PALETTE: List[Tuple[str, str]] = [
 ]
 
 
+def _legend_font(size: float) -> object:
+    """返回指定字号的项目中文字体，用于 legend。"""
+    legend_font = font_prop.copy()
+    legend_font.set_size(size)
+    return legend_font
+
+
 def _set_chinese_axes(ax: plt.Axes) -> None:
     """让 tick 与 title 使用项目中文字体（与 plot_curve_fitting 风格一致）。"""
     for lab in ax.get_xticklabels() + ax.get_yticklabels():
@@ -240,7 +247,7 @@ def plot_initialization_grid(
                 lbls,
                 loc="upper center",
                 ncol=2,
-                fontsize=9,
+                prop=_legend_font(9.0),
                 bbox_to_anchor=(0.5, 0.99),
             )
 
@@ -659,7 +666,7 @@ def plot_cluster_profiles(
             handles=handles,
             loc=legend_loc,
             ncol=ncol_leg,
-            fontsize=legend_fontsize,
+            prop=_legend_font(legend_fontsize),
             bbox_to_anchor=legend_bbox,
         )
 
