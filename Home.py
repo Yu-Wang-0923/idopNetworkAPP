@@ -158,7 +158,7 @@ else:
                 <div class='card-title'>
                     <span style='display:flex; align-items:center; gap:6px;'>
                         <span class="material-symbols-rounded" style="color:#7c3aed; font-size:1.4rem;">hub</span> 
-                        全景网络重构 (NetRecon)
+                        idop网络重构 (NetRecon)
                     </span> 
                     <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span>
                 </div>
@@ -171,7 +171,7 @@ else:
                 <div class='card-title'>
                     <span style='display:flex; align-items:center; gap:6px;'>
                         <span class="material-symbols-rounded" style="color:#e11d48; font-size:1.4rem;">insights</span> 
-                        动态推演与解析 (NetAnal)
+                        idop网络解析 (NetAnal)
                     </span> 
                     <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span>
                 </div>
