@@ -17,11 +17,23 @@ def polynomial_basis_expansion(
     max_order: int,
     kind: str = "legendre",
 ) -> pd.DataFrame:
-    """对每个特征做基展开（1..max_order 列），可选 legendre / laguerre / polynomial。
+    """对每个特征做基展开，第 (k, r) 列为 ``y_k(τ) · P_r(τ̂)``。
 
-    - legendre：scipy.eval_legendre，输入域期望为 [-1, 1]。
-    - laguerre：scipy.eval_laguerre，输入域期望为 -1 to 1。
-    - polynomial：普通幂基，列为 x, x^2, ..., x^max_order。
+    其中：
+
+    - τ 取自 ``data.index``（视作时间轴）；内部线性归一化到 ``τ̂ ∈ [-1, 1]``
+      （``τ_min → -1``、``τ_max → +1``），再喂给基函数；若 ``τ_max == τ_min``，
+      则 ``τ̂`` 取 0。
+    - P_r(·) 按 ``kind`` 取：
+
+      * ``legendre``：``scipy.special.eval_legendre``（原生定义域 ``[-1, 1]``）；
+      * ``laguerre``：``scipy.special.eval_laguerre``（原生定义域 ``[0, ∞)``；
+        统一归一化到 ``[-1, 1]`` 仍可计算，但语义上属于约定）；
+      * ``polynomial``：普通幂基 ``τ̂, τ̂^2, …, τ̂^max_order``。
+    - y_k(τ) 为 ``data`` 的第 k 列在对应行的取值。
+
+    返回 DataFrame 的列顺序为 ``[(k=0, r=1), …, (k=0, r=max_order), (k=1, r=1), …]``，
+    列名沿用 ``f"{feature}_o({r})"``，便于下游按 ``k*max_order + r`` 分组。
     """
     if kind not in SUPPORTED_BASIS_KINDS:
         raise ValueError(
@@ -30,17 +42,30 @@ def polynomial_basis_expansion(
     values = data.values.astype(float)
     n_samples, n_features = values.shape
 
-    if kind == "legendre":
-        per_order = [eval_legendre(order, values) for order in range(1, max_order + 1)]
-        basis_arr = np.stack(per_order, axis=0).transpose(1, 2, 0)
-    elif kind == "laguerre":
-        per_order = [eval_laguerre(order, values) for order in range(1, max_order + 1)]
-        basis_arr = np.stack(per_order, axis=0).transpose(1, 2, 0)
+    tau = np.asarray(data.index, dtype=float)
+    tau_min = float(tau.min())
+    tau_max = float(tau.max())
+    if tau_max > tau_min:
+        tau_hat = -1.0 + 2.0 * (tau - tau_min) / (tau_max - tau_min)
     else:
-        per_order = [
-            np.power(values, power) for power in range(1, max_order + 1)
+        tau_hat = np.zeros_like(tau)
+
+    if kind == "legendre":
+        per_order_tau = [
+            eval_legendre(order, tau_hat) for order in range(1, max_order + 1)
         ]
-        basis_arr = np.stack(per_order, axis=0).transpose(1, 2, 0)
+    elif kind == "laguerre":
+        per_order_tau = [
+            eval_laguerre(order, tau_hat) for order in range(1, max_order + 1)
+        ]
+    else:
+        per_order_tau = [
+            np.power(tau_hat, power) for power in range(1, max_order + 1)
+        ]
+
+    basis_tau = np.stack(per_order_tau, axis=0)
+    basis_arr = basis_tau[:, :, np.newaxis] * values[np.newaxis, :, :]
+    basis_arr = basis_arr.transpose(1, 2, 0)
 
     columns = [
         f"{data.columns[i]}_o({order + 1})"

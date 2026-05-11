@@ -359,8 +359,14 @@ def _render_multilayer_debug_panel(network: dict) -> None:
     summary_rows = [
         _summarize_df_for_debug("curve_sample (raw)", cs_raw),
         _summarize_df_for_debug("curve_sample (scaled to [-1,1])", cs_scl),
-        _summarize_df_for_debug(f"basis raw = {basis_label} before integral", basis_raw_dbg),
-        _summarize_df_for_debug(f"design X = [intercept | {basis_label} integral]", X_dbg),
+        _summarize_df_for_debug(
+            f"basis raw = y_k(τ) · {basis_label}_r(τ̂) before integral",
+            basis_raw_dbg,
+        ),
+        _summarize_df_for_debug(
+            f"design X = [intercept | ∫ y_k · {basis_label}_r(τ̂) dτ]",
+            X_dbg,
+        ),
         _summarize_df_for_debug("response Y = curve_sample (raw)", Y_dbg),
         _summarize_df_for_debug("coef_", coef),
         _summarize_df_for_debug("predicted", pred),
@@ -973,8 +979,14 @@ with tab1:
                     summary_rows = [
                         _summary("curve_sample (raw)", cs_raw),
                         _summary("curve_sample (scaled to [-1,1])", cs_scl),
-                        _summary(f"basis raw = {_basis_label} before integral", basis_raw_dbg),
-                        _summary(f"design X = [intercept | {_basis_label} integral]", X_dbg),
+                        _summary(
+                            f"basis raw = y_k(τ) · {_basis_label}_r(τ̂) before integral",
+                            basis_raw_dbg,
+                        ),
+                        _summary(
+                            f"design X = [intercept | ∫ y_k · {_basis_label}_r(τ̂) dτ]",
+                            X_dbg,
+                        ),
                         _summary("response Y = curve_sample (raw)", Y_dbg),
                         _summary("coef_", coef),
                         _summary("predicted", pred),
