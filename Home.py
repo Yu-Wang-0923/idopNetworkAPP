@@ -145,7 +145,7 @@ else:
                 <div class='card-title'>
                     <span style='display:flex; align-items:center; gap:6px;'>
                         <span class="material-symbols-rounded" style="color:#ea580c; font-size:1.4rem;">category</span> 
-                        特征聚类 (FunClu)
+                        功能聚类 (FunClu)
                     </span> 
                     <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span>
                 </div>
