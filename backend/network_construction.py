@@ -21,6 +21,9 @@ def polynomial_basis_expansion(
 
     其中：
 
+    - 阶数 ``r`` 从 0 起步，取 ``r = 0, 1, …, max_order - 1``；每个变量共
+      ``max_order`` 列。注意 ``P_0(·) ≡ 1``，故第 r=0 列即 ``y_k(τ)`` 本身
+      （与设计矩阵中的全 1 截距列不重复）。
     - τ 取自 ``data.index``（视作时间轴）；内部线性归一化到 ``τ̂ ∈ [-1, 1]``
       （``τ_min → -1``、``τ_max → +1``），再喂给基函数；若 ``τ_max == τ_min``，
       则 ``τ̂`` 取 0。
@@ -29,11 +32,12 @@ def polynomial_basis_expansion(
       * ``legendre``：``scipy.special.eval_legendre``（原生定义域 ``[-1, 1]``）；
       * ``laguerre``：``scipy.special.eval_laguerre``（原生定义域 ``[0, ∞)``；
         统一归一化到 ``[-1, 1]`` 仍可计算，但语义上属于约定）；
-      * ``polynomial``：普通幂基 ``τ̂, τ̂^2, …, τ̂^max_order``。
+      * ``polynomial``：普通幂基 ``1, τ̂, τ̂^2, …, τ̂^(max_order-1)``。
     - y_k(τ) 为 ``data`` 的第 k 列在对应行的取值。
 
-    返回 DataFrame 的列顺序为 ``[(k=0, r=1), …, (k=0, r=max_order), (k=1, r=1), …]``，
-    列名沿用 ``f"{feature}_o({r})"``，便于下游按 ``k*max_order + r`` 分组。
+    返回 DataFrame 的列顺序为
+    ``[(k=0, r=0), …, (k=0, r=max_order-1), (k=1, r=0), …]``，
+    列名 ``f"{feature}_o({r})"``，便于下游按 ``k*max_order + r`` 分组。
     """
     if kind not in SUPPORTED_BASIS_KINDS:
         raise ValueError(
@@ -52,15 +56,15 @@ def polynomial_basis_expansion(
 
     if kind == "legendre":
         per_order_tau = [
-            eval_legendre(order, tau_hat) for order in range(1, max_order + 1)
+            eval_legendre(order, tau_hat) for order in range(max_order)
         ]
     elif kind == "laguerre":
         per_order_tau = [
-            eval_laguerre(order, tau_hat) for order in range(1, max_order + 1)
+            eval_laguerre(order, tau_hat) for order in range(max_order)
         ]
     else:
         per_order_tau = [
-            np.power(tau_hat, power) for power in range(1, max_order + 1)
+            np.power(tau_hat, power) for power in range(max_order)
         ]
 
     basis_tau = np.stack(per_order_tau, axis=0)
@@ -68,7 +72,7 @@ def polynomial_basis_expansion(
     basis_arr = basis_arr.transpose(1, 2, 0)
 
     columns = [
-        f"{data.columns[i]}_o({order + 1})"
+        f"{data.columns[i]}_o({order})"
         for i in range(n_features)
         for order in range(max_order)
     ]
@@ -86,6 +90,35 @@ def polynomial_basis_expansion_integral(basis_expansion: pd.DataFrame) -> pd.Dat
     return pd.DataFrame(
         integral_values, index=basis_expansion.index, columns=new_columns
     )
+
+
+def align_response_to_design(
+    response_df: pd.DataFrame,
+    target_index: pd.Index | np.ndarray,
+) -> pd.DataFrame:
+    """将响应数据（如 quasi_dynamic_df）按数值索引线性插值到 ``target_index``。
+
+    用于设计矩阵 ``X`` 在切比雪夫节点上、响应数据在原始观测点上时的对齐：
+
+    - 源索引（``response_df.index``）与目标索引一般不重合，直接 ``reindex``
+      会全部得到 NaN；本函数按数值大小对齐，用 :func:`numpy.interp` 逐列做
+      线性插值。
+    - 内部先把源数据按 index 升序整理；目标索引中超出源范围的点取最近端点
+      （``np.interp`` 的默认外推行为，等价于 ``fill_value=(y[0], y[-1])``）。
+    - 列名 / 列顺序保持不变；返回 DataFrame 的 index 为 ``target_index``。
+    - 若 ``response_df.index`` 与 ``target_index`` 数值上完全相同（含顺序），
+      插值结果就是原数据；因此对"已经在切比雪夫节点上"的输入是 no-op。
+    """
+    src_idx = np.asarray(response_df.index, dtype=float)
+    tgt_idx = np.asarray(target_index, dtype=float)
+    order = np.argsort(src_idx, kind="stable")
+    src_sorted = src_idx[order]
+    values_sorted = response_df.values.astype(float)[order]
+    n_targets = values_sorted.shape[1]
+    out = np.empty((len(tgt_idx), n_targets), dtype=float)
+    for j in range(n_targets):
+        out[:, j] = np.interp(tgt_idx, src_sorted, values_sorted[:, j])
+    return pd.DataFrame(out, index=pd.Index(tgt_idx), columns=response_df.columns)
 
 
 def _project_nonneg_self(
@@ -504,7 +537,9 @@ class IDOPRegressor:
         for order_c in range(1, upper + 1):
             self.max_order = order_c
             X_c = self._design(power_function_sample_df)
-            Y_c = quasi_dynamic_df.reindex(X_c.index).values.astype(float)
+            Y_c = align_response_to_design(
+                quasi_dynamic_df, X_c.index
+            ).values.astype(float)
             Xv_c = X_c.values.astype(float)
             n_obs, p_c = Xv_c.shape
             n_t = Y_c.shape[1]
@@ -566,7 +601,7 @@ class IDOPRegressor:
 
         self.max_order = best_order
         X = self._design(power_function_sample_df)
-        Y = quasi_dynamic_df.reindex(X.index).values.astype(float)
+        Y = align_response_to_design(quasi_dynamic_df, X.index).values.astype(float)
         Xv = X.values.astype(float)
         n, p = Xv.shape
         n_targets = Y.shape[1]
@@ -797,7 +832,7 @@ class IDOPRegressor:
         self.bic_order_path_ = None
         self.bic_alpha_path_ = None
         X = self._design(power_function_sample_df)
-        Y = quasi_dynamic_df.reindex(X.index).values.astype(float)
+        Y = align_response_to_design(quasi_dynamic_df, X.index).values.astype(float)
         Xv = X.values.astype(float)
         n_targets = Y.shape[1]
         p = Xv.shape[1]

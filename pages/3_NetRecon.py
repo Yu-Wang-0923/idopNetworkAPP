@@ -14,8 +14,11 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-from backend.curve_fitting import data_transformation
-from backend.network_construction import IDOPRegressor, polynomial_basis_expansion
+from backend.network_construction import (
+    IDOPRegressor,
+    align_response_to_design,
+    polynomial_basis_expansion,
+)
 from backend.plot_curve_fitting import plot_curve_fitting
 from backend.plot_network_construction import plot_effect, plot_network
 from backend.utils import font_prop, load_css, setup_sidebar
@@ -120,7 +123,6 @@ def _fit_idop_network_from_curve_sample(
     if curve_sample_df.shape[1] < 2:
         raise ValueError("至少需要 2 条曲线才能构建交互网络")
 
-    curve_sample_scaled = data_transformation(curve_sample_df, "rescale_to_-1_1")
     model = IDOPRegressor(
         max_order=int(max_order),
         solver=str(solver),
@@ -132,19 +134,18 @@ def _fit_idop_network_from_curve_sample(
         basis_kind=str(basis_kind),
         monotonic_mode=str(monotonic_mode),
     )
-    model.fit(curve_sample_scaled, curve_sample_df)
-    predicted_df = model.predict(curve_sample_scaled)
-    effect_df_list = model.effect(curve_sample_scaled)
+    model.fit(curve_sample_df, curve_sample_df)
+    predicted_df = model.predict(curve_sample_df)
+    effect_df_list = model.effect(curve_sample_df)
     adj_df = model.adjacency_matrix(
-        curve_sample_scaled,
+        curve_sample_df,
         aggregation=str(adjacency_aggregation),
     )
-    design_X = model._design(curve_sample_scaled)
-    response_Y = curve_sample_df.reindex(design_X.index)
+    design_X = model._design(curve_sample_df)
+    response_Y = align_response_to_design(curve_sample_df, design_X.index)
     return {
         "model": model,
         "curve_sample_df": curve_sample_df,
-        "curve_sample_scaled": curve_sample_scaled,
         "design_X": design_X,
         "response_Y": response_Y,
         "predicted_df": predicted_df,
@@ -344,13 +345,12 @@ def _render_multilayer_debug_panel(network: dict) -> None:
     """多层网络 Debug 面板，展示与单层一致的核心矩阵与统计。"""
     model_dbg: IDOPRegressor = network["model"]
     cs_raw: pd.DataFrame = network["curve_sample_df"]
-    cs_scl: pd.DataFrame = network["curve_sample_scaled"]
     X_dbg: pd.DataFrame = network["design_X"]
     Y_dbg: pd.DataFrame = network["response_Y"]
     pred: pd.DataFrame = network["predicted_df"]
     coef: pd.DataFrame = model_dbg.coef_
     basis_raw_dbg = polynomial_basis_expansion(
-        cs_scl,
+        cs_raw,
         model_dbg.max_order,
         kind=model_dbg.basis_kind,
     )
@@ -358,7 +358,6 @@ def _render_multilayer_debug_panel(network: dict) -> None:
     basis_label = model_dbg.basis_kind.capitalize()
     summary_rows = [
         _summarize_df_for_debug("curve_sample (raw)", cs_raw),
-        _summarize_df_for_debug("curve_sample (scaled to [-1,1])", cs_scl),
         _summarize_df_for_debug(
             f"basis raw = y_k(τ) · {basis_label}_r(τ̂) before integral",
             basis_raw_dbg,
@@ -403,8 +402,6 @@ def _render_multilayer_debug_panel(network: dict) -> None:
 
     st.markdown("**curve_sample (raw) — head**")
     st.dataframe(cs_raw.head(), use_container_width=True)
-    st.markdown("**curve_sample (scaled) — head**")
-    st.dataframe(cs_scl.head(), use_container_width=True)
     left_col, right_col = st.columns(2)
     with left_col:
         st.markdown("**basis matrix before integral — head (first 8 cols)**")
@@ -729,7 +726,6 @@ with tab1:
                             raise ValueError(
                                 "启用 monotonic_mode 时，请将 max_interactions (Top-K) 设为 0。"
                             )
-                    curve_sample_scaled = data_transformation(curve_sample_df, "rescale_to_-1_1") # rescale_to_-1_1 #########################################################################
                     model = IDOPRegressor(
                         max_order=int(max_order),
                         solver=str(solver),
@@ -741,15 +737,15 @@ with tab1:
                         basis_kind=str(basis_kind),
                         monotonic_mode=str(monotonic_mode),
                     )
-                    model.fit(curve_sample_scaled, curve_sample_df)
-                    predicted_df = model.predict(curve_sample_scaled)
-                    effect_df_list = model.effect(curve_sample_scaled)
+                    model.fit(curve_sample_df, quasi_dynamic_df)
+                    predicted_df = model.predict(curve_sample_df)
+                    effect_df_list = model.effect(curve_sample_df)
                     adj_df = model.adjacency_matrix(
-                        curve_sample_scaled,
+                        curve_sample_df,
                         aggregation=str(adjacency_aggregation),
                     )
-                    design_X = model._design(curve_sample_scaled)
-                    response_Y = curve_sample_df.reindex(design_X.index)
+                    design_X = model._design(curve_sample_df)
+                    response_Y = align_response_to_design(quasi_dynamic_df, design_X.index)
                 except Exception as e:
                     st.error(f"IdopNetwork 运行失败：{e}")
                     st.session_state.netrecon_result = None
@@ -759,7 +755,6 @@ with tab1:
                         "model": model,
                         "quasi_dynamic_df": quasi_dynamic_df,
                         "curve_sample_df": curve_sample_df,
-                        "curve_sample_scaled": curve_sample_scaled,
                         "design_X": design_X,
                         "response_Y": response_Y,
                         "predicted_df": predicted_df,
@@ -880,11 +875,10 @@ with tab1:
                     X_dbg: pd.DataFrame = result["design_X"]
                     Y_dbg: pd.DataFrame = result["response_Y"]
                     cs_raw = result["curve_sample_df"]
-                    cs_scl = result["curve_sample_scaled"]
                     pred = result["predicted_df"]
                     coef = model_dbg.coef_
                     basis_raw_dbg = polynomial_basis_expansion(
-                        cs_scl,
+                        cs_raw,
                         model_dbg.max_order,
                         kind=model_dbg.basis_kind,
                     )
@@ -978,7 +972,6 @@ with tab1:
                     _basis_label = model_dbg.basis_kind.capitalize()
                     summary_rows = [
                         _summary("curve_sample (raw)", cs_raw),
-                        _summary("curve_sample (scaled to [-1,1])", cs_scl),
                         _summary(
                             f"basis raw = y_k(τ) · {_basis_label}_r(τ̂) before integral",
                             basis_raw_dbg,
@@ -987,7 +980,10 @@ with tab1:
                             f"design X = [intercept | ∫ y_k · {_basis_label}_r(τ̂) dτ]",
                             X_dbg,
                         ),
-                        _summary("response Y = curve_sample (raw)", Y_dbg),
+                        _summary(
+                            "response Y = quasi_dynamic (interp → Chebyshev nodes)",
+                            Y_dbg,
+                        ),
                         _summary("coef_", coef),
                         _summary("predicted", pred),
                     ]
@@ -1023,8 +1019,6 @@ with tab1:
 
                     st.markdown("**curve_sample (raw) — head**")
                     st.dataframe(cs_raw.head(), use_container_width=True)
-                    st.markdown("**curve_sample (scaled) — head**")
-                    st.dataframe(cs_scl.head(), use_container_width=True)
                     left_col, right_col = st.columns(2)
                     with left_col:
                         st.markdown("**basis matrix before integral — head (first 8 cols)**")
