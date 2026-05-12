@@ -14,6 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+from backend.curve_fitting import get_power_function_params
 from backend.network_construction import (
     IDOPRegressor,
     align_response_to_design,
@@ -56,13 +57,17 @@ def _load_funclu_export_from_zip(
     pd.DataFrame,
     pd.DataFrame,
     dict[str, pd.DataFrame],
+    dict[str, pd.DataFrame],
+    dict[str, dict[str, pd.DataFrame]],
     dict[str, dict[str, pd.DataFrame]],
 ]:
-    """从 funclu_k_export.zip 读取标签、簇中心曲线与簇内成员曲线。"""
+    """从 funclu_k_export.zip 读取多层曲线与响应变量。"""
     labels_df: pd.DataFrame | None = None
     cluster_sizes_df: pd.DataFrame | None = None
     centers: dict[str, pd.DataFrame] = {}
+    center_responses: dict[str, pd.DataFrame] = {}
     members: dict[str, dict[str, pd.DataFrame]] = {}
+    member_responses: dict[str, dict[str, pd.DataFrame]] = {}
 
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
         for name in zf.namelist():
@@ -82,6 +87,12 @@ def _load_funclu_export_from_zip(
                     centers[parts[1]] = pd.read_csv(f, index_col=0)
                 elif (
                     len(parts) == 3
+                    and parts[0] == "cluster_centers"
+                    and parts[2] == "cluster_center_quasi_dynamic.csv"
+                ):
+                    center_responses[parts[1]] = pd.read_csv(f, index_col=0)
+                elif (
+                    len(parts) == 3
                     and parts[0] == "cluster_members"
                     and parts[2].endswith("_curve_sample.csv")
                 ):
@@ -89,6 +100,15 @@ def _load_funclu_export_from_zip(
                     members.setdefault(parts[1], {})[cluster_name] = pd.read_csv(
                         f, index_col=0
                     )
+                elif (
+                    len(parts) == 3
+                    and parts[0] == "cluster_members"
+                    and parts[2].endswith("_quasi_dynamic.csv")
+                ):
+                    cluster_name = parts[2].removesuffix("_quasi_dynamic.csv")
+                    member_responses.setdefault(parts[1], {})[
+                        cluster_name
+                    ] = pd.read_csv(f, index_col=0)
 
     if labels_df is None:
         raise ValueError("FunClu-K export ZIP 缺少 labels.csv")
@@ -96,45 +116,61 @@ def _load_funclu_export_from_zip(
         cluster_sizes_df = pd.DataFrame()
     if not centers:
         raise ValueError("FunClu-K export ZIP 缺少 cluster center curve_sample")
+    if not center_responses:
+        raise ValueError("FunClu-K export ZIP 缺少 cluster center quasi_dynamic")
     if not members:
         raise ValueError("FunClu-K export ZIP 缺少 cluster member curve_sample")
+    if not member_responses:
+        raise ValueError("FunClu-K export ZIP 缺少 cluster member quasi_dynamic")
 
     sorted_centers = dict(sorted(centers.items()))
+    sorted_center_responses = dict(sorted(center_responses.items()))
     sorted_members = {
         cond: dict(sorted(cluster_map.items()))
         for cond, cluster_map in sorted(members.items())
     }
-    return labels_df, cluster_sizes_df, sorted_centers, sorted_members
+    sorted_member_responses = {
+        cond: dict(sorted(cluster_map.items()))
+        for cond, cluster_map in sorted(member_responses.items())
+    }
+    return (
+        labels_df,
+        cluster_sizes_df,
+        sorted_centers,
+        sorted_center_responses,
+        sorted_members,
+        sorted_member_responses,
+    )
 
 
 def _fit_idop_network_from_curve_sample(
     curve_sample_df: pd.DataFrame,
+    response_df: pd.DataFrame,
     *,
     max_order: int,
-    solver: str,
-    alpha: float,
     nonneg_self: bool,
     max_interactions: int,
-    basis_kind: str,
-    monotonic_mode: str,
     adjacency_aggregation: str,
+    power_function_params: pd.DataFrame,
 ) -> dict:
-    """复用单层 IdopNetwork 流程，从 curve_sample 构建一个网络。"""
+    """复用单层 IdopNetwork 流程：curve_sample 做设计矩阵，response_df 做响应。"""
     if curve_sample_df.shape[1] < 2:
         raise ValueError("至少需要 2 条曲线才能构建交互网络")
+    response_df = response_df.loc[:, list(curve_sample_df.columns)]
 
     model = IDOPRegressor(
         max_order=int(max_order),
-        solver=str(solver),
-        alpha=float(alpha),
         mix=0.5,
-        fix_mix=(solver == "asgl"),
+        fix_mix=False,
         nonneg_self=bool(nonneg_self),
         max_interactions=int(max_interactions),
-        basis_kind=str(basis_kind),
-        monotonic_mode=str(monotonic_mode),
+        adaptive_weights=False,
     )
-    model.fit(curve_sample_df, curve_sample_df)
+    model.fit(
+        curve_sample_df,
+        response_df,
+        power_function_params=power_function_params,
+    )
     predicted_df = model.predict(curve_sample_df)
     effect_df_list = model.effect(curve_sample_df)
     adj_df = model.adjacency_matrix(
@@ -142,9 +178,10 @@ def _fit_idop_network_from_curve_sample(
         aggregation=str(adjacency_aggregation),
     )
     design_X = model._design(curve_sample_df)
-    response_Y = align_response_to_design(curve_sample_df, design_X.index)
+    response_Y = align_response_to_design(response_df, design_X.index)
     return {
         "model": model,
+        "quasi_dynamic_df": response_df,
         "curve_sample_df": curve_sample_df,
         "design_X": design_X,
         "response_Y": response_Y,
@@ -153,6 +190,25 @@ def _fit_idop_network_from_curve_sample(
         "adj_df": adj_df,
         "adjacency_aggregation": str(adjacency_aggregation),
     }
+
+
+def _cluster_response_from_quasi(
+    labels_df: pd.DataFrame,
+    quasi_dynamic_df: pd.DataFrame,
+    center_columns: list[str],
+) -> pd.DataFrame:
+    """按 FunClu-K 标签把成员 quasi_dynamic 聚合为 cluster-level 响应。"""
+    rows: dict[str, pd.Series] = {}
+    for cluster_name in center_columns:
+        member_cols = labels_df.loc[
+            labels_df["cluster"].astype(str) == str(cluster_name),
+            "feature",
+        ].astype(str).tolist()
+        available_cols = [col for col in member_cols if col in quasi_dynamic_df.columns]
+        if not available_cols:
+            raise ValueError(f"cluster {cluster_name} 在 quasi_dynamic 中没有成员列")
+        rows[str(cluster_name)] = quasi_dynamic_df.loc[:, available_cols].mean(axis=1)
+    return pd.DataFrame(rows, index=quasi_dynamic_df.index)
 
 
 def _adjacency_to_from_to(adj_df: pd.DataFrame, *, eps: float = 1e-12) -> pd.DataFrame:
@@ -212,16 +268,14 @@ def _collect_network_export_artifacts(
     from_to_df = _adjacency_to_from_to(adj_df)
 
     params: dict[str, object] = {
-        "solver": model.solver,
         "max_order": int(model.max_order),
         "alpha": float(model.alpha),
         "mix": float(model.mix),
         "nonneg_self": bool(model.nonneg_self),
         "max_interactions": int(model.max_interactions),
-        "basis_kind": model.basis_kind,
-        "monotonic_mode": model.monotonic_mode,
         "basis_type": model.basis_type,
         "ebic_gamma": float(model.ebic_gamma),
+        "enforce_effect_constraints": bool(model.enforce_effect_constraints),
         "mse": float(model.mse_) if model.mse_ is not None else np.nan,
         "n_nodes": int(adj_df.shape[0]),
         "n_edges_nonzero": int(from_to_df.shape[0]),
@@ -349,21 +403,16 @@ def _render_multilayer_debug_panel(network: dict) -> None:
     Y_dbg: pd.DataFrame = network["response_Y"]
     pred: pd.DataFrame = network["predicted_df"]
     coef: pd.DataFrame = model_dbg.coef_
-    basis_raw_dbg = polynomial_basis_expansion(
-        cs_raw,
-        model_dbg.max_order,
-        kind=model_dbg.basis_kind,
-    )
+    basis_raw_dbg = polynomial_basis_expansion(cs_raw, model_dbg.max_order)
 
-    basis_label = model_dbg.basis_kind.capitalize()
     summary_rows = [
         _summarize_df_for_debug("curve_sample (raw)", cs_raw),
         _summarize_df_for_debug(
-            f"basis raw = y_k(τ) · {basis_label}_r(τ̂) before integral",
+            "basis raw = y_k(τ) · Legendre_r(τ̂) (derivative-mode point values)",
             basis_raw_dbg,
         ),
         _summarize_df_for_debug(
-            f"design X = [intercept | ∫ y_k · {basis_label}_r(τ̂) dτ]",
+            "design X = [intercept | ∫_{τ_1}^{τ} a_k s^{b_k} · Legendre_r(τ̂(s)) ds (analytic)]",
             X_dbg,
         ),
         _summarize_df_for_debug("response Y = curve_sample (raw)", Y_dbg),
@@ -375,30 +424,30 @@ def _render_multilayer_debug_panel(network: dict) -> None:
 
     st.markdown(
         f"`max_order` = **{model_dbg.max_order}** &nbsp; | &nbsp; "
-        f"`solver` = **{model_dbg.solver}** &nbsp; | &nbsp; "
         f"`alpha` = **{model_dbg.alpha}** &nbsp; | &nbsp; "
-        f"`basis_kind` = **{model_dbg.basis_kind}** &nbsp; | &nbsp; "
         f"`mse_` = **{model_dbg.mse_}**"
     )
-    if model_dbg.solver == "asgl":
-        bic_left, bic_right = st.columns(2)
-        with bic_left:
-            st.markdown("**BIC vs max_order**")
-            _plot_bic_curve_for_debug(
-                model_dbg.bic_order_path_,
-                "BIC 选择 max_order",
-                "max_order",
-                "max_order",
-            )
-        with bic_right:
-            st.markdown("**BIC vs alpha**")
-            _plot_bic_curve_for_debug(
-                model_dbg.bic_alpha_path_,
-                "BIC 选择 alpha",
-                "alpha",
-                "alpha",
-                log_x=True,
-            )
+    if model_dbg.effect_constraint_diagnostics_ is not None:
+        st.markdown("**Effect constraint diagnostics**")
+        st.dataframe(model_dbg.effect_constraint_diagnostics_, use_container_width=True)
+    bic_left, bic_right = st.columns(2)
+    with bic_left:
+        st.markdown("**BIC vs max_order**")
+        _plot_bic_curve_for_debug(
+            model_dbg.bic_order_path_,
+            "BIC 选择 max_order",
+            "max_order",
+            "max_order",
+        )
+    with bic_right:
+        st.markdown("**BIC vs alpha**")
+        _plot_bic_curve_for_debug(
+            model_dbg.bic_alpha_path_,
+            "BIC 选择 alpha",
+            "alpha",
+            "alpha",
+            log_x=True,
+        )
 
     st.markdown("**curve_sample (raw) — head**")
     st.dataframe(cs_raw.head(), use_container_width=True)
@@ -566,8 +615,12 @@ if "netrecon_funclu_cluster_sizes" not in st.session_state:
     st.session_state.netrecon_funclu_cluster_sizes = pd.DataFrame()
 if "netrecon_funclu_centers" not in st.session_state:
     st.session_state.netrecon_funclu_centers = {}
+if "netrecon_funclu_center_responses" not in st.session_state:
+    st.session_state.netrecon_funclu_center_responses = {}
 if "netrecon_funclu_members" not in st.session_state:
     st.session_state.netrecon_funclu_members = {}
+if "netrecon_funclu_member_responses" not in st.session_state:
+    st.session_state.netrecon_funclu_member_responses = {}
 if "netrecon_funclu_uploaded_zip_name" not in st.session_state:
     st.session_state.netrecon_funclu_uploaded_zip_name = None
 if "netrecon_multilayer_result" not in st.session_state:
@@ -645,60 +698,17 @@ with tab1:
 
             with st.expander("IdopNetwork parameter settings", expanded=True):
                 with st.form(key="netrecon_form_single"):
-                    c1, c2, c3 = st.columns(3)
+                    c1, c2 = st.columns(2)
                     with c1:
-                        solver = st.selectbox(
-                            "Solver",
-                            options=["ols", "lasso", "asgl"],
-                            index=0,
-                        )
                         max_order = st.number_input(
-                            "max_order_upper (BIC)" if solver == "asgl" else "max_order",
+                            "max_order_upper (BIC)",
                             min_value=1,
                             max_value=100,
                             value=6,
                             step=1,
-                            help=(
-                                "ASGL uses BIC to select max_order from 1..this value."
-                                if solver == "asgl"
-                                else "Fixed basis order for this solver."
-                            ),
-                        )
-                        basis_kind = st.selectbox(
-                            "basis_kind",
-                            options=["legendre", "laguerre", "polynomial"],
-                            index=0,
-                            help=(
-                                "Basis family for per-feature expansion. "
-                                "legendre/laguerre: orthogonal polynomials on [-1, 1]. "
-                                "polynomial: powers x, x^2, ..., with column count "
-                                "still equals max_order."
-                            ),
+                            help="ASGL uses BIC to select max_order from 1..this value.",
                         )
                     with c2:
-                        if solver == "lasso":
-                            alpha = st.number_input(
-                                "alpha",
-                                min_value=0.0,
-                                value=0.001,
-                                step=0.001,
-                                format="%.4f",
-                                help="lasso regularization strength",
-                            )
-                        else:
-                            alpha = 1.0
-                        if solver == "asgl":
-                            st.caption("ASGL: max_order and alpha are selected by BIC.")
-                        monotonic_mode = st.selectbox(
-                            "monotonic_mode",
-                            options=["none", "increasing", "decreasing"],
-                            index=0,
-                            help=(
-                                "Constrain every source effect curve to be monotonic on sampled t. "
-                                "Current support: solver=ols, nonneg_self=False, max_interactions=0."
-                            ),
-                        )
-                    with c3:
                         nonneg_self = st.checkbox("nonneg_self", value=True)
                         top_k = st.number_input(
                             "max_interactions (Top-K)",
@@ -716,37 +726,45 @@ with tab1:
                     submit_run = st.form_submit_button("Run IdopNetwork")
 
             if submit_run:
+                progress_bar = st.progress(
+                    0,
+                    text=f"Preparing IdopNetwork for `{selected_condition}`...",
+                )
                 try:
-                    if monotonic_mode != "none":
-                        if solver != "ols":
-                            raise ValueError("启用 monotonic_mode 时，solver 必须为 ols。")
-                        if bool(nonneg_self):
-                            raise ValueError("启用 monotonic_mode 时，请将 nonneg_self 设为 False。")
-                        if int(top_k) > 0:
-                            raise ValueError(
-                                "启用 monotonic_mode 时，请将 max_interactions (Top-K) 设为 0。"
-                            )
+                    progress_bar.progress(10, text="Estimating power-function parameters...")
+                    power_function_params = get_power_function_params(quasi_dynamic_df)
+                    progress_bar.progress(20, text="Initializing constrained ASGL model...")
                     model = IDOPRegressor(
                         max_order=int(max_order),
-                        solver=str(solver),
-                        alpha=float(alpha),
                         mix=0.5,
-                        fix_mix=(solver == "asgl"),
+                        fix_mix=False,
                         nonneg_self=bool(nonneg_self),
                         max_interactions=int(top_k),
-                        basis_kind=str(basis_kind),
-                        monotonic_mode=str(monotonic_mode),
+                        adaptive_weights=False,
                     )
-                    model.fit(curve_sample_df, quasi_dynamic_df)
+                    progress_bar.progress(
+                        35,
+                        text="Fitting model and enforcing effect constraints...",
+                    )
+                    model.fit(
+                        curve_sample_df,
+                        quasi_dynamic_df,
+                        power_function_params=power_function_params,
+                    )
+                    progress_bar.progress(70, text="Generating prediction curves...")
                     predicted_df = model.predict(curve_sample_df)
+                    progress_bar.progress(80, text="Computing effect decomposition...")
                     effect_df_list = model.effect(curve_sample_df)
+                    progress_bar.progress(90, text="Building adjacency matrix...")
                     adj_df = model.adjacency_matrix(
                         curve_sample_df,
                         aggregation=str(adjacency_aggregation),
                     )
+                    progress_bar.progress(95, text="Preparing debug matrices...")
                     design_X = model._design(curve_sample_df)
                     response_Y = align_response_to_design(quasi_dynamic_df, design_X.index)
                 except Exception as e:
+                    progress_bar.progress(100, text="IdopNetwork failed.")
                     st.error(f"IdopNetwork 运行失败：{e}")
                     st.session_state.netrecon_result = None
                 else:
@@ -762,6 +780,7 @@ with tab1:
                         "adj_df": adj_df,
                         "adjacency_aggregation": str(adjacency_aggregation),
                     }
+                    progress_bar.progress(100, text="IdopNetwork completed.")
                     st.success("Done")
 
             result = st.session_state.netrecon_result
@@ -880,7 +899,6 @@ with tab1:
                     basis_raw_dbg = polynomial_basis_expansion(
                         cs_raw,
                         model_dbg.max_order,
-                        kind=model_dbg.basis_kind,
                     )
 
                     def _summary(name: str, df: pd.DataFrame) -> dict:
@@ -969,15 +987,14 @@ with tab1:
                         st.pyplot(fig, use_container_width=True)
                         plt.close(fig)
 
-                    _basis_label = model_dbg.basis_kind.capitalize()
                     summary_rows = [
                         _summary("curve_sample (raw)", cs_raw),
                         _summary(
-                            f"basis raw = y_k(τ) · {_basis_label}_r(τ̂) before integral",
+                            "basis raw = y_k(τ) · Legendre_r(τ̂) (derivative-mode point values)",
                             basis_raw_dbg,
                         ),
                         _summary(
-                            f"design X = [intercept | ∫ y_k · {_basis_label}_r(τ̂) dτ]",
+                            "design X = [intercept | ∫_{τ_1}^{τ} a_k s^{b_k} · Legendre_r(τ̂(s)) ds (analytic)]",
                             X_dbg,
                         ),
                         _summary(
@@ -992,30 +1009,33 @@ with tab1:
 
                     st.markdown(
                         f"`max_order` = **{model_dbg.max_order}** &nbsp; | &nbsp; "
-                        f"`solver` = **{model_dbg.solver}** &nbsp; | &nbsp; "
                         f"`alpha` = **{model_dbg.alpha}** &nbsp; | &nbsp; "
-                        f"`basis_kind` = **{model_dbg.basis_kind}** &nbsp; | &nbsp; "
                         f"`mse_` = **{model_dbg.mse_}**"
                     )
-                    if model_dbg.solver == "asgl":
-                        bic_left, bic_right = st.columns(2)
-                        with bic_left:
-                            st.markdown("**BIC vs max_order**")
-                            _plot_bic_curve(
-                                model_dbg.bic_order_path_,
-                                "BIC 选择 max_order",
-                                "max_order",
-                                "max_order",
-                            )
-                        with bic_right:
-                            st.markdown("**BIC vs alpha**")
-                            _plot_bic_curve(
-                                model_dbg.bic_alpha_path_,
-                                "BIC 选择 alpha",
-                                "alpha",
-                                "alpha",
-                                log_x=True,
-                            )
+                    if model_dbg.effect_constraint_diagnostics_ is not None:
+                        st.markdown("**Effect constraint diagnostics**")
+                        st.dataframe(
+                            model_dbg.effect_constraint_diagnostics_,
+                            use_container_width=True,
+                        )
+                    bic_left, bic_right = st.columns(2)
+                    with bic_left:
+                        st.markdown("**BIC vs max_order**")
+                        _plot_bic_curve(
+                            model_dbg.bic_order_path_,
+                            "BIC 选择 max_order",
+                            "max_order",
+                            "max_order",
+                        )
+                    with bic_right:
+                        st.markdown("**BIC vs alpha**")
+                        _plot_bic_curve(
+                            model_dbg.bic_alpha_path_,
+                            "BIC 选择 alpha",
+                            "alpha",
+                            "alpha",
+                            log_x=True,
+                        )
 
                     st.markdown("**curve_sample (raw) — head**")
                     st.dataframe(cs_raw.head(), use_container_width=True)
@@ -1091,29 +1111,40 @@ with tab2:
         != uploaded_funclu_zip.name
     ):
         try:
-            labels_df, cluster_sizes_df, centers, members = _load_funclu_export_from_zip(
-                uploaded_funclu_zip.getvalue()
-            )
+            (
+                labels_df,
+                cluster_sizes_df,
+                centers,
+                center_responses,
+                members,
+                member_responses,
+            ) = _load_funclu_export_from_zip(uploaded_funclu_zip.getvalue())
         except Exception as e:
             st.error(f"读取 FunClu-K ZIP 失败：{e}")
             st.session_state.netrecon_funclu_labels = pd.DataFrame()
             st.session_state.netrecon_funclu_cluster_sizes = pd.DataFrame()
             st.session_state.netrecon_funclu_centers = {}
+            st.session_state.netrecon_funclu_center_responses = {}
             st.session_state.netrecon_funclu_members = {}
+            st.session_state.netrecon_funclu_member_responses = {}
             st.session_state.netrecon_funclu_uploaded_zip_name = None
             st.session_state.netrecon_multilayer_result = None
         else:
             st.session_state.netrecon_funclu_labels = labels_df
             st.session_state.netrecon_funclu_cluster_sizes = cluster_sizes_df
             st.session_state.netrecon_funclu_centers = centers
+            st.session_state.netrecon_funclu_center_responses = center_responses
             st.session_state.netrecon_funclu_members = members
+            st.session_state.netrecon_funclu_member_responses = member_responses
             st.session_state.netrecon_funclu_uploaded_zip_name = uploaded_funclu_zip.name
             st.session_state.netrecon_multilayer_result = None
 
     labels_df = st.session_state.netrecon_funclu_labels
     cluster_sizes_df = st.session_state.netrecon_funclu_cluster_sizes
     centers = st.session_state.netrecon_funclu_centers
+    center_responses = st.session_state.netrecon_funclu_center_responses
     members = st.session_state.netrecon_funclu_members
+    member_responses = st.session_state.netrecon_funclu_member_responses
 
     tab2_1, tab2_2, tab2_3 = st.tabs(["Data Overview", "Multi-Layer IdopNetwork Construction", "Export"])
 
@@ -1143,11 +1174,19 @@ with tab2:
             overview_rows = []
             for cond_name in condition_names:
                 center_df = centers[cond_name]
+                center_response_df = center_responses.get(cond_name)
+                member_response_count = len(member_responses.get(cond_name, {}))
                 overview_rows.append(
                     {
                         "condition": cond_name,
                         "center_shape": str(center_df.shape),
+                        "center_response_shape": (
+                            str(center_response_df.shape)
+                            if center_response_df is not None
+                            else "missing"
+                        ),
                         "member_clusters": len(members.get(cond_name, {})),
+                        "member_response_clusters": member_response_count,
                     }
                 )
             st.dataframe(pd.DataFrame(overview_rows), use_container_width=True)
@@ -1173,53 +1212,18 @@ with tab2:
             
             with st.expander("Multi-Layer IdopNetwork parameter settings", expanded=True):
                 with st.form(key="netrecon_form_multilayer"):
-                    mc1, mc2, mc3 = st.columns(3)
+                    mc1, mc2 = st.columns(2)
                     with mc1:
-                        ml_solver = st.selectbox(
-                            "Solver",
-                            options=["ols", "lasso", "asgl"],
-                            index=0,
-                            key="netrecon_ml_solver",
-                        )
                         ml_max_order = st.number_input(
-                            "max_order_upper (BIC)" if ml_solver == "asgl" else "max_order",
+                            "max_order_upper (BIC)",
                             min_value=1,
                             max_value=100,
                             value=6,
                             step=1,
                             key="netrecon_ml_max_order",
-                        )
-                        ml_basis_kind = st.selectbox(
-                            "basis_kind",
-                            options=["legendre", "laguerre", "polynomial"],
-                            index=0,
-                            key="netrecon_ml_basis_kind",
+                            help="ASGL uses BIC to select max_order from 1..this value.",
                         )
                     with mc2:
-                        if ml_solver == "lasso":
-                            ml_alpha = st.number_input(
-                                "alpha",
-                                min_value=0.0,
-                                value=0.001,
-                                step=0.001,
-                                format="%.4f",
-                                key="netrecon_ml_alpha",
-                            )
-                        else:
-                            ml_alpha = 1.0
-                        if ml_solver == "asgl":
-                            st.caption("ASGL: max_order and alpha are selected by BIC.")
-                        ml_monotonic_mode = st.selectbox(
-                            "monotonic_mode",
-                            options=["none", "increasing", "decreasing"],
-                            index=0,
-                            key="netrecon_ml_monotonic_mode",
-                            help=(
-                                "Constrain every source effect curve to be monotonic on sampled t. "
-                                "Current support: solver=ols, nonneg_self=False, max_interactions=0."
-                            ),
-                        )
-                    with mc3:
                         ml_nonneg_self = st.checkbox(
                             "nonneg_self",
                             value=True,
@@ -1243,93 +1247,143 @@ with tab2:
                     submit_multilayer = st.form_submit_button("Run Multi-Layer IdopNetwork")
 
             if submit_multilayer:
-                invalid_msg: str | None = None
-                if ml_monotonic_mode != "none":
-                    if ml_solver != "ols":
-                        invalid_msg = "启用 monotonic_mode 时，solver 必须为 ols。"
-                    elif bool(ml_nonneg_self):
-                        invalid_msg = "启用 monotonic_mode 时，请将 nonneg_self 设为 False。"
-                    elif int(ml_top_k) > 0:
-                        invalid_msg = (
-                            "启用 monotonic_mode 时，请将 max_interactions (Top-K) 设为 0。"
-                        )
-                if invalid_msg is not None:
-                    st.error(invalid_msg)
-                else:
-                    params = {
-                        "max_order": int(ml_max_order),
-                        "solver": str(ml_solver),
-                        "alpha": float(ml_alpha),
-                        "nonneg_self": bool(ml_nonneg_self),
-                        "max_interactions": int(ml_top_k),
-                        "basis_kind": str(ml_basis_kind),
-                        "monotonic_mode": str(ml_monotonic_mode),
-                        "adjacency_aggregation": str(ml_adjacency_aggregation),
-                    }
-                    inter_cluster: dict[str, dict] = {}
-                    intra_cluster: dict[str, dict[str, dict]] = {}
-                    skipped: list[dict[str, str | int]] = []
+                params = {
+                    "max_order": int(ml_max_order),
+                    "nonneg_self": bool(ml_nonneg_self),
+                    "max_interactions": int(ml_top_k),
+                    "adjacency_aggregation": str(ml_adjacency_aggregation),
+                }
+                inter_cluster: dict[str, dict] = {}
+                intra_cluster: dict[str, dict[str, dict]] = {}
+                skipped: list[dict[str, str | int]] = []
+                total_jobs = len(condition_names) + sum(
+                    len(cluster_map) for cluster_map in members.values()
+                )
+                total_jobs = max(total_jobs, 1)
+                completed_jobs = 0
+                progress_bar = st.progress(
+                    0,
+                    text="Preparing Multi-Layer IdopNetwork...",
+                )
 
-                    try:
-                        for cond_name in condition_names:
-                            center_df = centers[cond_name]
+                def _update_multilayer_progress(message: str) -> None:
+                    """更新多层网络构建进度条。"""
+                    progress = min(completed_jobs / total_jobs, 1.0)
+                    progress_bar.progress(progress, text=message)
+
+                try:
+                    for cond_name in condition_names:
+                        center_df = centers[cond_name]
+                        if cond_name not in center_responses:
+                            skipped.append(
+                                {
+                                    "layer": "condition",
+                                    "condition": cond_name,
+                                    "cluster": "",
+                                    "n_nodes": int(center_df.shape[1]),
+                                    "reason": (
+                                        "missing cluster_center_quasi_dynamic "
+                                        "in FunClu-K export"
+                                    ),
+                                }
+                            )
+                            completed_jobs += 1 + len(members.get(cond_name, {}))
+                            _update_multilayer_progress(
+                                f"Skipped condition `{cond_name}`: missing center response."
+                            )
+                            continue
+                        center_response_df = center_responses[cond_name]
+                        _update_multilayer_progress(
+                            f"Building inter-cluster network: `{cond_name}`..."
+                        )
+                        try:
+                            inter_cluster[cond_name] = _fit_idop_network_from_curve_sample(
+                                center_df,
+                                center_response_df,
+                                **params,
+                                power_function_params=get_power_function_params(
+                                    center_response_df
+                                ),
+                            )
+                        except Exception as e:
+                            skipped.append(
+                                {
+                                    "layer": "inter_cluster",
+                                    "condition": cond_name,
+                                    "cluster": "",
+                                    "n_nodes": int(center_df.shape[1]),
+                                    "reason": str(e),
+                                }
+                            )
+                        completed_jobs += 1
+                        _update_multilayer_progress(
+                            f"Finished inter-cluster network: `{cond_name}`."
+                        )
+
+                        intra_cluster[cond_name] = {}
+                        for cluster_name, member_df in members.get(cond_name, {}).items():
+                            _update_multilayer_progress(
+                                "Building intra-cluster network: "
+                                f"`{cond_name}` / `{cluster_name}`..."
+                            )
+                            if member_df.shape[1] < 2:
+                                skipped.append(
+                                    {
+                                        "layer": "intra_cluster",
+                                        "condition": cond_name,
+                                        "cluster": cluster_name,
+                                        "n_nodes": int(member_df.shape[1]),
+                                        "reason": "less than 2 member curves",
+                                    }
+                                )
+                                completed_jobs += 1
+                                _update_multilayer_progress(
+                                    "Skipped intra-cluster network: "
+                                    f"`{cond_name}` / `{cluster_name}`."
+                                )
+                                continue
                             try:
-                                inter_cluster[cond_name] = _fit_idop_network_from_curve_sample(
-                                    center_df,
-                                    **params,
+                                member_response_df = member_responses.get(
+                                    cond_name, {}
+                                )[cluster_name]
+                                intra_cluster[cond_name][cluster_name] = (
+                                    _fit_idop_network_from_curve_sample(
+                                        member_df,
+                                        member_response_df,
+                                        **params,
+                                        power_function_params=get_power_function_params(
+                                            member_response_df
+                                        ),
+                                    )
                                 )
                             except Exception as e:
                                 skipped.append(
                                     {
-                                        "layer": "inter_cluster",
+                                        "layer": "intra_cluster",
                                         "condition": cond_name,
-                                        "cluster": "",
-                                        "n_nodes": int(center_df.shape[1]),
+                                        "cluster": cluster_name,
+                                        "n_nodes": int(member_df.shape[1]),
                                         "reason": str(e),
                                     }
                                 )
-
-                            intra_cluster[cond_name] = {}
-                            for cluster_name, member_df in members.get(cond_name, {}).items():
-                                if member_df.shape[1] < 2:
-                                    skipped.append(
-                                        {
-                                            "layer": "intra_cluster",
-                                            "condition": cond_name,
-                                            "cluster": cluster_name,
-                                            "n_nodes": int(member_df.shape[1]),
-                                            "reason": "less than 2 member curves",
-                                        }
-                                    )
-                                    continue
-                                try:
-                                    intra_cluster[cond_name][cluster_name] = (
-                                        _fit_idop_network_from_curve_sample(
-                                            member_df,
-                                            **params,
-                                        )
-                                    )
-                                except Exception as e:
-                                    skipped.append(
-                                        {
-                                            "layer": "intra_cluster",
-                                            "condition": cond_name,
-                                            "cluster": cluster_name,
-                                            "n_nodes": int(member_df.shape[1]),
-                                            "reason": str(e),
-                                        }
-                                    )
-                    except Exception as e:
-                        st.error(f"Multi-Layer IdopNetwork 运行失败：{e}")
-                        st.session_state.netrecon_multilayer_result = None
-                    else:
-                        st.session_state.netrecon_multilayer_result = {
-                            "params": params,
-                            "inter_cluster": inter_cluster,
-                            "intra_cluster": intra_cluster,
-                            "skipped": skipped,
-                        }
-                        st.success("Done")
+                            completed_jobs += 1
+                            _update_multilayer_progress(
+                                "Finished intra-cluster network: "
+                                f"`{cond_name}` / `{cluster_name}`."
+                            )
+                except Exception as e:
+                    progress_bar.progress(1.0, text="Multi-Layer IdopNetwork failed.")
+                    st.error(f"Multi-Layer IdopNetwork 运行失败：{e}")
+                    st.session_state.netrecon_multilayer_result = None
+                else:
+                    st.session_state.netrecon_multilayer_result = {
+                        "params": params,
+                        "inter_cluster": inter_cluster,
+                        "intra_cluster": intra_cluster,
+                        "skipped": skipped,
+                    }
+                    progress_bar.progress(1.0, text="Multi-Layer IdopNetwork completed.")
+                    st.success("Done")
 
             multilayer_result = st.session_state.netrecon_multilayer_result
             if multilayer_result is not None:
@@ -1458,7 +1512,7 @@ with tab2:
                             )
 
                         plot_effect(
-                            quasi_dynamic_df=effect_network["curve_sample_df"],
+                            quasi_dynamic_df=effect_network["quasi_dynamic_df"],
                             curve_df=effect_network["predicted_df"],
                             effect_df_list=effect_network["effect_df_list"],
                             intercept=effect_network["model"].coef_.loc["intercept"],
