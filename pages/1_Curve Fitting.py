@@ -158,7 +158,17 @@ with tab1:
     with tab1_2:
         if uploaded_files:
             with st.form(key="transform_form"):
-                scaler_type = st.selectbox("Transform Type", ["none", "rescale_to_0_1", "rescale_to_-1_1", "log1p"],key="transform_data")
+                scaler_type = st.selectbox(
+                    "Transform Type",
+                    [
+                        "none",
+                        "rescale_to_0_1",
+                        "rescale_to_-1_1",
+                        "log1p",
+                        "zscore_shift_positive",
+                    ],
+                    key="transform_data",
+                )
                 submit_transform = st.form_submit_button("Run Transform")
             # 执行数据变换
             if submit_transform:
@@ -244,13 +254,24 @@ with tab2:
     with subtab2_1:
         if uploaded_files:
             with st.form(key="quasi_dynamic_form"):
+                quasi_log_index = st.checkbox(
+                    "Use natural log of quasi-dynamic index",
+                    value=False,
+                    help=(
+                        "If enabled, rows with non-positive or non-finite "
+                        "row-sum index values are skipped before applying log."
+                    ),
+                )
                 submit_quasi = st.form_submit_button("Run Quasi Dynamic")
             if submit_quasi:
                 for file in uploaded_files:
                     if file.name in st.session_state.df_transform:
                         # 加载并缓存 quasi-dynamic DataFrame df_quasi_dynamic
                         df_transform = st.session_state.df_transform[file.name]
-                        df_quasi_dynamic = get_quasi_dynamic_df(df_transform)
+                        df_quasi_dynamic = get_quasi_dynamic_df(
+                            df_transform,
+                            log_index=bool(quasi_log_index),
+                        )
                         st.session_state.df_quasi_dynamic[file.name] = df_quasi_dynamic
                 st.success("Success")
             if st.session_state.df_quasi_dynamic:
