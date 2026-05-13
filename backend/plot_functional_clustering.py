@@ -5,7 +5,7 @@
 - ``plot_initialization_grid``：给 ``FunClu._initialize`` 的初值做诊断网格图，
   支持 ``"k_by_l"``（K 行 × L 列）与 ``"l_by_k"``（L 行 × K 列）两种布局。
 - ``plot_cluster_profiles``：EM 拟合完成后，按簇绘制各 condition 的成员
-  曲线 + 加权均值幂律拟合曲线 + 可选 CI 带。
+  曲线 + 成员逐点均值曲线 + 可选 CI 带。
 
 绘图函数全部为模块级（不依赖 ``FunClu`` 实例方法），既符合项目分层
 （``backend/plot_xxx.py`` 仅做绘图），又便于在 page 之外被复用。
@@ -488,12 +488,8 @@ def plot_cluster_profiles(
         df_curve_sub = _select_member_columns(df_curve)
         cluster_data_curve = df_curve_sub.iloc[:, mask]
         mean_points = cluster_data_curve.mean(axis=1).values.astype(np.float64)
-        mean_x, mean_curve = _fit_mean_curve_power_sample(
-            t_curve, mean_points, t_curve
-        )
-        if not np.isfinite(mean_curve).any():
-            mean_x = t_curve
-            mean_curve = mean_points
+        mean_x = t_curve
+        mean_curve = mean_points
 
         if show_mean_ci and n_in_cluster > 0:
             std_curve = cluster_data_curve.std(axis=1).values.astype(np.float64)

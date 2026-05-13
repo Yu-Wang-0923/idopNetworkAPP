@@ -59,6 +59,14 @@ def data_transformation(
         else:
             scaled = standardized + abs(float(finite_values.min()))
         return pd.DataFrame(scaled, columns=data.columns, index=data.index)
+    elif scaler_type == "zscore_shift_positive_by_row":
+        num = _numeric_frame_for_transform(data)
+        row_mean = num.mean(axis=1)
+        row_std = num.std(axis=1, ddof=0).replace(0.0, 1.0)
+        standardized = num.sub(row_mean, axis=0).div(row_std, axis=0)
+        row_min = standardized.min(axis=1, skipna=True).fillna(0.0)
+        scaled = standardized.sub(row_min, axis=0)
+        return pd.DataFrame(scaled, columns=data.columns, index=data.index)
     else:
         raise ValueError(f"不支持的数据变换类型: {scaler_type}")
     return pd.DataFrame(scaled, columns=data.columns, index=data.index)

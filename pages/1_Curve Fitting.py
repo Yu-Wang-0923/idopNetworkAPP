@@ -166,6 +166,7 @@ with tab1:
                         "rescale_to_-1_1",
                         "log1p",
                         "zscore_shift_positive",
+                        "zscore_shift_positive_by_row",
                     ],
                     key="transform_data",
                 )
