@@ -66,7 +66,7 @@ def data_transformation(
         standardized = num.sub(row_mean, axis=0).div(row_std, axis=0)
         row_min = standardized.min(axis=1, skipna=True).fillna(0.0)
         scaled = standardized.sub(row_min, axis=0)
-        epsilon = 1e-6  # 极小偏移量，也可以改成 0.001 / 0.01
+        epsilon = 0.5  # 极小偏移量，也可以改成 0.001 / 0.01
         scaled = scaled + epsilon
         return pd.DataFrame(scaled, columns=data.columns, index=data.index)
     else:
