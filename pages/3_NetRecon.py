@@ -21,7 +21,11 @@ from backend.network_construction import (
     polynomial_basis_expansion,
 )
 from backend.plot_curve_fitting import plot_curve_fitting
-from backend.plot_network_construction import plot_effect, plot_network
+from backend.plot_network_construction import (
+    plot_effect,
+    plot_network,
+    plot_adjusted_matrix_heatmap,
+)
 from backend.utils import font_prop, load_css, setup_sidebar
 
 # ========== 加载 CSS ==========
