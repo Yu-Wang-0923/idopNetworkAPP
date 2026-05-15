@@ -1095,13 +1095,40 @@ def plot_network(
     fig_height = max(7.5, 0.55 * n_nodes + 3.5)
 
     if show_degree_panel:
+        n_nodes = len(node_order)
+
+        # ========= 自适应 figure 高度 =========
+        if n_nodes <= 10:
+            fig_height = 7.5
+            degree_panel_ratio = 1.10
+        elif n_nodes <= 20:
+            fig_height = 8.8
+            degree_panel_ratio = 1.00
+        elif n_nodes <= 40:
+            fig_height = 10.8
+            degree_panel_ratio = 0.90
+        elif n_nodes <= 70:
+            fig_height = 12.8
+            degree_panel_ratio = 0.82
+        else:
+            fig_height = min(18.0, 0.16 * n_nodes + 4.0)
+            degree_panel_ratio = 0.74
+
         fig = plt.figure(figsize=(15.5, fig_height), dpi=180, facecolor="#F6F6F6")
         gs = fig.add_gridspec(
             1,
             3,
-            width_ratios=[2.25, 0.18, 1.20],  # 中间一列专门留白
+            width_ratios=[2.35, 0.10, degree_panel_ratio],
             wspace=0.00,
         )
+
+        ax_net = fig.add_subplot(gs[0, 0])
+        ax_gap = fig.add_subplot(gs[0, 1])
+        ax_bar = fig.add_subplot(gs[0, 2])
+        ax_gap.axis("off")
+    else:
+        fig, ax_net = plt.subplots(figsize=(9.0, fig_height), dpi=200, facecolor="#F6F6F6")
+        ax_bar = None
 
         ax_net = fig.add_subplot(gs[0, 0])
         ax_gap = fig.add_subplot(gs[0, 1])
