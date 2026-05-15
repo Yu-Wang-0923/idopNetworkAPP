@@ -136,7 +136,7 @@ else:
                     </span> 
                     <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span>
                 </div>
-                <div class='card-desc'>通过异速生长定律将多源静态离散数据转化为连续的<b>拟动态（Quasi-dynamic）</b>演化曲线，为后续微分方程的构建提供底层数学基础。</div>
+                <div class='card-desc'>基于生态位理论与异速生长定律，实现静态数据的拟动态幂律曲线转化，为后续微分方程的构建提供底层数学基础。</div>
             </div>
         </a >
         
@@ -149,7 +149,7 @@ else:
                     </span> 
                     <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span>
                 </div>
-                <div class='card-desc'>运用函数型聚类降维，识别系统内部具有相似动力学轨迹的核心变量模块，极大降低高维全景网络重构的计算复杂度。</div>
+                <div class='card-desc'>通过多元高斯混合模型实现功能模块聚类，降低高维网络解析复杂度。</div>
             </div>
         </a >
         
@@ -162,7 +162,7 @@ else:
                     </span> 
                     <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span>
                 </div>
-                <div class='card-desc'>基于拟动态常微分方程（qdODEs），重构带符号的加权有向图，精准量化各变量之间的“促进”与“抑制”因果依赖关系。</div>
+                <div class='card-desc'>基于进化博弈论构建微分方程，通过带约束多任务稀疏回归，求解变量自身表达与交互效应，构建动态个性化复杂网络。</div>
             </div>
         </a >
         
@@ -175,13 +175,13 @@ else:
                     </span> 
                     <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span>
                 </div>
-                <div class='card-desc'>追踪网络拓扑结构（Topology）随时间与环境的时空演变规律，并支持提取单样本特异性网络，实现微观级别的个性化洞察。</div>
+                <div class='card-desc'>采用 GLMY 拓扑同调方法解析动态网络高阶结构，也可通过网络深度与 “网络中位数” 理论，刻画群体共性拓扑特征。</div>
             </div>
         </a >
         """, unsafe_allow_html=True)
 
 with col_right:
-    st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>代表性学术成果</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>idopnetwork代表性学术成果</h4>", unsafe_allow_html=True)
     
     # 这里就是你那长长的 46 篇论文列表
     papers_html = """
@@ -260,7 +260,7 @@ with col_right:
 st.markdown(
     """<div style="text-align:center; color:#94a3b8; font-size:0.9rem; margin: 3rem 0;">
         复杂系统拓扑统计理论及应用北京市重点实验室 
-               北京雁栖湖应用数学研究院 
+            北京雁栖湖应用数学研究院 
                  idopNetwork v2.0
     </div>""", unsafe_allow_html=True
 )
