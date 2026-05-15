@@ -33,6 +33,7 @@ def data_transformation(
     data: pd.DataFrame,
     scaler_type: str,
 ) -> pd.DataFrame:
+    """Transform uploaded data before quasi-dynamic conversion."""
     if scaler_type == "none":
         return data.copy()
     if scaler_type == "rescale_to_-1_1":
@@ -47,6 +48,27 @@ def data_transformation(
             raise ValueError("log1p 变换要求所有数值列数据均大于等于 -1。")
         scaled = num.apply(np.log1p, axis=0)
         return pd.DataFrame(scaled, columns=data.columns, index=data.index)
+    elif scaler_type == "zscore_shift_positive":
+        num = _numeric_frame_for_transform(data)
+        std = num.std(axis=0, ddof=0).replace(0.0, 1.0)
+        standardized = (num - num.mean(axis=0)) / std
+        finite_values = standardized.to_numpy(dtype=float)
+        finite_values = finite_values[np.isfinite(finite_values)]
+        if finite_values.size == 0:
+            scaled = standardized
+        else:
+            scaled = standardized + abs(float(finite_values.min()))
+        return pd.DataFrame(scaled, columns=data.columns, index=data.index)
+    elif scaler_type == "zscore_shift_positive_by_row":
+        num = _numeric_frame_for_transform(data)
+        row_mean = num.mean(axis=1)
+        row_std = num.std(axis=1, ddof=0).replace(0.0, 1.0)
+        standardized = num.sub(row_mean, axis=0).div(row_std, axis=0)
+        row_min = standardized.min(axis=1, skipna=True).fillna(0.0)
+        scaled = standardized.sub(row_min, axis=0)
+        epsilon = 0.5  # 极小偏移量，也可以改成 0.001 / 0.01
+        scaled = scaled + epsilon
+        return pd.DataFrame(scaled, columns=data.columns, index=data.index)
     else:
         raise ValueError(f"不支持的数据变换类型: {scaler_type}")
     return pd.DataFrame(scaled, columns=data.columns, index=data.index)
@@ -60,12 +82,19 @@ def data_transformation(
 @st.cache_data
 def get_quasi_dynamic_df(
     data: pd.DataFrame,
+    log_index: bool = False,
 ) -> pd.DataFrame:
+    """Build quasi-dynamic data, optionally using natural log of the row-sum index."""
     row_sum = data.sum(axis=1)
     # 用位置索引排序，避免原始行标签有重复时 .loc 展开多行导致长度不匹配
     sort_pos = np.argsort(row_sum.values, kind="stable")
     quasi_dynamic_df = data.iloc[sort_pos].copy()
-    quasi_dynamic_df.index = pd.Index(row_sum.values[sort_pos])
+    quasi_index = row_sum.values[sort_pos].astype(float)
+    if log_index:
+        valid = np.isfinite(quasi_index) & (quasi_index > 0)
+        quasi_dynamic_df = quasi_dynamic_df.iloc[valid].copy()
+        quasi_index = np.log(quasi_index[valid])
+    quasi_dynamic_df.index = pd.Index(quasi_index)
     return quasi_dynamic_df
 
 

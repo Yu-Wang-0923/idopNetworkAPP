@@ -29,30 +29,46 @@ st.title("Functional Clustering", text_alignment="center")
 # ========== Session State ==========
 if "funclu_curve_sample" not in st.session_state:
     st.session_state.funclu_curve_sample = {}  # {condition_name: pd.DataFrame}
+if "funclu_quasi_dynamic" not in st.session_state:
+    st.session_state.funclu_quasi_dynamic = {}  # {condition_name: pd.DataFrame}
 if "funclu_uploaded_zip_name" not in st.session_state:
     st.session_state.funclu_uploaded_zip_name = None
 if "funclu_em_result" not in st.session_state:
     st.session_state.funclu_em_result = None
 
 # ========== Helper Functions ==========
-def _load_curve_sample_from_zip(zip_bytes: bytes) -> dict[str, pd.DataFrame]:
-    """从 curve_fitting 导出的 ZIP 中按子目录读取 ``curve_sample.csv``。"""
-    out: dict[str, pd.DataFrame] = {}
+def _load_netrecon_inputs_from_zip(
+    zip_bytes: bytes,
+) -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame]]:
+    """从 curve_fitting 导出的 ZIP 读取 curve_sample 与 quasi_dynamic。"""
+    curve_map: dict[str, pd.DataFrame] = {}
+    quasi_map: dict[str, pd.DataFrame] = {}
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
         for name in zf.namelist():
-            if not name.endswith("curve_sample.csv"):
+            if not (
+                name.endswith("curve_sample.csv")
+                or name.endswith("quasi_dynamic.csv")
+            ):
                 continue
             cond = name.rsplit("/", 1)[0] if "/" in name else name
             with zf.open(name) as f:
                 df = pd.read_csv(f, index_col=0)
-            out[cond] = df
-    return dict(sorted(out.items(), key=lambda kv: kv[0]))
+            if name.endswith("curve_sample.csv"):
+                curve_map[cond] = df
+            else:
+                quasi_map[cond] = df
+    return (
+        dict(sorted(curve_map.items(), key=lambda kv: kv[0])),
+        dict(sorted(quasi_map.items(), key=lambda kv: kv[0])),
+    )
+
 
 def _build_funclu_k_export_zip(
     *,
     model: FunClu,
     cond_names: list[str],
     curve_sample_dict: dict[str, pd.DataFrame],
+    quasi_dynamic_dict: dict[str, pd.DataFrame],
 ) -> bytes:
     """Build a ZIP package for downstream Multi-Layer idopNetwork construction."""
     if model.labels is None or model.common_cols is None:
@@ -62,6 +78,14 @@ def _build_funclu_k_export_zip(
     common_cols = list(model.common_cols)
     if len(labels_np) != len(common_cols):
         raise ValueError("FunClu-K labels do not match common curve_sample columns.")
+    missing_quasi = [
+        cond_name for cond_name in cond_names if cond_name not in quasi_dynamic_dict
+    ]
+    if missing_quasi:
+        raise ValueError(
+            "FunClu-K export requires quasi_dynamic for every condition; "
+            f"missing: {', '.join(missing_quasi)}"
+        )
 
     labels_df = pd.DataFrame(
         {
@@ -84,6 +108,7 @@ def _build_funclu_k_export_zip(
 
         for cond_idx, cond_name in enumerate(cond_names):
             curve_sample = curve_sample_dict[cond_name].loc[:, common_cols]
+            quasi_dynamic = quasi_dynamic_dict[cond_name].loc[:, common_cols]
 
             for cluster_idx in range(model.n_components):
                 cluster_name = f"M{cluster_idx + 1}"
@@ -94,6 +119,11 @@ def _build_funclu_k_export_zip(
                 zf.writestr(
                     f"cluster_members/{cond_name}/{cluster_name}_curve_sample.csv",
                     member_df.to_csv(index=True),
+                )
+                member_response_df = quasi_dynamic.loc[:, member_cols]
+                zf.writestr(
+                    f"cluster_members/{cond_name}/{cluster_name}_quasi_dynamic.csv",
+                    member_response_df.to_csv(index=True),
                 )
 
             center_times, center_curves = model.get_cluster_curves(cond_idx)
@@ -106,6 +136,20 @@ def _build_funclu_k_export_zip(
             zf.writestr(
                 f"cluster_centers/{cond_name}/cluster_center_curve_sample.csv",
                 center_df.to_csv(index=True),
+            )
+            center_response_df = pd.DataFrame(index=quasi_dynamic.index)
+            for cluster_idx in range(model.n_components):
+                cluster_name = f"M{cluster_idx + 1}"
+                member_cols = labels_df.loc[
+                    labels_df["cluster_id"] == cluster_idx + 1, "feature"
+                ].tolist()
+                center_response_df[cluster_name] = quasi_dynamic.loc[
+                    :, member_cols
+                ].mean(axis=1)
+            center_response_df.index.name = quasi_dynamic.index.name or "time"
+            zf.writestr(
+                f"cluster_centers/{cond_name}/cluster_center_quasi_dynamic.csv",
+                center_response_df.to_csv(index=True),
             )
 
     return buffer.getvalue()
@@ -135,9 +179,13 @@ with tab1:
     if uploaded_file is not None:
         if st.session_state.funclu_uploaded_zip_name != uploaded_file.name:
             try:
-                st.session_state.funclu_curve_sample = _load_curve_sample_from_zip(
+                curve_sample_map, quasi_dynamic_map = _load_netrecon_inputs_from_zip(
                     uploaded_file.getvalue()
                 )
+                if not quasi_dynamic_map:
+                    raise ValueError("ZIP 中缺少 quasi_dynamic.csv，无法导出多层响应变量")
+                st.session_state.funclu_curve_sample = curve_sample_map
+                st.session_state.funclu_quasi_dynamic = quasi_dynamic_map
                 st.session_state.funclu_uploaded_zip_name = uploaded_file.name
                 # 当上传新数据时，清空之前的 EM 拟合结果
                 st.session_state.funclu_em_result = None 
@@ -145,6 +193,7 @@ with tab1:
             except Exception as e:
                 st.error(f"读取 ZIP 失败：{e}")
                 st.session_state.funclu_curve_sample = {}
+                st.session_state.funclu_quasi_dynamic = {}
                 st.session_state.funclu_uploaded_zip_name = None
 
     # ---------- 2. 数据概览（拆分为多个子 Tab） ----------
@@ -434,12 +483,14 @@ with tab2:
         else:
             em_model: FunClu = em["model"]
             em_cond_names = em["cond_names"]
+            quasi_dynamic_dict = st.session_state.get("funclu_quasi_dynamic", {})
 
             try:
                 export_zip_bytes = _build_funclu_k_export_zip(
                     model=em_model,
                     cond_names=em_cond_names,
                     curve_sample_dict=curve_sample_dict,
+                    quasi_dynamic_dict=quasi_dynamic_dict,
                 )
             except Exception as e:
                 st.error(f"FunClu-K export failed: {e}")
@@ -450,8 +501,12 @@ with tab2:
                     "- `cluster_sizes.csv`: number of features in each cluster.\n"
                     "- `cluster_members/<condition>/M*_curve_sample.csv`: "
                     "all member curves for each cluster and condition.\n"
+                    "- `cluster_members/<condition>/M*_quasi_dynamic.csv`: "
+                    "member response variables for multi-layer NetRecon.\n"
                     "- `cluster_centers/<condition>/cluster_center_curve_sample.csv`: "
-                    "cluster-center curves generated by `FunClu.get_cluster_curves()`."
+                    "cluster-center curves generated by `FunClu.get_cluster_curves()`.\n"
+                    "- `cluster_centers/<condition>/cluster_center_quasi_dynamic.csv`: "
+                    "cluster-level response variables aggregated from member quasi_dynamic."
                 )
 
                 st.download_button(

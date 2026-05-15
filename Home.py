@@ -26,7 +26,7 @@ if not st.session_state.get("logged_in", False):
     show_login_ui()
     
     # 显示一个漂亮的门面介绍
-    st.markdown("<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>idopNetwork：下一代数据分析平台</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>idopNetwork：个性化全景动态网络推演平台</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color:#475569;font-size:1.2rem;'>一个面向复杂系统数据的可视化分析工作台。</p>", unsafe_allow_html=True)
     st.info("💡 请点击右上角的 **[🔑 登录 / 注册]** 认证身份后解锁全部功能。")
     
@@ -119,36 +119,65 @@ else:
 
     st.divider()
 
-    # --- 核心内容区 ---
+ # --- 核心内容区 ---
     col_left, col_right = st.columns([1.15, 1], gap="large")
 
     with col_left:
-        st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>平台核心工作流</h4>", unsafe_allow_html=True)
+        st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>核心计算模块</h4>", unsafe_allow_html=True)
         st.markdown("""
-        <a href="Curve_Fitting" target="_self" class="card-link">
+        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded" rel="stylesheet" />
+        
+        <a href=" " target="_self" class="card-link">
             <div class='card'>
-                <div class='card-title'><span>📈 曲线拟合 (Curve Fitting)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span></div>
-                <div class='card-desc'>内置高精度拟合算法，针对多源时间序列数据进行特征提取与降噪。</div>
+                <div class='card-title'>
+                    <span style='display:flex; align-items:center; gap:6px;'>
+                        <span class="material-symbols-rounded" style="color:#16a34a; font-size:1.4rem;">timeline</span> 
+                        曲线拟合 (Curve Fitting)
+                    </span> 
+                    <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span>
+                </div>
+                <div class='card-desc'>通过异速生长定律将多源静态离散数据转化为连续的<b>拟动态（Quasi-dynamic）</b>演化曲线，为后续微分方程的构建提供底层数学基础。</div>
             </div>
-        </a>
+        </a >
+        
         <a href="FunClu" target="_self" class="card-link">
             <div class='card'>
-                <div class='card-title'><span>🧩 特征聚类 (FunClu)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span></div>
-                <div class='card-desc'>识别系统内部具有相似演化轨迹的核心变量模块。</div>
+                <div class='card-title'>
+                    <span style='display:flex; align-items:center; gap:6px;'>
+                        <span class="material-symbols-rounded" style="color:#ea580c; font-size:1.4rem;">category</span> 
+                        功能聚类 (FunClu)
+                    </span> 
+                    <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span>
+                </div>
+                <div class='card-desc'>运用函数型聚类降维，识别系统内部具有相似动力学轨迹的核心变量模块，极大降低高维全景网络重构的计算复杂度。</div>
             </div>
-        </a>
+        </a >
+        
         <a href="NetRecon" target="_self" class="card-link">
             <div class='card'>
-                <div class='card-title'><span>🕸️ 全景网络重构 (NetRecon)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span></div>
-                <div class='card-desc'>构建带符号的加权有向图，精准量化内部方向性依赖。</div>
+                <div class='card-title'>
+                    <span style='display:flex; align-items:center; gap:6px;'>
+                        <span class="material-symbols-rounded" style="color:#7c3aed; font-size:1.4rem;">hub</span> 
+                        idop网络重构 (NetRecon)
+                    </span> 
+                    <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span>
+                </div>
+                <div class='card-desc'>基于拟动态常微分方程（qdODEs），重构带符号的加权有向图，精准量化各变量之间的“促进”与“抑制”因果依赖关系。</div>
             </div>
-        </a>
+        </a >
+        
         <a href="NetAnal" target="_self" class="card-link">
             <div class='card'>
-                <div class='card-title'><span>📊 动态推演与解析 (NetAnal)</span> <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span></div>
-                <div class='card-desc'>将静态拓扑映射为动态演化轨迹，提供全息解析。</div>
+                <div class='card-title'>
+                    <span style='display:flex; align-items:center; gap:6px;'>
+                        <span class="material-symbols-rounded" style="color:#e11d48; font-size:1.4rem;">insights</span> 
+                        idop网络解析 (NetAnal)
+                    </span> 
+                    <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span>
+                </div>
+                <div class='card-desc'>追踪网络拓扑结构（Topology）随时间与环境的时空演变规律，并支持提取单样本特异性网络，实现微观级别的个性化洞察。</div>
             </div>
-        </a>
+        </a >
         """, unsafe_allow_html=True)
 
 with col_right:
