@@ -1809,7 +1809,7 @@ with tab2:
 
                         st.markdown("#### Inter-Cluster Heatmap")
 
-                        ih1, ih2, ih3 = st.columns(3)
+                        ih1, ih2, ih3, ih4 = st.columns(4)
 
                         with ih1:
                             run_inter_heatmap = st.button(
@@ -1829,7 +1829,14 @@ with tab2:
                                 value=False,
                                 key="show_ml_inter_heatmap_values",
                             )
-
+                        with ih4:
+                            normalize_inter_heatmap = st.checkbox(
+                                "Normalize",
+                                value=True,
+                                key="normalize_ml_inter_heatmap",
+                                help="勾选后分别归一化非对角线边权和对角线自身效应；取消后显示原始量级。",
+                            )
+                            
                         if run_inter_heatmap:
                             st.session_state["ml_inter_heatmap_request"] = {
                                 "condition": inter_adj_condition,
@@ -1847,10 +1854,8 @@ with tab2:
                             plot_adjusted_matrix_heatmap(
                                 inter_adj_for_table,
                                 title=f"Inter-Cluster Heatmap: {inter_adj_condition}",
-                                normalize_pm1=True,
-                                diag_cmap="RdBu_r",
-                                offdiag_cmap="PRGn",
                                 show_values=bool(show_inter_heatmap_values),
+                                normalize=bool(normalize_inter_heatmap),
                             )
                         else:
                             st.info("Click `Run Inter Heatmap` to render inter-cluster heatmap.")
