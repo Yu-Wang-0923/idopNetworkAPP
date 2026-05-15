@@ -1587,24 +1587,97 @@ with tab2:
 
                     if available_intra:
                         st.markdown("### Intra-Cluster Network")
+
                         intra_condition = st.selectbox(
                             "Intra-cluster condition",
                             options=list(available_intra.keys()),
                             key="netrecon_ml_intra_condition",
                         )
+
                         intra_cluster_name = st.selectbox(
                             "Cluster",
                             options=list(available_intra[intra_condition].keys()),
                             key="netrecon_ml_intra_cluster",
                         )
+
                         intra_adj_df = available_intra[intra_condition][intra_cluster_name]["adj_df"]
+
                         intra_target_node = st.selectbox(
                             "Intra-cluster target node filter",
-                            options=[""] + list(intra_adj_df.index),
+                            options=[""] + list(intra_adj_df.columns),
                             format_func=lambda x: "ALL" if x == "" else x,
                             key="netrecon_ml_intra_target_node",
                         )
-                        plot_network(intra_adj_df, target_node=intra_target_node)
+
+                        with st.expander("Intra-cluster plot controls", expanded=True):
+                            c1, c2, c3, c4 = st.columns(4)
+
+                            with c1:
+                                intra_top_edges_for_plot = st.number_input(
+                                    "Top edges",
+                                    min_value=1,
+                                    max_value=500,
+                                    value=60,
+                                    step=1,
+                                    key="ml_intra_top_edges_for_plot",
+                                )
+
+                            with c2:
+                                run_intra_network_plot = st.button(
+                                    "Run Intra Network",
+                                    key="run_ml_intra_network_plot_btn",
+                                )
+
+                            with c3:
+                                run_intra_network_degree_plot = st.button(
+                                    "Run Intra Network + Degree",
+                                    key="run_ml_intra_network_degree_plot_btn",
+                                )
+
+                            with c4:
+                                clear_intra_network_plot = st.button(
+                                    "Clear Intra Plot",
+                                    key="clear_ml_intra_network_plot_btn",
+                                )
+
+                        if run_intra_network_plot:
+                            st.session_state["ml_intra_network_plot_request"] = {
+                                "condition": intra_condition,
+                                "cluster": intra_cluster_name,
+                                "target_node": intra_target_node,
+                                "top_edges": int(intra_top_edges_for_plot),
+                                "show_degree_panel": False,
+                            }
+
+                        if run_intra_network_degree_plot:
+                            st.session_state["ml_intra_network_plot_request"] = {
+                                "condition": intra_condition,
+                                "cluster": intra_cluster_name,
+                                "target_node": intra_target_node,
+                                "top_edges": int(intra_top_edges_for_plot),
+                                "show_degree_panel": True,
+                            }
+
+                        if clear_intra_network_plot:
+                            st.session_state["ml_intra_network_plot_request"] = None
+
+                        intra_plot_request = st.session_state.get("ml_intra_network_plot_request", None)
+
+                        if (
+                            intra_plot_request is not None
+                            and intra_plot_request.get("condition") == intra_condition
+                            and intra_plot_request.get("cluster") == intra_cluster_name
+                            and intra_plot_request.get("target_node") == intra_target_node
+                            and int(intra_plot_request.get("top_edges", 60)) == int(intra_top_edges_for_plot)
+                        ):
+                            plot_network(
+                                intra_adj_df,
+                                target_node=intra_target_node,
+                                top_edges=int(intra_plot_request["top_edges"]),
+                                show_degree_panel=bool(intra_plot_request["show_degree_panel"]),
+                            )
+                        else:
+                            st.info("Click `Run Intra Network` or `Run Intra Network + Degree` to render.")
                     else:
                         st.warning("No intra-cluster network was built.")
 
