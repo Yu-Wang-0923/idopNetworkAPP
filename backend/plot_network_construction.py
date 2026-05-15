@@ -559,73 +559,119 @@ def _mirror_barh_degree(
     ax: plt.Axes,
     degree_df: pd.DataFrame,
     *,
-    node_order: list[str] | None = None,
-    title: str = "In-degree / Out-degree",
+    node_order: list[str],
+    title: str = "",
     bg_color: str = "white",
-    bar_height: float = 0.72,
+    bar_height: float | None = None,
 ) -> None:
-    """右侧镜像出入度图：左入度，右出度。"""
-    df = degree_df.copy()
+    """镜像水平条形图：
+    左边 In-degree（负方向），右边 Out-degree（正方向）。
+    节点越多，条越细、字号越小，尽量保持像参考图那样紧凑。
+    """
+    ax.set_facecolor(bg_color)
 
-    if node_order is not None:
-        node_order = [str(x) for x in node_order]
-        df["node"] = df["node"].astype(str)
-        df["node"] = pd.Categorical(df["node"], categories=node_order, ordered=True)
-        df = df.sort_values("node").reset_index(drop=True)
+    plot_df = degree_df.copy()
+    plot_df["node"] = plot_df["node"].astype(str)
+    node_order = [str(x) for x in node_order]
 
-    y = np.arange(len(df))
-
-    # 左侧：入度
-    ax.barh(
-        y,
-        -df["indegree"].values,
-        height=bar_height,
-        label="In-degree",
-        color="#7EA6C8",
-        alpha=0.95,
+    plot_df["node"] = pd.Categorical(
+        plot_df["node"],
+        categories=node_order,
+        ordered=True,
     )
+    plot_df = plot_df.sort_values("node").reset_index(drop=True)
 
-    # 右侧：出度
+    n = max(1, len(plot_df))
+
+    # ========= 自适应条厚 =========
+    if bar_height is None:
+        if n <= 10:
+            bar_height = 0.72
+        elif n <= 20:
+            bar_height = 0.58
+        elif n <= 35:
+            bar_height = 0.44
+        elif n <= 60:
+            bar_height = 0.32
+        else:
+            bar_height = 0.24
+
+    # ========= 自适应标签字号 =========
+    if n <= 10:
+        ytick_fs = 11
+    elif n <= 20:
+        ytick_fs = 9
+    elif n <= 40:
+        ytick_fs = 8
+    else:
+        ytick_fs = 7
+
+    if n <= 20:
+        xtick_fs = 10
+    elif n <= 40:
+        xtick_fs = 9
+    else:
+        xtick_fs = 8
+
+    y = np.arange(n)
+
+    indeg = plot_df["indegree"].to_numpy(dtype=float)
+    outdeg = plot_df["outdegree"].to_numpy(dtype=float)
+
+    # 左边画负号，这样形成镜像
     ax.barh(
         y,
-        df["outdegree"].values,
+        -indeg,
         height=bar_height,
+        color="#5B8FD1",
+        edgecolor="none",
+        alpha=0.92,
+        label="In-degree",
+    )
+    ax.barh(
+        y,
+        outdeg,
+        height=bar_height,
+        color="#E07A5F",
+        edgecolor="none",
+        alpha=0.92,
         label="Out-degree",
-        color="#D98C70",
-        alpha=0.95,
     )
 
     ax.set_yticks(y)
-    ax.set_yticklabels(
-        df["node"].astype(str).tolist(),
-        fontsize=9,
-        fontproperties=font_prop,
-    )
-
-    ax.axvline(0, color="gray", linestyle=":", linewidth=1.2)
-
-    xmax = max(
-        int(df["indegree"].max()) if len(df) else 0,
-        int(df["outdegree"].max()) if len(df) else 0,
-        1,
-    )
-
-    # 左右对称扩张
-    ax.set_xlim(-xmax - 0.8, xmax + 0.8)
-
-    ax.set_xlabel("Degree", fontsize=11, fontproperties=font_prop)
-    ax.set_title(title, fontsize=13, fontweight="bold", fontproperties=font_prop)
-
-    ax.grid(axis="x", linestyle="--", alpha=0.3)
-    ax.legend(frameon=False, loc="upper right", prop=font_prop)
+    ax.set_yticklabels(plot_df["node"].tolist(), fontproperties=font_prop, fontsize=ytick_fs)
     ax.invert_yaxis()
-    ax.set_facecolor(bg_color)
 
-    # 让图框更像一张独立的小图
-    for spine in ax.spines.values():
-        spine.set_visible(True)
-        spine.set_color("#D9D9D9")
-        spine.set_linewidth(1.0)
+    max_deg = max(
+        float(np.max(indeg)) if len(indeg) else 0.0,
+        float(np.max(outdeg)) if len(outdeg) else 0.0,
+        1.0,
+    )
+    xpad = max(0.5, 0.08 * max_deg)
+
+    ax.set_xlim(-(max_deg + xpad), max_deg + xpad)
+
+    xticks = np.arange(-int(np.ceil(max_deg)), int(np.ceil(max_deg)) + 1, 2)
+    if len(xticks) > 0:
+        ax.set_xticks(xticks)
+        ax.set_xticklabels(
+            [str(abs(int(t))) if t != 0 else "0" for t in xticks],
+            fontsize=xtick_fs,
+        )
+
+    ax.axvline(0, color="#9E9E9E", linestyle=":", linewidth=1.0)
+
+    ax.grid(axis="x", linestyle="--", linewidth=0.6, alpha=0.30)
+    ax.grid(axis="y", visible=False)
+
+    ax.set_xlabel("Degree", fontsize=10, fontproperties=font_prop)
+    if title:
+        ax.set_title(title, fontsize=12, fontweight="bold", fontproperties=font_prop)
+
+    for spine in ["top", "right"]:
+        ax.spines[spine].set_visible(False)
+
+    ax.legend(loc="upper right", frameon=False, prop=font_prop)
 
 
 # =============================================================================
