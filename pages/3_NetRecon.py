@@ -1886,7 +1886,7 @@ with tab2:
 
                         st.markdown("#### Intra-Cluster Heatmap")
 
-                        ah1, ah2, ah3 = st.columns(3)
+                        ah1, ah2, ah3, ah4 = st.columns(4)
 
                         with ah1:
                             run_intra_heatmap = st.button(
@@ -1906,7 +1906,14 @@ with tab2:
                                 value=False,
                                 key="show_ml_intra_heatmap_values",
                             )
-
+                        with ah4:
+                            normalize_intra_heatmap = st.checkbox(
+                                "Normalize",
+                                value=True,
+                                key="normalize_ml_intra_heatmap",
+                                help="勾选后分别归一化非对角线边权和对角线自身效应；取消后显示原始量级。",
+                            )
+                            
                         if run_intra_heatmap:
                             st.session_state["ml_intra_heatmap_request"] = {
                                 "condition": intra_adj_condition,
@@ -1926,10 +1933,8 @@ with tab2:
                             plot_adjusted_matrix_heatmap(
                                 intra_adj_for_table,
                                 title=f"Intra-Cluster Heatmap: {intra_adj_condition} / {intra_adj_cluster}",
-                                normalize_pm1=True,
-                                diag_cmap="RdBu_r",
-                                offdiag_cmap="PRGn",
                                 show_values=bool(show_intra_heatmap_values),
+                                normalize=bool(normalize_intra_heatmap),
                             )
                         else:
                             st.info("Click `Run Intra Heatmap` to render intra-cluster heatmap.")
