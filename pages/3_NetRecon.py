@@ -1500,19 +1500,88 @@ with tab2:
 
                     if multilayer_result["inter_cluster"]:
                         st.markdown("### Inter-Cluster Network")
+
                         inter_condition = st.selectbox(
                             "Inter-cluster condition",
                             options=list(multilayer_result["inter_cluster"].keys()),
                             key="netrecon_ml_inter_condition",
                         )
+
                         inter_adj_df = multilayer_result["inter_cluster"][inter_condition]["adj_df"]
+
                         inter_target_node = st.selectbox(
                             "Inter-cluster target node filter",
-                            options=[""] + list(inter_adj_df.index),
+                            options=[""] + list(inter_adj_df.columns),
                             format_func=lambda x: "ALL" if x == "" else x,
                             key="netrecon_ml_inter_target_node",
                         )
-                        plot_network(inter_adj_df, target_node=inter_target_node)
+
+                        with st.expander("Inter-cluster plot controls", expanded=True):
+                            c1, c2, c3, c4 = st.columns(4)
+
+                            with c1:
+                                inter_top_edges_for_plot = st.number_input(
+                                    "Top edges",
+                                    min_value=1,
+                                    max_value=500,
+                                    value=60,
+                                    step=1,
+                                    key="ml_inter_top_edges_for_plot",
+                                )
+
+                            with c2:
+                                run_inter_network_plot = st.button(
+                                    "Run Inter Network",
+                                    key="run_ml_inter_network_plot_btn",
+                                )
+
+                            with c3:
+                                run_inter_network_degree_plot = st.button(
+                                    "Run Inter Network + Degree",
+                                    key="run_ml_inter_network_degree_plot_btn",
+                                )
+
+                            with c4:
+                                clear_inter_network_plot = st.button(
+                                    "Clear Inter Plot",
+                                    key="clear_ml_inter_network_plot_btn",
+                                )
+
+                        if run_inter_network_plot:
+                            st.session_state["ml_inter_network_plot_request"] = {
+                                "condition": inter_condition,
+                                "target_node": inter_target_node,
+                                "top_edges": int(inter_top_edges_for_plot),
+                                "show_degree_panel": False,
+                            }
+
+                        if run_inter_network_degree_plot:
+                            st.session_state["ml_inter_network_plot_request"] = {
+                                "condition": inter_condition,
+                                "target_node": inter_target_node,
+                                "top_edges": int(inter_top_edges_for_plot),
+                                "show_degree_panel": True,
+                            }
+
+                        if clear_inter_network_plot:
+                            st.session_state["ml_inter_network_plot_request"] = None
+
+                        inter_plot_request = st.session_state.get("ml_inter_network_plot_request", None)
+
+                        if (
+                            inter_plot_request is not None
+                            and inter_plot_request.get("condition") == inter_condition
+                            and inter_plot_request.get("target_node") == inter_target_node
+                            and int(inter_plot_request.get("top_edges", 60)) == int(inter_top_edges_for_plot)
+                        ):
+                            plot_network(
+                                inter_adj_df,
+                                target_node=inter_target_node,
+                                top_edges=int(inter_plot_request["top_edges"]),
+                                show_degree_panel=bool(inter_plot_request["show_degree_panel"]),
+                            )
+                        else:
+                            st.info("Click `Run Inter Network` or `Run Inter Network + Degree` to render.")
                     else:
                         st.warning("No inter-cluster network was built.")
 
