@@ -955,11 +955,11 @@ with tab1:
 
                     if st.session_state.get("single_adj_heatmap_render", False):
                         plot_adjusted_matrix_heatmap(
-                        result["adj_df"],
-                        title="Adjusted Matrix Heatmap",
-                        show_values=bool(show_single_heatmap_values),
-                        normalize=bool(normalize_single_heatmap),
-                    )
+                            result["adj_df"],
+                            title="Adjusted Matrix Heatmap",
+                            show_values=bool(show_single_heatmap_values),
+                            normalize=bool(normalize_single_heatmap),
+                        )
                     else:
                         st.info("Click `Run Heatmap` to render the adjusted matrix heatmap.")
                 # ========== Tab 1_2_4 Debug ==========
