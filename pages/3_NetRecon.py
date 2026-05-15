@@ -1781,16 +1781,148 @@ with tab2:
                             st.info("Click `Run Multi-Layer Effect Plot` to render effect curves.")
 
                 # ========== Tab 2_2_3 Adjacency Matrix ==========
+                # ========== Tab 2_2_3 Adjacency Matrix ==========
                 with tab2_2_3:
                     if multilayer_result["inter_cluster"]:
-                        st.markdown(f"### Inter-Cluster Adjacency Matrix ({st.session_state.get('netrecon_ml_inter_condition', '')})")
-                        if "netrecon_ml_inter_condition" in st.session_state:
-                            st.dataframe(multilayer_result["inter_cluster"][st.session_state.netrecon_ml_inter_condition]["adj_df"], use_container_width=True)
+                        st.markdown(
+                            f"### Inter-Cluster Adjacency Matrix "
+                            f"({st.session_state.get('netrecon_ml_inter_condition', '')})"
+                        )
+
+                        inter_conditions = list(multilayer_result["inter_cluster"].keys())
+
+                        inter_adj_condition = st.selectbox(
+                            "Inter-cluster adjacency condition",
+                            options=inter_conditions,
+                            key="netrecon_ml_adj_inter_condition",
+                        )
+
+                        inter_adj_for_table = multilayer_result["inter_cluster"][inter_adj_condition]["adj_df"]
+
+                        st.caption("Direction rule: rows are source nodes, columns are target nodes.")
+                        st.dataframe(inter_adj_for_table, use_container_width=True)
+
+                        st.markdown("#### Inter-Cluster Heatmap")
+
+                        ih1, ih2, ih3 = st.columns(3)
+
+                        with ih1:
+                            run_inter_heatmap = st.button(
+                                "Run Inter Heatmap",
+                                key="run_ml_inter_heatmap_btn",
+                            )
+
+                        with ih2:
+                            clear_inter_heatmap = st.button(
+                                "Clear Inter Heatmap",
+                                key="clear_ml_inter_heatmap_btn",
+                            )
+
+                        with ih3:
+                            show_inter_heatmap_values = st.checkbox(
+                                "Show values",
+                                value=False,
+                                key="show_ml_inter_heatmap_values",
+                            )
+
+                        if run_inter_heatmap:
+                            st.session_state["ml_inter_heatmap_request"] = {
+                                "condition": inter_adj_condition,
+                            }
+
+                        if clear_inter_heatmap:
+                            st.session_state["ml_inter_heatmap_request"] = None
+
+                        inter_heatmap_request = st.session_state.get("ml_inter_heatmap_request", None)
+
+                        if (
+                            inter_heatmap_request is not None
+                            and inter_heatmap_request.get("condition") == inter_adj_condition
+                        ):
+                            plot_adjusted_matrix_heatmap(
+                                inter_adj_for_table,
+                                title=f"Inter-Cluster Heatmap: {inter_adj_condition}",
+                                normalize_pm1=True,
+                                diag_cmap="RdBu_r",
+                                offdiag_cmap="PRGn",
+                                show_values=bool(show_inter_heatmap_values),
+                            )
+                        else:
+                            st.info("Click `Run Inter Heatmap` to render inter-cluster heatmap.")
 
                     if available_intra:
-                        st.markdown(f"### Intra-Cluster Adjacency Matrix ({st.session_state.get('netrecon_ml_intra_condition', '')} - {st.session_state.get('netrecon_ml_intra_cluster', '')})")
-                        if "netrecon_ml_intra_condition" in st.session_state and "netrecon_ml_intra_cluster" in st.session_state:
-                            st.dataframe(available_intra[st.session_state.netrecon_ml_intra_condition][st.session_state.netrecon_ml_intra_cluster]["adj_df"], use_container_width=True)
+                        st.markdown(
+                            f"### Intra-Cluster Adjacency Matrix "
+                            f"({st.session_state.get('netrecon_ml_intra_condition', '')} - "
+                            f"{st.session_state.get('netrecon_ml_intra_cluster', '')})"
+                        )
+
+                        intra_adj_condition = st.selectbox(
+                            "Intra-cluster adjacency condition",
+                            options=list(available_intra.keys()),
+                            key="netrecon_ml_adj_intra_condition",
+                        )
+
+                        intra_adj_cluster = st.selectbox(
+                            "Intra-cluster adjacency cluster",
+                            options=list(available_intra[intra_adj_condition].keys()),
+                            key="netrecon_ml_adj_intra_cluster",
+                        )
+
+                        intra_adj_for_table = available_intra[intra_adj_condition][intra_adj_cluster]["adj_df"]
+
+                        st.caption("Direction rule: rows are source nodes, columns are target nodes.")
+                        st.dataframe(intra_adj_for_table, use_container_width=True)
+
+                        st.markdown("#### Intra-Cluster Heatmap")
+
+                        ah1, ah2, ah3 = st.columns(3)
+
+                        with ah1:
+                            run_intra_heatmap = st.button(
+                                "Run Intra Heatmap",
+                                key="run_ml_intra_heatmap_btn",
+                            )
+
+                        with ah2:
+                            clear_intra_heatmap = st.button(
+                                "Clear Intra Heatmap",
+                                key="clear_ml_intra_heatmap_btn",
+                            )
+
+                        with ah3:
+                            show_intra_heatmap_values = st.checkbox(
+                                "Show values",
+                                value=False,
+                                key="show_ml_intra_heatmap_values",
+                            )
+
+                        if run_intra_heatmap:
+                            st.session_state["ml_intra_heatmap_request"] = {
+                                "condition": intra_adj_condition,
+                                "cluster": intra_adj_cluster,
+                            }
+
+                        if clear_intra_heatmap:
+                            st.session_state["ml_intra_heatmap_request"] = None
+
+                        intra_heatmap_request = st.session_state.get("ml_intra_heatmap_request", None)
+
+                        if (
+                            intra_heatmap_request is not None
+                            and intra_heatmap_request.get("condition") == intra_adj_condition
+                            and intra_heatmap_request.get("cluster") == intra_adj_cluster
+                        ):
+                            plot_adjusted_matrix_heatmap(
+                                intra_adj_for_table,
+                                title=f"Intra-Cluster Heatmap: {intra_adj_condition} / {intra_adj_cluster}",
+                                normalize_pm1=True,
+                                diag_cmap="RdBu_r",
+                                offdiag_cmap="PRGn",
+                                show_values=bool(show_intra_heatmap_values),
+                            )
+                        else:
+                            st.info("Click `Run Intra Heatmap` to render intra-cluster heatmap.")
 
                 # ========== Tab 2_2_4 Debug ==========
                 with tab2_2_4:
