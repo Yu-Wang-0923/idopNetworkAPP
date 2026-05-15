@@ -674,20 +674,6 @@ def _mirror_barh_degree(
     ax.legend(loc="upper right", frameon=False, prop=font_prop)
 
 
-    """按全局最大绝对值将矩阵归一化到 [-1, 1]，仅用于热图显示。"""
-    arr = mat_df.to_numpy(dtype=float, copy=True)
-    max_abs = np.nanmax(np.abs(arr))
-
-    if max_abs < 1e-12:
-        norm_arr = np.zeros_like(arr, dtype=float)
-    else:
-        norm_arr = arr / max_abs
-
-    return pd.DataFrame(
-        norm_arr,
-        index=mat_df.index,
-        columns=mat_df.columns,
-    )
 # =============================================================================
 # 4. 效应分解图
 # =============================================================================
