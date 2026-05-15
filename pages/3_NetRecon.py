@@ -708,7 +708,7 @@ with tab1:
                             "max_order_upper (BIC)",
                             min_value=1,
                             max_value=100,
-                            value=6,
+                            value=1,
                             step=1,
                             help="ASGL uses BIC to select max_order from 1..this value.",
                         )
