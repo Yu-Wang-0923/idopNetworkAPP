@@ -673,7 +673,7 @@ def _mirror_barh_degree(
 
     ax.legend(loc="upper right", frameon=False, prop=font_prop)
 
-def _normalize_to_pm1(mat_df: pd.DataFrame) -> pd.DataFrame:
+
     """按全局最大绝对值将矩阵归一化到 [-1, 1]，仅用于热图显示。"""
     arr = mat_df.to_numpy(dtype=float, copy=True)
     max_abs = np.nanmax(np.abs(arr))
