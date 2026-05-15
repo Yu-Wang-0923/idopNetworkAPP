@@ -695,10 +695,9 @@ def plot_adjusted_matrix_heatmap(
     adj_df: pd.DataFrame,
     *,
     title: str = "Adjusted Matrix Heatmap",
-    normalize_pm1: bool = True,
-    diag_cmap: str = "RdBu_r",
-    offdiag_cmap: str = "PRGn",
     show_values: bool = False,
+    zero_eps: float = 1e-12,
+    normalize: bool = True,
 ) -> None:
     """绘制邻接矩阵热图。
 
@@ -706,9 +705,17 @@ def plot_adjusted_matrix_heatmap(
         adj_df.loc[source, target] = source -> target
 
     显示规则：
-    - 矩阵整体按最大绝对值归一化到 [-1, 1]
-    - 对角线使用红蓝色系，表示自身效应
-    - 非对角线使用另一套色系，表示节点间交互效应
+    - 非对角线：边权
+        正值 = 红色
+        负值 = 蓝色
+        绝对值越大颜色越深
+        0 = 白色 / 空白
+        normalize=True 时按非对角线最大绝对值缩放到 [-1, 1]
+    - 对角线：自身效应绝对值
+        先取 abs
+        绝对值越大越黑
+        绝对值越小越白
+        normalize=True 时按对角线最大绝对值缩放到 [0, 1]
     """
     try:
         adj_df = _normalize_adjacency_matrix(adj_df)
@@ -730,70 +737,126 @@ def plot_adjusted_matrix_heatmap(
         plt.close(fig)
         return
 
-    plot_df = adj_df.copy()
+    raw = adj_df.to_numpy(dtype=float)
+    n = raw.shape[0]
 
-    if normalize_pm1:
-        plot_df = _normalize_to_pm1(plot_df)
+    diag_mask = np.eye(n, dtype=bool)
+    offdiag_mask = ~diag_mask
 
-    data = plot_df.to_numpy(dtype=float)
-    n = data.shape[0]
+    # =====================================================
+    # 1. 非对角线：边权，正红负蓝
+    # =====================================================
+    offdiag_raw = np.where(offdiag_mask, raw, np.nan)
+    offdiag_raw = np.where(np.abs(offdiag_raw) > zero_eps, offdiag_raw, np.nan)
 
-    fig_size = max(6.5, min(18.0, 0.45 * n + 4.0))
-    fig, ax = plt.subplots(
-        figsize=(fig_size, fig_size * 0.86),
+    if np.isfinite(offdiag_raw).any():
+        offdiag_max_abs = float(np.nanmax(np.abs(offdiag_raw)))
+        if offdiag_max_abs < 1e-12:
+            offdiag_max_abs = 1.0
+    else:
+        offdiag_max_abs = 1.0
+
+    if normalize:
+        offdiag_plot = offdiag_raw / offdiag_max_abs
+        offdiag_vmin = -1.0
+        offdiag_vmax = 1.0
+    else:
+        offdiag_plot = offdiag_raw
+        offdiag_vmin = -offdiag_max_abs
+        offdiag_vmax = offdiag_max_abs
+
+    offdiag_ma = np.ma.masked_invalid(offdiag_plot)
+
+    cmap_off = plt.get_cmap("bwr").copy()  # blue-white-red
+    cmap_off.set_bad(color=(1, 1, 1, 0))
+
+    # =====================================================
+    # 2. 对角线：自身效应绝对值，灰度
+    # =====================================================
+    diag_abs = np.where(diag_mask, np.abs(raw), np.nan)
+    diag_abs = np.where(np.abs(diag_abs) > zero_eps, diag_abs, np.nan)
+
+    if np.isfinite(diag_abs).any():
+        diag_max = float(np.nanmax(diag_abs))
+        if diag_max < 1e-12:
+            diag_max = 1.0
+    else:
+        diag_max = 1.0
+
+    if normalize:
+        diag_plot = diag_abs / diag_max
+        diag_vmin = 0.0
+        diag_vmax = 1.0
+    else:
+        diag_plot = diag_abs
+        diag_vmin = 0.0
+        diag_vmax = diag_max
+
+    diag_ma = np.ma.masked_invalid(diag_plot)
+
+    cmap_diag = plt.get_cmap("Greys").copy()
+    cmap_diag.set_bad(color=(1, 1, 1, 0))
+
+    # =====================================================
+    # 3. 画图
+    # =====================================================
+    fig_size = max(6.5, min(14.0, 0.42 * n + 4.2))
+    fig = plt.figure(
+        figsize=(fig_size + 2.2, fig_size),
         dpi=220,
         facecolor="white",
     )
 
-    diag_mask = np.eye(n, dtype=bool)
+    gs = fig.add_gridspec(
+        1,
+        3,
+        width_ratios=[18, 0.7, 0.7],
+        wspace=0.30,
+    )
 
-    offdiag_data = np.ma.masked_where(diag_mask, data)
-    diag_data = np.ma.masked_where(~diag_mask, data)
+    ax = fig.add_subplot(gs[0, 0])
+    cax_off = fig.add_subplot(gs[0, 1])
+    cax_diag = fig.add_subplot(gs[0, 2])
 
+    ax.set_facecolor("#FAFAFA")
+
+    # 先画非对角线边权
     im_off = ax.imshow(
-        offdiag_data,
-        cmap=offdiag_cmap,
-        vmin=-1 if normalize_pm1 else None,
-        vmax=1 if normalize_pm1 else None,
-        aspect="auto",
+        offdiag_ma,
+        cmap=cmap_off,
+        vmin=offdiag_vmin,
+        vmax=offdiag_vmax,
+        aspect="equal",
         interpolation="none",
     )
 
-    ax.imshow(
-        diag_data,
-        cmap=diag_cmap,
-        vmin=-1 if normalize_pm1 else None,
-        vmax=1 if normalize_pm1 else None,
-        aspect="auto",
+    # 再覆盖对角线自身效应
+    im_diag = ax.imshow(
+        diag_ma,
+        cmap=cmap_diag,
+        vmin=diag_vmin,
+        vmax=diag_vmax,
+        aspect="equal",
         interpolation="none",
     )
 
-    cbar = fig.colorbar(im_off, ax=ax, fraction=0.046, pad=0.04)
-    cbar.set_label(
-        "Normalized weight" if normalize_pm1 else "Weight",
-        fontsize=10,
-        fontproperties=font_prop,
-    )
-    for lab in cbar.ax.get_yticklabels():
-        lab.set_fontproperties(font_prop)
-
-    node_names = plot_df.index.astype(str).tolist()
+    source_names = adj_df.index.astype(str).tolist()
+    target_names = adj_df.columns.astype(str).tolist()
 
     ax.set_xticks(np.arange(n))
     ax.set_yticks(np.arange(n))
 
-    x_fontsize = 8 if n <= 25 else 6
-    y_fontsize = 8 if n <= 25 else 6
+    label_fs = 9 if n <= 15 else 7 if n <= 35 else 6
 
     ax.set_xticklabels(
-        node_names,
+        target_names,
         rotation=90,
-        fontsize=x_fontsize,
+        fontsize=label_fs,
         fontproperties=font_prop,
     )
     ax.set_yticklabels(
-        node_names,
-        fontsize=y_fontsize,
+        source_names,
+        fontsize=label_fs,
         fontproperties=font_prop,
     )
 
@@ -808,23 +871,36 @@ def plot_adjusted_matrix_heatmap(
         fontproperties=font_prop,
     )
 
+    # 网格线
     ax.set_xticks(np.arange(-0.5, n, 1), minor=True)
     ax.set_yticks(np.arange(-0.5, n, 1), minor=True)
-    ax.grid(which="minor", color="#DDDDDD", linestyle="-", linewidth=0.55)
+    ax.grid(which="minor", color="#D9D9D9", linestyle="-", linewidth=0.6)
     ax.tick_params(which="minor", bottom=False, left=False)
 
     ax.set_xlim(-0.5, n - 0.5)
     ax.set_ylim(n - 0.5, -0.5)
 
+    # =====================================================
+    # 4. 可选显示原始数值
+    # =====================================================
     if show_values and n <= 20:
         for i in range(n):
             for j in range(n):
-                value = data[i, j]
-                txt_color = "white" if abs(value) > 0.55 else "black"
+                val = raw[i, j]
+                if abs(val) <= zero_eps:
+                    continue
+
+                if i == j:
+                    norm_v = abs(val) / diag_max if diag_max > 0 else 0.0
+                else:
+                    norm_v = abs(val) / offdiag_max_abs if offdiag_max_abs > 0 else 0.0
+
+                txt_color = "white" if norm_v > 0.55 else "black"
+
                 ax.text(
                     j,
                     i,
-                    f"{value:.2f}",
+                    f"{val:.2g}",
                     ha="center",
                     va="center",
                     fontsize=7,
@@ -832,12 +908,48 @@ def plot_adjusted_matrix_heatmap(
                     fontproperties=font_prop,
                 )
 
+    # =====================================================
+    # 5. Colorbar
+    # =====================================================
+    cb_off = fig.colorbar(im_off, cax=cax_off)
+    if normalize:
+        cb_off.set_label(
+            f"Edge weight / {offdiag_max_abs:.2g}",
+            fontsize=9,
+            fontproperties=font_prop,
+        )
+    else:
+        cb_off.set_label(
+            "Edge weight",
+            fontsize=9,
+            fontproperties=font_prop,
+        )
+    for lab in cb_off.ax.get_yticklabels():
+        lab.set_fontproperties(font_prop)
+
+    cb_diag = fig.colorbar(im_diag, cax=cax_diag)
+    if normalize:
+        cb_diag.set_label(
+            f"|Self effect| / {diag_max:.2g}",
+            fontsize=9,
+            fontproperties=font_prop,
+        )
+    else:
+        cb_diag.set_label(
+            "|Self effect|",
+            fontsize=9,
+            fontproperties=font_prop,
+        )
+    for lab in cb_diag.ax.get_yticklabels():
+        lab.set_fontproperties(font_prop)
+
     for spine in ax.spines.values():
         spine.set_visible(True)
         spine.set_color("#CFCFCF")
         spine.set_linewidth(1.0)
 
-    fig.tight_layout()
+    fig.subplots_adjust(left=0.10, right=0.92, top=0.90, bottom=0.22)
+
     st.pyplot(fig, use_container_width=True)
     plt.close(fig)
 
