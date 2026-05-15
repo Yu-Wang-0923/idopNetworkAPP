@@ -1129,16 +1129,7 @@ def plot_network(
     else:
         fig, ax_net = plt.subplots(figsize=(9.0, fig_height), dpi=200, facecolor="#F6F6F6")
         ax_bar = None
-
-        ax_net = fig.add_subplot(gs[0, 0])
-        ax_gap = fig.add_subplot(gs[0, 1])
-        ax_bar = fig.add_subplot(gs[0, 2])
-
-        ax_gap.axis("off")
-    else:
-        fig, ax_net = plt.subplots(figsize=(9.0, fig_height), dpi=200, facecolor="#F6F6F6")
-        ax_bar = None
-
+        
     ax_net.set_facecolor("white")
 
     if ax_bar is not None:
