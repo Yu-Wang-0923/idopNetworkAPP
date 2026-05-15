@@ -918,7 +918,7 @@ with tab1:
 
                     st.markdown("### Adjusted Matrix Heatmap")
 
-                    hcol1, hcol2, hcol3 = st.columns(3)
+                    hcol1, hcol2, hcol3 , hcol4 = st.columns(4)
 
                     with hcol1:
                         run_single_heatmap = st.button(
@@ -939,7 +939,14 @@ with tab1:
                             key="show_single_adj_heatmap_values",
                             help="节点数较多时不建议显示数值。",
                         )
-
+                    with hcol4:
+                        normalize_single_heatmap = st.checkbox(
+                            "Normalize",
+                            value=True,
+                            key="normalize_single_adj_heatmap",
+                            help="勾选后分别归一化非对角线边权和对角线自身效应；取消后显示原始量级。",
+                        )
+                        
                     if run_single_heatmap:
                         st.session_state["single_adj_heatmap_render"] = True
 
@@ -948,13 +955,11 @@ with tab1:
 
                     if st.session_state.get("single_adj_heatmap_render", False):
                         plot_adjusted_matrix_heatmap(
-                            result["adj_df"],
-                            title="Adjusted Matrix Heatmap",
-                            normalize_pm1=True,
-                            diag_cmap="RdBu_r",
-                            offdiag_cmap="PRGn",
-                            show_values=bool(show_single_heatmap_values),
-                        )
+                        result["adj_df"],
+                        title="Adjusted Matrix Heatmap",
+                        show_values=bool(show_single_heatmap_values),
+                        normalize=bool(normalize_single_heatmap),
+                    )
                     else:
                         st.info("Click `Run Heatmap` to render the adjusted matrix heatmap.")
                 # ========== Tab 1_2_4 Debug ==========
