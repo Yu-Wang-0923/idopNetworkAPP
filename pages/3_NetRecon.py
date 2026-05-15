@@ -1723,13 +1723,62 @@ with tab2:
                                 f"当前网络: `intra_cluster / {effect_condition} / {effect_cluster}`"
                             )
 
-                        plot_effect(
-                            quasi_dynamic_df=effect_network["quasi_dynamic_df"],
-                            curve_df=effect_network["predicted_df"],
-                            effect_df_list=effect_network["effect_df_list"],
-                            intercept=effect_network["model"].coef_.loc["intercept"],
-                            plot_ncols=4,
-                        )
+                        ce1, ce2 = st.columns(2)
+
+                        with ce1:
+                            run_ml_effect_plot = st.button(
+                                "Run Multi-Layer Effect Plot",
+                                key="run_ml_effect_plot_btn",
+                            )
+
+                        with ce2:
+                            clear_ml_effect_plot = st.button(
+                                "Clear Multi-Layer Effect Plot",
+                                key="clear_ml_effect_plot_btn",
+                            )
+
+                        if run_ml_effect_plot:
+                            if effect_layer == "inter_cluster":
+                                st.session_state["ml_effect_plot_request"] = {
+                                    "layer": effect_layer,
+                                    "condition": effect_condition,
+                                    "cluster": "",
+                                }
+                            else:
+                                st.session_state["ml_effect_plot_request"] = {
+                                    "layer": effect_layer,
+                                    "condition": effect_condition,
+                                    "cluster": effect_cluster,
+                                }
+
+                        if clear_ml_effect_plot:
+                            st.session_state["ml_effect_plot_request"] = None
+
+                        effect_plot_request = st.session_state.get("ml_effect_plot_request", None)
+
+                        if effect_layer == "inter_cluster":
+                            current_effect_key = {
+                                "layer": effect_layer,
+                                "condition": effect_condition,
+                                "cluster": "",
+                            }
+                        else:
+                            current_effect_key = {
+                                "layer": effect_layer,
+                                "condition": effect_condition,
+                                "cluster": effect_cluster,
+                            }
+
+                        if effect_plot_request == current_effect_key:
+                            plot_effect(
+                                quasi_dynamic_df=effect_network["quasi_dynamic_df"],
+                                curve_df=effect_network["predicted_df"],
+                                effect_df_list=effect_network["effect_df_list"],
+                                intercept=effect_network["model"].coef_.loc["intercept"],
+                                plot_ncols=4,
+                            )
+                        else:
+                            st.info("Click `Run Multi-Layer Effect Plot` to render effect curves.")
 
                 # ========== Tab 2_2_3 Adjacency Matrix ==========
                 with tab2_2_3:
