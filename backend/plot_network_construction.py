@@ -691,6 +691,155 @@ def _normalize_to_pm1(mat_df: pd.DataFrame) -> pd.DataFrame:
 # =============================================================================
 # 4. 效应分解图
 # =============================================================================
+def plot_adjusted_matrix_heatmap(
+    adj_df: pd.DataFrame,
+    *,
+    title: str = "Adjusted Matrix Heatmap",
+    normalize_pm1: bool = True,
+    diag_cmap: str = "RdBu_r",
+    offdiag_cmap: str = "PRGn",
+    show_values: bool = False,
+) -> None:
+    """绘制邻接矩阵热图。
+
+    Direction rule:
+        adj_df.loc[source, target] = source -> target
+
+    显示规则：
+    - 矩阵整体按最大绝对值归一化到 [-1, 1]
+    - 对角线使用红蓝色系，表示自身效应
+    - 非对角线使用另一套色系，表示节点间交互效应
+    """
+    try:
+        adj_df = _normalize_adjacency_matrix(adj_df)
+    except Exception as e:
+        fig, ax = plt.subplots(figsize=(6, 6), dpi=220)
+        ax.text(
+            0.5,
+            0.5,
+            f"邻接矩阵错误：{e}",
+            ha="center",
+            va="center",
+            fontsize=12,
+            color="gray",
+            transform=ax.transAxes,
+            fontproperties=font_prop,
+        )
+        ax.axis("off")
+        st.pyplot(fig, use_container_width=True)
+        plt.close(fig)
+        return
+
+    plot_df = adj_df.copy()
+
+    if normalize_pm1:
+        plot_df = _normalize_to_pm1(plot_df)
+
+    data = plot_df.to_numpy(dtype=float)
+    n = data.shape[0]
+
+    fig_size = max(6.5, min(18.0, 0.45 * n + 4.0))
+    fig, ax = plt.subplots(
+        figsize=(fig_size, fig_size * 0.86),
+        dpi=220,
+        facecolor="white",
+    )
+
+    diag_mask = np.eye(n, dtype=bool)
+
+    offdiag_data = np.ma.masked_where(diag_mask, data)
+    diag_data = np.ma.masked_where(~diag_mask, data)
+
+    im_off = ax.imshow(
+        offdiag_data,
+        cmap=offdiag_cmap,
+        vmin=-1 if normalize_pm1 else None,
+        vmax=1 if normalize_pm1 else None,
+        aspect="auto",
+        interpolation="none",
+    )
+
+    ax.imshow(
+        diag_data,
+        cmap=diag_cmap,
+        vmin=-1 if normalize_pm1 else None,
+        vmax=1 if normalize_pm1 else None,
+        aspect="auto",
+        interpolation="none",
+    )
+
+    cbar = fig.colorbar(im_off, ax=ax, fraction=0.046, pad=0.04)
+    cbar.set_label(
+        "Normalized weight" if normalize_pm1 else "Weight",
+        fontsize=10,
+        fontproperties=font_prop,
+    )
+    for lab in cbar.ax.get_yticklabels():
+        lab.set_fontproperties(font_prop)
+
+    node_names = plot_df.index.astype(str).tolist()
+
+    ax.set_xticks(np.arange(n))
+    ax.set_yticks(np.arange(n))
+
+    x_fontsize = 8 if n <= 25 else 6
+    y_fontsize = 8 if n <= 25 else 6
+
+    ax.set_xticklabels(
+        node_names,
+        rotation=90,
+        fontsize=x_fontsize,
+        fontproperties=font_prop,
+    )
+    ax.set_yticklabels(
+        node_names,
+        fontsize=y_fontsize,
+        fontproperties=font_prop,
+    )
+
+    ax.set_xlabel("Target node", fontsize=11, fontproperties=font_prop)
+    ax.set_ylabel("Source node", fontsize=11, fontproperties=font_prop)
+
+    ax.set_title(
+        title,
+        fontsize=14,
+        fontweight="bold",
+        pad=12,
+        fontproperties=font_prop,
+    )
+
+    ax.set_xticks(np.arange(-0.5, n, 1), minor=True)
+    ax.set_yticks(np.arange(-0.5, n, 1), minor=True)
+    ax.grid(which="minor", color="#DDDDDD", linestyle="-", linewidth=0.55)
+    ax.tick_params(which="minor", bottom=False, left=False)
+
+    ax.set_xlim(-0.5, n - 0.5)
+    ax.set_ylim(n - 0.5, -0.5)
+
+    if show_values and n <= 20:
+        for i in range(n):
+            for j in range(n):
+                value = data[i, j]
+                txt_color = "white" if abs(value) > 0.55 else "black"
+                ax.text(
+                    j,
+                    i,
+                    f"{value:.2f}",
+                    ha="center",
+                    va="center",
+                    fontsize=7,
+                    color=txt_color,
+                    fontproperties=font_prop,
+                )
+
+    for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_color("#CFCFCF")
+        spine.set_linewidth(1.0)
+
+    fig.tight_layout()
+    st.pyplot(fig, use_container_width=True)
+    plt.close(fig)
 
 def plot_effect(
     quasi_dynamic_df: pd.DataFrame,
