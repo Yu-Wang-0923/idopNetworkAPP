@@ -911,10 +911,52 @@ with tab1:
                         st.info("Click `Run Effect Decomposition Plot` to render effect curves.")
 
                 # ========== Tab 1_2_3 Adjacency Matrix ==========
+                # ========== Tab 1_2_3 Adjacency Matrix ==========
                 with tab1_2_3:
                     st.markdown("### Adjacency Matrix")
                     st.dataframe(result["adj_df"], use_container_width=True)
 
+                    st.markdown("### Adjusted Matrix Heatmap")
+
+                    hcol1, hcol2, hcol3 = st.columns(3)
+
+                    with hcol1:
+                        run_single_heatmap = st.button(
+                            "Run Heatmap",
+                            key="run_single_adj_heatmap_btn",
+                        )
+
+                    with hcol2:
+                        clear_single_heatmap = st.button(
+                            "Clear Heatmap",
+                            key="clear_single_adj_heatmap_btn",
+                        )
+
+                    with hcol3:
+                        show_single_heatmap_values = st.checkbox(
+                            "Show values",
+                            value=False,
+                            key="show_single_adj_heatmap_values",
+                            help="节点数较多时不建议显示数值。",
+                        )
+
+                    if run_single_heatmap:
+                        st.session_state["single_adj_heatmap_render"] = True
+
+                    if clear_single_heatmap:
+                        st.session_state["single_adj_heatmap_render"] = False
+
+                    if st.session_state.get("single_adj_heatmap_render", False):
+                        plot_adjusted_matrix_heatmap(
+                            result["adj_df"],
+                            title="Adjusted Matrix Heatmap",
+                            normalize_pm1=True,
+                            diag_cmap="RdBu_r",
+                            offdiag_cmap="PRGn",
+                            show_values=bool(show_single_heatmap_values),
+                        )
+                    else:
+                        st.info("Click `Run Heatmap` to render the adjusted matrix heatmap.")
                 # ========== Tab 1_2_4 Debug ==========
                 with tab1_2_4:
                     st.markdown("### Debug: design matrix, response, coefficients")
