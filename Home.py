@@ -26,7 +26,7 @@ if not st.session_state.get("logged_in", False):
     show_login_ui()
     
     # 显示一个漂亮的门面介绍
-    st.markdown("<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>idopNetwork：个性化全景动态网络推演平台</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>idopNetwork 在线计算平台</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color:#475569;font-size:1.2rem;'>一个面向复杂系统数据的可视化分析工作台。</p>", unsafe_allow_html=True)
     st.info("💡 请点击右上角的 **[🔑 登录 / 注册]** 认证身份后解锁全部功能。")
     
