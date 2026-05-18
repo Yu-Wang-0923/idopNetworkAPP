@@ -9,19 +9,19 @@ import streamlit as st
 # ========== 页面配置 ==========
 st.set_page_config(
     page_title="Network Construction",
-    page_icon="TSA.png",
+    page_icon="static/images/TSA.png",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-from backend.curve_fitting import get_power_function_params
-from backend.network_construction import (
+from backend.curve_fitting.fitting import get_power_function_params
+from backend.network.construction import (
     IDOPRegressor,
     align_response_to_design,
     polynomial_basis_expansion,
 )
-from backend.plot_curve_fitting import plot_curve_fitting
-from backend.plot_network_construction import (
+from backend.curve_fitting.plot import plot_curve_fitting
+from backend.network.plot import (
     plot_effect,
     plot_network,
     plot_adjusted_matrix_heatmap,
@@ -31,6 +31,11 @@ from backend.utils import font_prop, load_css, setup_sidebar
 # ========== 加载 CSS ==========
 load_css()
 setup_sidebar()
+
+# ========== 登录门禁 ==========
+if not st.session_state.get("logged_in", False):
+    st.warning("请先返回首页登录后使用。")
+    st.stop()
 
 # ========== 页面标题 ==========
 st.title("Network Construction", text_alignment="center")
@@ -295,194 +300,6 @@ def _collect_network_export_artifacts(
     }
 
 
-def _summarize_df_for_debug(name: str, df: pd.DataFrame) -> dict[str, object]:
-    """生成调试面板中的数值摘要。"""
-    arr = df.to_numpy(dtype=float, copy=False)
-    finite = np.isfinite(arr)
-    finite_arr = arr[finite] if finite.any() else np.array([np.nan])
-    return {
-        "name": name,
-        "shape": str(arr.shape),
-        "n_nan": int(np.isnan(arr).sum()),
-        "n_inf": int(np.isinf(arr).sum()),
-        "min": float(np.min(finite_arr)) if finite.any() else float("nan"),
-        "max": float(np.max(finite_arr)) if finite.any() else float("nan"),
-        "abs_max": float(np.max(np.abs(finite_arr))) if finite.any() else float("nan"),
-        "mean": float(np.mean(finite_arr)) if finite.any() else float("nan"),
-        "std": float(np.std(finite_arr)) if finite.any() else float("nan"),
-        "n_zero": int((arr == 0).sum()),
-    }
-
-
-def _plot_matrix_lines_for_debug(
-    df: pd.DataFrame,
-    title: str,
-    x_label: str,
-    *,
-    exclude_intercept: bool = False,
-) -> None:
-    """绘制矩阵列随 index 变化的折线图（Debug 用）。"""
-    cols = [c for c in df.columns if c != "intercept"] if exclude_intercept else list(df.columns)
-    if not cols:
-        st.caption("没有可绘制的矩阵列。")
-        return
-
-    fig, ax = plt.subplots(figsize=(12, 4.5))
-    try:
-        x_idx = df.index.astype(float).to_numpy(dtype=float, copy=False)
-        if not np.all(np.isfinite(x_idx)):
-            raise ValueError("non-finite float index")
-    except (TypeError, ValueError):
-        x_idx = np.arange(len(df), dtype=float)
-    for col in cols:
-        ax.plot(
-            x_idx,
-            df[col].to_numpy(dtype=float, copy=False),
-            linewidth=1.0,
-            alpha=0.75,
-        )
-    ax.set_xlabel(x_label, fontproperties=font_prop)
-    ax.set_ylabel("列取值", fontproperties=font_prop)
-    ax.set_title(title, fontproperties=font_prop)
-    ax.grid(True, alpha=0.35)
-    fig.tight_layout()
-    st.pyplot(fig, use_container_width=True)
-    plt.close(fig)
-
-
-def _plot_bic_curve_for_debug(
-    df: pd.DataFrame | None,
-    title: str,
-    x_col: str,
-    x_label: str,
-    *,
-    log_x: bool = False,
-) -> None:
-    """绘制 BIC 搜索轨迹（Debug 用）。"""
-    if df is None or df.empty:
-        st.caption("没有可用的 BIC 搜索轨迹。")
-        return
-    plot_df = (
-        df.replace([np.inf, -np.inf], np.nan)
-        .dropna(subset=[x_col, "bic"])
-        .sort_values(x_col)
-    )
-    if plot_df.empty:
-        st.caption("没有可绘制的 BIC 点。")
-        return
-
-    fig, ax = plt.subplots(figsize=(6, 3.6))
-    ax.plot(
-        plot_df[x_col].to_numpy(dtype=float, copy=False),
-        plot_df["bic"].to_numpy(dtype=float, copy=False),
-        marker="o",
-        linewidth=1.4,
-    )
-    if "selected" in plot_df.columns:
-        selected = plot_df[plot_df["selected"].astype(bool)]
-        if not selected.empty:
-            ax.scatter(
-                selected[x_col].to_numpy(dtype=float, copy=False),
-                selected["bic"].to_numpy(dtype=float, copy=False),
-                color="red",
-                s=50,
-                zorder=3,
-            )
-    if log_x:
-        ax.set_xscale("log")
-    ax.set_xlabel(x_label, fontproperties=font_prop)
-    ax.set_ylabel("BIC", fontproperties=font_prop)
-    ax.set_title(title, fontproperties=font_prop)
-    ax.grid(True, alpha=0.35)
-    fig.tight_layout()
-    st.pyplot(fig, use_container_width=True)
-    plt.close(fig)
-
-
-def _render_multilayer_debug_panel(network: dict) -> None:
-    """多层网络 Debug 面板，展示与单层一致的核心矩阵与统计。"""
-    model_dbg: IDOPRegressor = network["model"]
-    cs_raw: pd.DataFrame = network["curve_sample_df"]
-    X_dbg: pd.DataFrame = network["design_X"]
-    Y_dbg: pd.DataFrame = network["response_Y"]
-    pred: pd.DataFrame = network["predicted_df"]
-    coef: pd.DataFrame = model_dbg.coef_
-    basis_raw_dbg = polynomial_basis_expansion(cs_raw, model_dbg.max_order)
-
-    summary_rows = [
-        _summarize_df_for_debug("curve_sample (raw)", cs_raw),
-        _summarize_df_for_debug(
-            "basis raw = y_k(τ) · Legendre_r(τ̂) (derivative-mode point values)",
-            basis_raw_dbg,
-        ),
-        _summarize_df_for_debug(
-            "design X = [intercept | ∫_{τ_1}^{τ} a_k s^{b_k} · Legendre_r(τ̂(s)) ds (analytic)]",
-            X_dbg,
-        ),
-        _summarize_df_for_debug("response Y = curve_sample (raw)", Y_dbg),
-        _summarize_df_for_debug("coef_", coef),
-        _summarize_df_for_debug("predicted", pred),
-    ]
-    st.markdown("**Numeric summary**")
-    st.dataframe(pd.DataFrame(summary_rows), use_container_width=True)
-
-    st.markdown(
-        f"`max_order` = **{model_dbg.max_order}** &nbsp; | &nbsp; "
-        f"`alpha` = **{model_dbg.alpha}** &nbsp; | &nbsp; "
-        f"`mse_` = **{model_dbg.mse_}**"
-    )
-    if model_dbg.effect_constraint_diagnostics_ is not None:
-        st.markdown("**Effect constraint diagnostics**")
-        st.dataframe(model_dbg.effect_constraint_diagnostics_, use_container_width=True)
-    bic_left, bic_right = st.columns(2)
-    with bic_left:
-        st.markdown("**BIC vs max_order**")
-        _plot_bic_curve_for_debug(
-            model_dbg.bic_order_path_,
-            "BIC 选择 max_order",
-            "max_order",
-            "max_order",
-        )
-    with bic_right:
-        st.markdown("**BIC vs alpha**")
-        _plot_bic_curve_for_debug(
-            model_dbg.bic_alpha_path_,
-            "BIC 选择 alpha",
-            "alpha",
-            "alpha",
-            log_x=True,
-        )
-
-    st.markdown("**curve_sample (raw) — head**")
-    st.dataframe(cs_raw.head(), use_container_width=True)
-    left_col, right_col = st.columns(2)
-    with left_col:
-        st.markdown("**basis matrix before integral — head (first 8 cols)**")
-        st.dataframe(basis_raw_dbg.iloc[:5, :8], use_container_width=True)
-        st.markdown("**basis matrix before integral — 沿 index 折线图**")
-        _plot_matrix_lines_for_debug(
-            basis_raw_dbg,
-            "积分前基函数矩阵（全部列）",
-            "basis_raw.index",
-        )
-    with right_col:
-        st.markdown("**design matrix X — head (first 8 cols)**")
-        st.dataframe(X_dbg.iloc[:5, :8], use_container_width=True)
-        st.markdown("**design matrix X — 沿 index 折线图（不含 intercept）**")
-        _plot_matrix_lines_for_debug(
-            X_dbg,
-            "设计矩阵 X（全部列，不含 intercept）",
-            "design_X.index",
-            exclude_intercept=True,
-        )
-    st.markdown("**response Y — head**")
-    st.dataframe(Y_dbg.head(), use_container_width=True)
-    st.markdown("**coef_**")
-    st.dataframe(coef, use_container_width=True)
-    st.markdown("**predicted — head**")
-    st.dataframe(pred.head(), use_container_width=True)
-
-
 def _build_singlelayer_export_zip(result: dict) -> bytes:
     """打包单层 IdopNetwork 导出 ZIP。"""
     artifacts = _collect_network_export_artifacts(
@@ -702,7 +519,7 @@ with tab1:
 
             with st.expander("IdopNetwork parameter settings", expanded=True):
                 with st.form(key="netrecon_form_single"):
-                    c1, c2 = st.columns(2)
+                    c1, c2, c3, c4, c5 = st.columns(5)
                     with c1:
                         max_order = st.number_input(
                             "max_order_upper (BIC)",
@@ -714,6 +531,7 @@ with tab1:
                         )
                     with c2:
                         nonneg_self = st.checkbox("nonneg_self", value=True)
+                    with c3:
                         top_k = st.number_input(
                             "max_interactions (Top-K)",
                             min_value=0,
@@ -721,54 +539,68 @@ with tab1:
                             value=0,
                             step=1,
                         )
+                    with c4:
                         adjacency_aggregation = st.selectbox(
                             "adjacency_aggregation",
                             options=["mean", "integral"],
                             index=0,
                             help="邻接矩阵列聚合方式：mean=离散点均值，integral=按 index 梯形积分。",
                         )
-                    submit_run = st.form_submit_button("Run IdopNetwork")
+                    with c5:
+                        submit_run = st.form_submit_button("Run IdopNetwork")
 
             if submit_run:
-                progress_bar = st.progress(
-                    0,
-                    text=f"Preparing IdopNetwork for `{selected_condition}`...",
-                )
                 try:
-                    progress_bar.progress(10, text="Estimating power-function parameters...")
-                    power_function_params = get_power_function_params(quasi_dynamic_df)
-                    progress_bar.progress(20, text="Initializing constrained ASGL model...")
-                    model = IDOPRegressor(
-                        max_order=int(max_order),
-                        mix=0.5,
-                        fix_mix=False,
-                        nonneg_self=bool(nonneg_self),
-                        max_interactions=int(top_k),
-                        adaptive_weights=False,
-                    )
-                    progress_bar.progress(
-                        35,
-                        text="Fitting model and enforcing effect constraints...",
-                    )
-                    model.fit(
-                        curve_sample_df,
-                        quasi_dynamic_df,
-                        power_function_params=power_function_params,
-                    )
-                    progress_bar.progress(70, text="Generating prediction curves...")
-                    predicted_df = model.predict(curve_sample_df)
-                    progress_bar.progress(80, text="Computing effect decomposition...")
-                    effect_df_list = model.effect(curve_sample_df)
-                    progress_bar.progress(90, text="Building adjacency matrix...")
-                    adj_df = model.adjacency_matrix(
-                        curve_sample_df,
-                        aggregation=str(adjacency_aggregation),
-                    )
-                    progress_bar.progress(95, text="Preparing debug matrices...")
-                    design_X = model._design(curve_sample_df)
-                    response_Y = align_response_to_design(quasi_dynamic_df, design_X.index)
+                    with st.status(
+                        f"Building IdopNetwork for `{selected_condition}`...",
+                        expanded=True,
+                    ) as sl_status:
+                        progress_bar = st.progress(0, text="Starting...")
+                        log = st.empty()
+
+                        progress_bar.progress(10, text="Estimating power-function parameters...")
+                        log.write("Estimating power-function parameters...")
+                        power_function_params = get_power_function_params(quasi_dynamic_df)
+
+                        progress_bar.progress(20, text="Initializing constrained ASGL model...")
+                        log.write("Initializing constrained ASGL model...")
+                        model = IDOPRegressor(
+                            max_order=int(max_order),
+                            mix=0.5,
+                            fix_mix=False,
+                            nonneg_self=bool(nonneg_self),
+                            max_interactions=int(top_k),
+                            adaptive_weights=False,
+                        )
+
+                        progress_bar.progress(35, text="Fitting model and enforcing effect constraints...")
+                        log.write("Fitting model (this may take a while)...")
+                        model.fit(
+                            curve_sample_df,
+                            quasi_dynamic_df,
+                            power_function_params=power_function_params,
+                        )
+
+                        progress_bar.progress(70, text="Generating prediction curves...")
+                        log.write("Generating prediction curves...")
+                        predicted_df = model.predict(curve_sample_df)
+
+                        progress_bar.progress(80, text="Computing effect decomposition...")
+                        log.write("Computing effect decomposition...")
+                        effect_df_list = model.effect(curve_sample_df)
+
+                        progress_bar.progress(90, text="Building adjacency matrix...")
+                        log.write("Building adjacency matrix...")
+                        adj_df = model.adjacency_matrix(
+                            curve_sample_df,
+                            aggregation=str(adjacency_aggregation),
+                        )
+
+                        progress_bar.progress(95, text="Finalizing...")
+                        log.write("Preparing model diagnostics...")
+                        design_X = model._design(curve_sample_df)
+                        response_Y = align_response_to_design(quasi_dynamic_df, design_X.index)
                 except Exception as e:
-                    progress_bar.progress(100, text="IdopNetwork failed.")
                     st.error(f"IdopNetwork 运行失败：{e}")
                     st.session_state.netrecon_result = None
                 else:
@@ -784,13 +616,19 @@ with tab1:
                         "adj_df": adj_df,
                         "adjacency_aggregation": str(adjacency_aggregation),
                     }
-                    progress_bar.progress(100, text="IdopNetwork completed.")
-                    st.success("Done")
+                    # 重置所有子 Tab 的渲染标记，避免新结果自动触发旧绘图
+                    st.session_state["single_effect_plot_render"] = False
+                    st.session_state["single_adj_heatmap_render"] = False
+                    st.session_state["single_network_plot_mode"] = None
+                    sl_status.update(
+                        label=f"IdopNetwork for `{selected_condition}` completed.",
+                        state="complete",
+                    )
 
             result = st.session_state.netrecon_result
             if result is not None:
                 # 嵌套 Tab 展示结果
-                tab1_2_1, tab1_2_2, tab1_2_3, tab1_2_4 = st.tabs(["Network", "Effect Decomposition", "Adjacency Matrix", "Debug"])
+                tab1_2_1, tab1_2_2, tab1_2_3 = st.tabs(["Network", "Effect Decomposition", "Adjacency Matrix"])
                 
                 # ========== Tab 1_2_1 Network ==========
                 with tab1_2_1:
@@ -810,88 +648,102 @@ with tab1:
 
                     st.markdown("### Interaction Network")
 
-                    target_node = st.selectbox(
-                        "Target node filter",
-                        options=[""] + list(result["adj_df"].columns),
-                        format_func=lambda x: "ALL" if x == "" else x,
-                        key="netrecon_target_node",
-                    )
-
-                    with st.expander("Network plot controls", expanded=True):
-                        cplot1, cplot2, cplot3, cplot4 = st.columns(4)
-
+                    with st.form(key="single_network_form"):
+                        target_node = st.selectbox(
+                            "Target node filter",
+                            options=[""] + list(result["adj_df"].columns),
+                            format_func=lambda x: "ALL" if x == "" else x,
+                            key="netrecon_target_node",
+                        )
+                        top_edges_for_plot = st.number_input(
+                            "Top edges for plot",
+                            min_value=1,
+                            max_value=500,
+                            value=60,
+                            step=1,
+                            key="single_top_edges_for_plot",
+                        )
+                        cplot1, cplot2 = st.columns(2)
                         with cplot1:
-                            top_edges_for_plot = st.number_input(
-                                "Top edges for plot",
-                                min_value=1,
-                                max_value=500,
-                                value=60,
-                                step=1,
-                                key="single_top_edges_for_plot",
-                            )
-
-                        with cplot2:
-                            run_network_plot = st.button(
+                            run_network_plot = st.form_submit_button(
                                 "Run Network Plot",
-                                key="run_single_network_plot_btn",
                             )
-
-                        with cplot3:
-                            run_network_degree_plot = st.button(
+                        with cplot2:
+                            run_network_degree_plot = st.form_submit_button(
                                 "Run Network + Degree Plot",
-                                key="run_single_network_degree_plot_btn",
                             )
 
-                        with cplot4:
-                            clear_network_plot = st.button(
-                                "Clear Plot",
-                                key="clear_single_network_plot_btn",
-                            )
+                    if st.button("Clear Plot", key="clear_single_network_plot_btn"):
+                        st.session_state["single_network_plot_mode"] = None
 
                     if run_network_plot:
                         st.session_state["single_network_plot_mode"] = "network_only"
+                        st.session_state["single_network_target"] = target_node
+                        st.session_state["single_network_top_edges"] = int(top_edges_for_plot)
 
                     if run_network_degree_plot:
                         st.session_state["single_network_plot_mode"] = "network_degree"
-
-                    if clear_network_plot:
-                        st.session_state["single_network_plot_mode"] = None
+                        st.session_state["single_network_target"] = target_node
+                        st.session_state["single_network_top_edges"] = int(top_edges_for_plot)
 
                     single_network_plot_mode = st.session_state.get("single_network_plot_mode", None)
 
                     if single_network_plot_mode == "network_only":
                         plot_network(
                             result["adj_df"],
-                            target_node=target_node,
-                            top_edges=int(top_edges_for_plot),
+                            target_node=st.session_state.get("single_network_target", ""),
+                            top_edges=st.session_state.get("single_network_top_edges", 60),
                             show_degree_panel=False,
                         )
                     elif single_network_plot_mode == "network_degree":
                         plot_network(
                             result["adj_df"],
-                            target_node=target_node,
-                            top_edges=int(top_edges_for_plot),
+                            target_node=st.session_state.get("single_network_target", ""),
+                            top_edges=st.session_state.get("single_network_top_edges", 60),
                             show_degree_panel=True,
                         )
                     else:
-                        st.info("Click `Run Network Plot` or `Run Network + Degree Plot` to render.")
+                        st.info("点击 `Run Network Plot` 或 `Run Network + Degree Plot` 渲染网络图。")
                 # ========== Tab 1_2_2 Effect Decomposition ==========
                 with tab1_2_2:
                     st.markdown("### Effect Decomposition")
 
-                    ceff1, ceff2 = st.columns(2)
+                    with st.form(key="single_effect_form"):
+                        ceff1, ceff2, ceff3, ceff4 = st.columns(4)
 
-                    with ceff1:
-                        run_effect_plot = st.button(
-                            "Run Effect Decomposition Plot",
-                            key="run_single_effect_plot_btn",
-                        )
+                        with ceff1:
+                            run_effect_plot = st.form_submit_button(
+                                "Run Effect Decomposition Plot",
+                            )
 
-                    with ceff2:
-                        clear_effect_plot = st.button(
-                            "Clear Effect Plot",
-                            key="clear_single_effect_plot_btn",
-                        )
+                        with ceff2:
+                            st.write("")
+
+                        with ceff3:
+                            single_effect_ncols = st.number_input(
+                                "Subplot cols",
+                                min_value=1,
+                                max_value=12,
+                                value=4,
+                                step=1,
+                                key="single_effect_ncols",
+                            )
+
+                        with ceff4:
+                            single_effect_max_vars = st.number_input(
+                                "Max variables (0=all)",
+                                min_value=0,
+                                max_value=500,
+                                value=0,
+                                step=1,
+                                key="single_effect_max_vars",
+                                help="限制显示的目标变量数量；0 表示绘制全部变量。",
+                            )
+
+                    clear_effect_plot = st.button(
+                        "Clear Effect Plot",
+                        key="clear_single_effect_plot_btn",
+                    )
 
                     if run_effect_plot:
                         st.session_state["single_effect_plot_render"] = True
@@ -905,7 +757,8 @@ with tab1:
                             curve_df=result["predicted_df"],
                             effect_df_list=result["effect_df_list"],
                             intercept=result["model"].coef_.loc["intercept"],
-                            plot_ncols=4,
+                            plot_ncols=st.session_state.get("single_effect_ncols", 4),
+                            plot_max_vars=st.session_state.get("single_effect_max_vars", 0),
                         )
                     else:
                         st.info("Click `Run Effect Decomposition Plot` to render effect curves.")
@@ -918,40 +771,30 @@ with tab1:
 
                     st.markdown("### Adjusted Matrix Heatmap")
 
-                    hcol1, hcol2, hcol3 , hcol4 = st.columns(4)
+                    with st.form(key="single_heatmap_form"):
+                        hcol1, hcol2, hcol3 = st.columns(3)
+                        with hcol1:
+                            show_single_heatmap_values = st.checkbox(
+                                "Show values",
+                                value=False,
+                                key="show_single_adj_heatmap_values",
+                                help="节点数较多时不建议显示数值。",
+                            )
+                        with hcol2:
+                            normalize_single_heatmap = st.checkbox(
+                                "Normalize",
+                                value=True,
+                                key="normalize_single_adj_heatmap",
+                                help="勾选后分别归一化非对角线边权和对角线自身效应；取消后显示原始量级。",
+                            )
+                        with hcol3:
+                            run_single_heatmap = st.form_submit_button("Run Heatmap")
 
-                    with hcol1:
-                        run_single_heatmap = st.button(
-                            "Run Heatmap",
-                            key="run_single_adj_heatmap_btn",
-                        )
+                    if st.button("Clear Heatmap", key="clear_single_adj_heatmap_btn"):
+                        st.session_state["single_adj_heatmap_render"] = False
 
-                    with hcol2:
-                        clear_single_heatmap = st.button(
-                            "Clear Heatmap",
-                            key="clear_single_adj_heatmap_btn",
-                        )
-
-                    with hcol3:
-                        show_single_heatmap_values = st.checkbox(
-                            "Show values",
-                            value=False,
-                            key="show_single_adj_heatmap_values",
-                            help="节点数较多时不建议显示数值。",
-                        )
-                    with hcol4:
-                        normalize_single_heatmap = st.checkbox(
-                            "Normalize",
-                            value=True,
-                            key="normalize_single_adj_heatmap",
-                            help="勾选后分别归一化非对角线边权和对角线自身效应；取消后显示原始量级。",
-                        )
-                        
                     if run_single_heatmap:
                         st.session_state["single_adj_heatmap_render"] = True
-
-                    if clear_single_heatmap:
-                        st.session_state["single_adj_heatmap_render"] = False
 
                     if st.session_state.get("single_adj_heatmap_render", False):
                         plot_adjusted_matrix_heatmap(
@@ -961,186 +804,7 @@ with tab1:
                             normalize=bool(normalize_single_heatmap),
                         )
                     else:
-                        st.info("Click `Run Heatmap` to render the adjusted matrix heatmap.")
-                # ========== Tab 1_2_4 Debug ==========
-                with tab1_2_4:
-                    st.markdown("### Debug: design matrix, response, coefficients")
-                    model_dbg: IDOPRegressor = result["model"]
-                    X_dbg: pd.DataFrame = result["design_X"]
-                    Y_dbg: pd.DataFrame = result["response_Y"]
-                    cs_raw = result["curve_sample_df"]
-                    pred = result["predicted_df"]
-                    coef = model_dbg.coef_
-                    basis_raw_dbg = polynomial_basis_expansion(
-                        cs_raw,
-                        model_dbg.max_order,
-                    )
-
-                    def _summary(name: str, df: pd.DataFrame) -> dict:
-                        arr = df.to_numpy(dtype=float, copy=False)
-                        finite = np.isfinite(arr)
-                        finite_arr = arr[finite] if finite.any() else np.array([np.nan])
-                        return {
-                            "name": name,
-                            "shape": str(arr.shape),
-                            "n_nan": int(np.isnan(arr).sum()),
-                            "n_inf": int(np.isinf(arr).sum()),
-                            "min": float(np.min(finite_arr)) if finite.any() else float("nan"),
-                            "max": float(np.max(finite_arr)) if finite.any() else float("nan"),
-                            "abs_max": float(np.max(np.abs(finite_arr))) if finite.any() else float("nan"),
-                            "mean": float(np.mean(finite_arr)) if finite.any() else float("nan"),
-                            "std": float(np.std(finite_arr)) if finite.any() else float("nan"),
-                            "n_zero": int((arr == 0).sum()),
-                        }
-
-                    def _plot_matrix_lines(df: pd.DataFrame, title: str, x_label: str, exclude_intercept: bool = False) -> None:
-                        if exclude_intercept:
-                            cols = [c for c in df.columns if c != "intercept"]
-                        else:
-                            cols = list(df.columns)
-                        if cols:
-                            fig, ax = plt.subplots(figsize=(12, 4.5))
-                            try:
-                                x_idx = df.index.astype(float).to_numpy(dtype=float, copy=False)
-                                if not np.all(np.isfinite(x_idx)):
-                                    raise ValueError("non-finite float index")
-                            except (TypeError, ValueError):
-                                x_idx = np.arange(len(df), dtype=float)
-                            for col in cols:
-                                ax.plot(
-                                    x_idx,
-                                    df[col].to_numpy(dtype=float, copy=False),
-                                    linewidth=1.0,
-                                    alpha=0.75,
-                                )
-                            ax.set_xlabel(x_label, fontproperties=font_prop)
-                            ax.set_ylabel("列取值", fontproperties=font_prop)
-                            ax.set_title(title, fontproperties=font_prop)
-                            ax.grid(True, alpha=0.35)
-                            fig.tight_layout()
-                            st.pyplot(fig, use_container_width=True)
-                            plt.close(fig)
-                        else:
-                            st.caption("没有可绘制的矩阵列。")
-
-                    def _plot_bic_curve(df: pd.DataFrame | None, title: str, x_col: str, x_label: str, log_x: bool = False) -> None:
-                        if df is None or df.empty:
-                            st.caption("没有可用的 BIC 搜索轨迹。")
-                            return
-                        plot_df = (
-                            df.replace([np.inf, -np.inf], np.nan)
-                            .dropna(subset=[x_col, "bic"])
-                            .sort_values(x_col)
-                        )
-                        if plot_df.empty:
-                            st.caption("没有可绘制的 BIC 点。")
-                            return
-                        fig, ax = plt.subplots(figsize=(6, 3.6))
-                        ax.plot(
-                            plot_df[x_col].to_numpy(dtype=float, copy=False),
-                            plot_df["bic"].to_numpy(dtype=float, copy=False),
-                            marker="o",
-                            linewidth=1.4,
-                        )
-                        if "selected" in plot_df.columns:
-                            selected = plot_df[plot_df["selected"].astype(bool)]
-                            if not selected.empty:
-                                ax.scatter(
-                                    selected[x_col].to_numpy(dtype=float, copy=False),
-                                    selected["bic"].to_numpy(dtype=float, copy=False),
-                                    color="red",
-                                    s=50,
-                                    zorder=3,
-                                )
-                        if log_x:
-                            ax.set_xscale("log")
-                        ax.set_xlabel(x_label, fontproperties=font_prop)
-                        ax.set_ylabel("BIC", fontproperties=font_prop)
-                        ax.set_title(title, fontproperties=font_prop)
-                        ax.grid(True, alpha=0.35)
-                        fig.tight_layout()
-                        st.pyplot(fig, use_container_width=True)
-                        plt.close(fig)
-
-                    summary_rows = [
-                        _summary("curve_sample (raw)", cs_raw),
-                        _summary(
-                            "basis raw = y_k(τ) · Legendre_r(τ̂) (derivative-mode point values)",
-                            basis_raw_dbg,
-                        ),
-                        _summary(
-                            "design X = [intercept | ∫_{τ_1}^{τ} a_k s^{b_k} · Legendre_r(τ̂(s)) ds (analytic)]",
-                            X_dbg,
-                        ),
-                        _summary(
-                            "response Y = quasi_dynamic (interp → Chebyshev nodes)",
-                            Y_dbg,
-                        ),
-                        _summary("coef_", coef),
-                        _summary("predicted", pred),
-                    ]
-                    st.markdown("**Numeric summary**")
-                    st.dataframe(pd.DataFrame(summary_rows), use_container_width=True)
-
-                    st.markdown(
-                        f"`max_order` = **{model_dbg.max_order}** &nbsp; | &nbsp; "
-                        f"`alpha` = **{model_dbg.alpha}** &nbsp; | &nbsp; "
-                        f"`mse_` = **{model_dbg.mse_}**"
-                    )
-                    if model_dbg.effect_constraint_diagnostics_ is not None:
-                        st.markdown("**Effect constraint diagnostics**")
-                        st.dataframe(
-                            model_dbg.effect_constraint_diagnostics_,
-                            use_container_width=True,
-                        )
-                    bic_left, bic_right = st.columns(2)
-                    with bic_left:
-                        st.markdown("**BIC vs max_order**")
-                        _plot_bic_curve(
-                            model_dbg.bic_order_path_,
-                            "BIC 选择 max_order",
-                            "max_order",
-                            "max_order",
-                        )
-                    with bic_right:
-                        st.markdown("**BIC vs alpha**")
-                        _plot_bic_curve(
-                            model_dbg.bic_alpha_path_,
-                            "BIC 选择 alpha",
-                            "alpha",
-                            "alpha",
-                            log_x=True,
-                        )
-
-                    st.markdown("**curve_sample (raw) — head**")
-                    st.dataframe(cs_raw.head(), use_container_width=True)
-                    left_col, right_col = st.columns(2)
-                    with left_col:
-                        st.markdown("**basis matrix before integral — head (first 8 cols)**")
-                        st.dataframe(basis_raw_dbg.iloc[:5, :8], use_container_width=True)
-                        st.markdown("**basis matrix before integral — 沿 index 折线图**")
-                        _plot_matrix_lines(
-                            basis_raw_dbg,
-                            "积分前基函数矩阵（全部列）",
-                            "basis_raw.index",
-                        )
-                    with right_col:
-                        st.markdown("**design matrix X — head (first 8 cols)**")
-                        st.dataframe(X_dbg.iloc[:5, :8], use_container_width=True)
-                        st.markdown("**design matrix X — 沿 index 折线图（不含 intercept）**")
-                        _plot_matrix_lines(
-                            X_dbg,
-                            "设计矩阵 X（全部列，不含 intercept）",
-                            "design_X.index",
-                            exclude_intercept=True,
-                        )
-                    st.markdown("**response Y — head**")
-                    st.dataframe(Y_dbg.head(), use_container_width=True)
-                    st.markdown("**coef_**")
-                    st.dataframe(coef, use_container_width=True)
-                    st.markdown("**predicted — head**")
-                    st.dataframe(pred.head(), use_container_width=True)
-
+                        st.info("点击 `Run Heatmap` 渲染热力图。")
     # ========== Tab 1_3 Export ==========
     with tab1_3:
         result = st.session_state.netrecon_result
@@ -1287,7 +951,7 @@ with tab2:
             
             with st.expander("Multi-Layer IdopNetwork parameter settings", expanded=True):
                 with st.form(key="netrecon_form_multilayer"):
-                    mc1, mc2 = st.columns(2)
+                    mc1, mc2, mc3, mc4, mc5 = st.columns(5)
                     with mc1:
                         ml_max_order = st.number_input(
                             "max_order_upper (BIC)",
@@ -1304,6 +968,7 @@ with tab2:
                             value=True,
                             key="netrecon_ml_nonneg_self",
                         )
+                    with mc3:
                         ml_top_k = st.number_input(
                             "max_interactions (Top-K)",
                             min_value=0,
@@ -1312,6 +977,7 @@ with tab2:
                             step=1,
                             key="netrecon_ml_top_k",
                         )
+                    with mc4:
                         ml_adjacency_aggregation = st.selectbox(
                             "adjacency_aggregation",
                             options=["mean", "integral"],
@@ -1319,7 +985,8 @@ with tab2:
                             key="netrecon_ml_adjacency_aggregation",
                             help="邻接矩阵列聚合方式：mean=离散点均值，integral=按 index 梯形积分。",
                         )
-                    submit_multilayer = st.form_submit_button("Run Multi-Layer IdopNetwork")
+                    with mc5:
+                        submit_multilayer = st.form_submit_button("Run Multi-Layer IdopNetwork")
 
             if submit_multilayer:
                 params = {
@@ -1336,118 +1003,124 @@ with tab2:
                 )
                 total_jobs = max(total_jobs, 1)
                 completed_jobs = 0
-                progress_bar = st.progress(
-                    0,
-                    text="Preparing Multi-Layer IdopNetwork...",
-                )
 
                 def _update_multilayer_progress(message: str) -> None:
                     """更新多层网络构建进度条。"""
                     progress = min(completed_jobs / total_jobs, 1.0)
                     progress_bar.progress(progress, text=message)
+                    status_log.write(f"`[{progress:.0%}]` {message}")
 
                 try:
-                    for cond_name in condition_names:
-                        center_df = centers[cond_name]
-                        if cond_name not in center_responses:
-                            skipped.append(
-                                {
-                                    "layer": "condition",
-                                    "condition": cond_name,
-                                    "cluster": "",
-                                    "n_nodes": int(center_df.shape[1]),
-                                    "reason": (
-                                        "missing cluster_center_quasi_dynamic "
-                                        "in FunClu-K export"
-                                    ),
-                                }
-                            )
-                            completed_jobs += 1 + len(members.get(cond_name, {}))
-                            _update_multilayer_progress(
-                                f"Skipped condition `{cond_name}`: missing center response."
-                            )
-                            continue
-                        center_response_df = center_responses[cond_name]
-                        _update_multilayer_progress(
-                            f"Building inter-cluster network: `{cond_name}`..."
-                        )
-                        try:
-                            inter_cluster[cond_name] = _fit_idop_network_from_curve_sample(
-                                center_df,
-                                center_response_df,
-                                **params,
-                                power_function_params=get_power_function_params(
-                                    center_response_df
-                                ),
-                            )
-                        except Exception as e:
-                            skipped.append(
-                                {
-                                    "layer": "inter_cluster",
-                                    "condition": cond_name,
-                                    "cluster": "",
-                                    "n_nodes": int(center_df.shape[1]),
-                                    "reason": str(e),
-                                }
-                            )
-                        completed_jobs += 1
-                        _update_multilayer_progress(
-                            f"Finished inter-cluster network: `{cond_name}`."
-                        )
-
-                        intra_cluster[cond_name] = {}
-                        for cluster_name, member_df in members.get(cond_name, {}).items():
-                            _update_multilayer_progress(
-                                "Building intra-cluster network: "
-                                f"`{cond_name}` / `{cluster_name}`..."
-                            )
-                            if member_df.shape[1] < 2:
+                    with st.status(
+                        "Preparing Multi-Layer IdopNetwork...",
+                        expanded=True,
+                    ) as ml_status:
+                        status_log = st.empty()
+                        progress_bar = st.progress(0, text="Preparing...")
+                        for cond_name in condition_names:
+                            center_df = centers[cond_name]
+                            if cond_name not in center_responses:
                                 skipped.append(
                                     {
-                                        "layer": "intra_cluster",
+                                        "layer": "condition",
                                         "condition": cond_name,
-                                        "cluster": cluster_name,
-                                        "n_nodes": int(member_df.shape[1]),
-                                        "reason": "less than 2 member curves",
+                                        "cluster": "",
+                                        "n_nodes": int(center_df.shape[1]),
+                                        "reason": (
+                                            "missing cluster_center_quasi_dynamic "
+                                            "in FunClu-K export"
+                                        ),
                                     }
                                 )
-                                completed_jobs += 1
+                                completed_jobs += 1 + len(members.get(cond_name, {}))
                                 _update_multilayer_progress(
-                                    "Skipped intra-cluster network: "
-                                    f"`{cond_name}` / `{cluster_name}`."
+                                    f"Skipped condition `{cond_name}`: missing center response."
                                 )
                                 continue
+                            center_response_df = center_responses[cond_name]
+                            _update_multilayer_progress(
+                                f"Building inter-cluster network: `{cond_name}`..."
+                            )
                             try:
-                                member_response_df = member_responses.get(
-                                    cond_name, {}
-                                )[cluster_name]
-                                intra_cluster[cond_name][cluster_name] = (
-                                    _fit_idop_network_from_curve_sample(
-                                        member_df,
-                                        member_response_df,
-                                        **params,
-                                        power_function_params=get_power_function_params(
-                                            member_response_df
-                                        ),
-                                    )
+                                inter_cluster[cond_name] = _fit_idop_network_from_curve_sample(
+                                    center_df,
+                                    center_response_df,
+                                    **params,
+                                    power_function_params=get_power_function_params(
+                                        center_response_df
+                                    ),
                                 )
                             except Exception as e:
                                 skipped.append(
                                     {
-                                        "layer": "intra_cluster",
+                                        "layer": "inter_cluster",
                                         "condition": cond_name,
-                                        "cluster": cluster_name,
-                                        "n_nodes": int(member_df.shape[1]),
+                                        "cluster": "",
+                                        "n_nodes": int(center_df.shape[1]),
                                         "reason": str(e),
                                     }
                                 )
                             completed_jobs += 1
                             _update_multilayer_progress(
-                                "Finished intra-cluster network: "
-                                f"`{cond_name}` / `{cluster_name}`."
+                                f"Finished inter-cluster network: `{cond_name}`."
                             )
+
+                            intra_cluster[cond_name] = {}
+                            for cluster_name, member_df in members.get(cond_name, {}).items():
+                                _update_multilayer_progress(
+                                    "Building intra-cluster network: "
+                                    f"`{cond_name}` / `{cluster_name}`..."
+                                )
+                                if member_df.shape[1] < 2:
+                                    skipped.append(
+                                        {
+                                            "layer": "intra_cluster",
+                                            "condition": cond_name,
+                                            "cluster": cluster_name,
+                                            "n_nodes": int(member_df.shape[1]),
+                                            "reason": "less than 2 member curves",
+                                        }
+                                    )
+                                    completed_jobs += 1
+                                    _update_multilayer_progress(
+                                        "Skipped intra-cluster network: "
+                                        f"`{cond_name}` / `{cluster_name}`."
+                                    )
+                                    continue
+                                try:
+                                    member_response_df = member_responses.get(
+                                        cond_name, {}
+                                    )[cluster_name]
+                                    intra_cluster[cond_name][cluster_name] = (
+                                        _fit_idop_network_from_curve_sample(
+                                            member_df,
+                                            member_response_df,
+                                            **params,
+                                            power_function_params=get_power_function_params(
+                                                member_response_df
+                                            ),
+                                        )
+                                    )
+                                except Exception as e:
+                                    skipped.append(
+                                        {
+                                            "layer": "intra_cluster",
+                                            "condition": cond_name,
+                                            "cluster": cluster_name,
+                                            "n_nodes": int(member_df.shape[1]),
+                                            "reason": str(e),
+                                        }
+                                    )
+                                completed_jobs += 1
+                                _update_multilayer_progress(
+                                    "Finished intra-cluster network: "
+                                    f"`{cond_name}` / `{cluster_name}`."
+                                )
                 except Exception as e:
-                    progress_bar.progress(1.0, text="Multi-Layer IdopNetwork failed.")
+                    ml_status.update(
+                        label="Multi-Layer IdopNetwork failed.",
+                        state="error",
+                    )
                     st.error(f"Multi-Layer IdopNetwork 运行失败：{e}")
                     st.session_state.netrecon_multilayer_result = None
                 else:
@@ -1457,8 +1130,16 @@ with tab2:
                         "intra_cluster": intra_cluster,
                         "skipped": skipped,
                     }
-                    progress_bar.progress(1.0, text="Multi-Layer IdopNetwork completed.")
-                    st.success("Done")
+                    # 重置所有子 Tab 的渲染标记，避免新结果自动触发旧绘图
+                    st.session_state["ml_inter_network_plot_request"] = None
+                    st.session_state["ml_intra_network_plot_request"] = None
+                    st.session_state["ml_effect_plot_request"] = None
+                    st.session_state["ml_inter_heatmap_request"] = None
+                    st.session_state["ml_intra_heatmap_request"] = None
+                    ml_status.update(
+                        label=f"Multi-Layer IdopNetwork completed ({completed_jobs}/{total_jobs} jobs).",
+                        state="complete",
+                    )
 
             multilayer_result = st.session_state.netrecon_multilayer_result
             if multilayer_result is not None:
@@ -1468,7 +1149,7 @@ with tab2:
                     if cluster_map
                 }
                 # 嵌套 Tab 展示结果
-                tab2_2_1, tab2_2_2, tab2_2_3, tab2_2_4 = st.tabs(["Network", "Effect Decomposition", "Adjacency Matrix", "Debug"])
+                tab2_2_1, tab2_2_2, tab2_2_3 = st.tabs(["Network", "Effect Decomposition", "Adjacency Matrix"])
 
                 # ========== Tab 2_2_1 Network ==========
                 with tab2_2_1:
@@ -1506,51 +1187,37 @@ with tab2:
                     if multilayer_result["inter_cluster"]:
                         st.markdown("### Inter-Cluster Network")
 
-                        inter_condition = st.selectbox(
-                            "Inter-cluster condition",
-                            options=list(multilayer_result["inter_cluster"].keys()),
-                            key="netrecon_ml_inter_condition",
-                        )
-
-                        inter_adj_df = multilayer_result["inter_cluster"][inter_condition]["adj_df"]
-
-                        inter_target_node = st.selectbox(
-                            "Inter-cluster target node filter",
-                            options=[""] + list(inter_adj_df.columns),
-                            format_func=lambda x: "ALL" if x == "" else x,
-                            key="netrecon_ml_inter_target_node",
-                        )
-
-                        with st.expander("Inter-cluster plot controls", expanded=True):
-                            c1, c2, c3, c4 = st.columns(4)
-
+                        with st.form(key="ml_inter_network_form"):
+                            inter_condition = st.selectbox(
+                                "Inter-cluster condition",
+                                options=list(multilayer_result["inter_cluster"].keys()),
+                                key="netrecon_ml_inter_condition",
+                            )
+                            inter_adj_df = multilayer_result["inter_cluster"][inter_condition]["adj_df"]
+                            inter_target_node = st.selectbox(
+                                "Inter-cluster target node filter",
+                                options=[""] + list(inter_adj_df.columns),
+                                format_func=lambda x: "ALL" if x == "" else x,
+                                key="netrecon_ml_inter_target_node",
+                            )
+                            inter_top_edges_for_plot = st.number_input(
+                                "Top edges",
+                                min_value=1,
+                                max_value=500,
+                                value=60,
+                                step=1,
+                                key="ml_inter_top_edges_for_plot",
+                            )
+                            c1, c2 = st.columns(2)
                             with c1:
-                                inter_top_edges_for_plot = st.number_input(
-                                    "Top edges",
-                                    min_value=1,
-                                    max_value=500,
-                                    value=60,
-                                    step=1,
-                                    key="ml_inter_top_edges_for_plot",
-                                )
-
+                                run_inter_network_plot = st.form_submit_button("Run Inter Network")
                             with c2:
-                                run_inter_network_plot = st.button(
-                                    "Run Inter Network",
-                                    key="run_ml_inter_network_plot_btn",
-                                )
+                                run_inter_network_degree_plot = st.form_submit_button("Run Inter Network + Degree")
 
-                            with c3:
-                                run_inter_network_degree_plot = st.button(
-                                    "Run Inter Network + Degree",
-                                    key="run_ml_inter_network_degree_plot_btn",
-                                )
-
-                            with c4:
-                                clear_inter_network_plot = st.button(
-                                    "Clear Inter Plot",
-                                    key="clear_ml_inter_network_plot_btn",
-                                )
+                        clear_inter_network_plot = st.button(
+                            "Clear Inter Plot",
+                            key="clear_ml_inter_network_plot_btn",
+                        )
 
                         if run_inter_network_plot:
                             st.session_state["ml_inter_network_plot_request"] = {
@@ -1593,57 +1260,55 @@ with tab2:
                     if available_intra:
                         st.markdown("### Intra-Cluster Network")
 
-                        intra_condition = st.selectbox(
-                            "Intra-cluster condition",
-                            options=list(available_intra.keys()),
-                            key="netrecon_ml_intra_condition",
+                        with st.form(key="ml_intra_network_form"):
+                            intra_condition = st.selectbox(
+                                "Intra-cluster condition",
+                                options=list(available_intra.keys()),
+                                key="netrecon_ml_intra_condition",
+                            )
+
+                            intra_cluster_name = st.selectbox(
+                                "Cluster",
+                                options=list(available_intra[intra_condition].keys()),
+                                key="netrecon_ml_intra_cluster",
+                            )
+
+                            intra_adj_df = available_intra[intra_condition][intra_cluster_name]["adj_df"]
+
+                            intra_target_node = st.selectbox(
+                                "Intra-cluster target node filter",
+                                options=[""] + list(intra_adj_df.columns),
+                                format_func=lambda x: "ALL" if x == "" else x,
+                                key="netrecon_ml_intra_target_node",
+                            )
+
+                            with st.expander("Intra-cluster plot controls", expanded=True):
+                                c1, c2, c3 = st.columns(3)
+
+                                with c1:
+                                    intra_top_edges_for_plot = st.number_input(
+                                        "Top edges",
+                                        min_value=1,
+                                        max_value=500,
+                                        value=60,
+                                        step=1,
+                                        key="ml_intra_top_edges_for_plot",
+                                    )
+
+                                with c2:
+                                    run_intra_network_plot = st.form_submit_button(
+                                        "Run Intra Network",
+                                    )
+
+                                with c3:
+                                    run_intra_network_degree_plot = st.form_submit_button(
+                                        "Run Intra Network + Degree",
+                                    )
+
+                        clear_intra_network_plot = st.button(
+                            "Clear Intra Plot",
+                            key="clear_ml_intra_network_plot_btn",
                         )
-
-                        intra_cluster_name = st.selectbox(
-                            "Cluster",
-                            options=list(available_intra[intra_condition].keys()),
-                            key="netrecon_ml_intra_cluster",
-                        )
-
-                        intra_adj_df = available_intra[intra_condition][intra_cluster_name]["adj_df"]
-
-                        intra_target_node = st.selectbox(
-                            "Intra-cluster target node filter",
-                            options=[""] + list(intra_adj_df.columns),
-                            format_func=lambda x: "ALL" if x == "" else x,
-                            key="netrecon_ml_intra_target_node",
-                        )
-
-                        with st.expander("Intra-cluster plot controls", expanded=True):
-                            c1, c2, c3, c4 = st.columns(4)
-
-                            with c1:
-                                intra_top_edges_for_plot = st.number_input(
-                                    "Top edges",
-                                    min_value=1,
-                                    max_value=500,
-                                    value=60,
-                                    step=1,
-                                    key="ml_intra_top_edges_for_plot",
-                                )
-
-                            with c2:
-                                run_intra_network_plot = st.button(
-                                    "Run Intra Network",
-                                    key="run_ml_intra_network_plot_btn",
-                                )
-
-                            with c3:
-                                run_intra_network_degree_plot = st.button(
-                                    "Run Intra Network + Degree",
-                                    key="run_ml_intra_network_degree_plot_btn",
-                                )
-
-                            with c4:
-                                clear_intra_network_plot = st.button(
-                                    "Clear Intra Plot",
-                                    key="clear_ml_intra_network_plot_btn",
-                                )
 
                         if run_intra_network_plot:
                             st.session_state["ml_intra_network_plot_request"] = {
@@ -1699,48 +1364,69 @@ with tab2:
                     if not layer_options:
                         st.warning("No built network available for effect decomposition.")
                     else:
-                        effect_layer = st.selectbox(
-                            "Layer",
-                            options=layer_options,
-                            key="netrecon_ml_effect_layer",
+                        with st.form(key="ml_effect_form"):
+                            effect_layer = st.selectbox(
+                                "Layer",
+                                options=layer_options,
+                                key="netrecon_ml_effect_layer",
+                            )
+                            if effect_layer == "inter_cluster":
+                                effect_condition = st.selectbox(
+                                    "Condition",
+                                    options=list(multilayer_result["inter_cluster"].keys()),
+                                    key="netrecon_ml_effect_inter_condition",
+                                )
+                                effect_network = multilayer_result["inter_cluster"][effect_condition]
+                                st.markdown(f"当前网络: `inter_cluster / {effect_condition}`")
+                            else:
+                                effect_condition = st.selectbox(
+                                    "Condition",
+                                    options=list(available_intra.keys()),
+                                    key="netrecon_ml_effect_intra_condition",
+                                )
+                                effect_cluster = st.selectbox(
+                                    "Cluster",
+                                    options=list(available_intra[effect_condition].keys()),
+                                    key="netrecon_ml_effect_intra_cluster",
+                                )
+                                effect_network = available_intra[effect_condition][effect_cluster]
+                                st.markdown(
+                                    f"当前网络: `intra_cluster / {effect_condition} / {effect_cluster}`"
+                                )
+
+                            ce1, ce2, ce3, ce4 = st.columns(4)
+
+                            with ce1:
+                                run_ml_effect_plot = st.form_submit_button(
+                                    "Run Multi-Layer Effect Plot",
+                                )
+                            with ce2:
+                                st.write("")
+
+                            with ce3:
+                                effect_ncols = st.number_input(
+                                    "Subplot cols",
+                                    min_value=1,
+                                    max_value=12,
+                                    value=4,
+                                    step=1,
+                                    key="ml_effect_ncols",
+                                )
+                            with ce4:
+                                effect_max_vars = st.number_input(
+                                    "Max variables (0=all)",
+                                    min_value=0,
+                                    max_value=500,
+                                    value=0,
+                                    step=1,
+                                    key="ml_effect_max_vars",
+                                    help="限制显示的目标变量数量；0 表示绘制全部变量。",
+                                )
+
+                        clear_ml_effect_plot = st.button(
+                            "Clear Multi-Layer Effect Plot",
+                            key="clear_ml_effect_plot_btn",
                         )
-                        if effect_layer == "inter_cluster":
-                            effect_condition = st.selectbox(
-                                "Condition",
-                                options=list(multilayer_result["inter_cluster"].keys()),
-                                key="netrecon_ml_effect_inter_condition",
-                            )
-                            effect_network = multilayer_result["inter_cluster"][effect_condition]
-                            st.markdown(f"当前网络: `inter_cluster / {effect_condition}`")
-                        else:
-                            effect_condition = st.selectbox(
-                                "Condition",
-                                options=list(available_intra.keys()),
-                                key="netrecon_ml_effect_intra_condition",
-                            )
-                            effect_cluster = st.selectbox(
-                                "Cluster",
-                                options=list(available_intra[effect_condition].keys()),
-                                key="netrecon_ml_effect_intra_cluster",
-                            )
-                            effect_network = available_intra[effect_condition][effect_cluster]
-                            st.markdown(
-                                f"当前网络: `intra_cluster / {effect_condition} / {effect_cluster}`"
-                            )
-
-                        ce1, ce2 = st.columns(2)
-
-                        with ce1:
-                            run_ml_effect_plot = st.button(
-                                "Run Multi-Layer Effect Plot",
-                                key="run_ml_effect_plot_btn",
-                            )
-
-                        with ce2:
-                            clear_ml_effect_plot = st.button(
-                                "Clear Multi-Layer Effect Plot",
-                                key="clear_ml_effect_plot_btn",
-                            )
 
                         if run_ml_effect_plot:
                             if effect_layer == "inter_cluster":
@@ -1748,12 +1434,16 @@ with tab2:
                                     "layer": effect_layer,
                                     "condition": effect_condition,
                                     "cluster": "",
+                                    "ncols": int(effect_ncols),
+                                    "max_vars": int(effect_max_vars),
                                 }
                             else:
                                 st.session_state["ml_effect_plot_request"] = {
                                     "layer": effect_layer,
                                     "condition": effect_condition,
                                     "cluster": effect_cluster,
+                                    "ncols": int(effect_ncols),
+                                    "max_vars": int(effect_max_vars),
                                 }
 
                         if clear_ml_effect_plot:
@@ -1766,12 +1456,16 @@ with tab2:
                                 "layer": effect_layer,
                                 "condition": effect_condition,
                                 "cluster": "",
+                                "ncols": int(effect_ncols),
+                                "max_vars": int(effect_max_vars),
                             }
                         else:
                             current_effect_key = {
                                 "layer": effect_layer,
                                 "condition": effect_condition,
                                 "cluster": effect_cluster,
+                                "ncols": int(effect_ncols),
+                                "max_vars": int(effect_max_vars),
                             }
 
                         if effect_plot_request == current_effect_key:
@@ -1780,7 +1474,8 @@ with tab2:
                                 curve_df=effect_network["predicted_df"],
                                 effect_df_list=effect_network["effect_df_list"],
                                 intercept=effect_network["model"].coef_.loc["intercept"],
-                                plot_ncols=4,
+                                plot_ncols=int(effect_plot_request.get("ncols", 4)),
+                                plot_max_vars=int(effect_plot_request.get("max_vars", 0)),
                             )
                         else:
                             st.info("Click `Run Multi-Layer Effect Plot` to render effect curves.")
@@ -1809,33 +1504,32 @@ with tab2:
 
                         st.markdown("#### Inter-Cluster Heatmap")
 
-                        ih1, ih2, ih3, ih4 = st.columns(4)
+                        with st.form(key="ml_inter_heatmap_form"):
+                            ih1, ih2, ih3 = st.columns(3)
 
-                        with ih1:
-                            run_inter_heatmap = st.button(
-                                "Run Inter Heatmap",
-                                key="run_ml_inter_heatmap_btn",
-                            )
+                            with ih1:
+                                run_inter_heatmap = st.form_submit_button(
+                                    "Run Inter Heatmap",
+                                )
 
-                        with ih2:
-                            clear_inter_heatmap = st.button(
-                                "Clear Inter Heatmap",
-                                key="clear_ml_inter_heatmap_btn",
-                            )
+                            with ih2:
+                                show_inter_heatmap_values = st.checkbox(
+                                    "Show values",
+                                    value=False,
+                                    key="show_ml_inter_heatmap_values",
+                                )
+                            with ih3:
+                                normalize_inter_heatmap = st.checkbox(
+                                    "Normalize",
+                                    value=True,
+                                    key="normalize_ml_inter_heatmap",
+                                    help="勾选后分别归一化非对角线边权和对角线自身效应；取消后显示原始量级。",
+                                )
 
-                        with ih3:
-                            show_inter_heatmap_values = st.checkbox(
-                                "Show values",
-                                value=False,
-                                key="show_ml_inter_heatmap_values",
-                            )
-                        with ih4:
-                            normalize_inter_heatmap = st.checkbox(
-                                "Normalize",
-                                value=True,
-                                key="normalize_ml_inter_heatmap",
-                                help="勾选后分别归一化非对角线边权和对角线自身效应；取消后显示原始量级。",
-                            )
+                        clear_inter_heatmap = st.button(
+                            "Clear Inter Heatmap",
+                            key="clear_ml_inter_heatmap_btn",
+                        )
                             
                         if run_inter_heatmap:
                             st.session_state["ml_inter_heatmap_request"] = {
@@ -1886,33 +1580,32 @@ with tab2:
 
                         st.markdown("#### Intra-Cluster Heatmap")
 
-                        ah1, ah2, ah3, ah4 = st.columns(4)
+                        with st.form(key="ml_intra_heatmap_form"):
+                            ah1, ah2, ah3 = st.columns(3)
 
-                        with ah1:
-                            run_intra_heatmap = st.button(
-                                "Run Intra Heatmap",
-                                key="run_ml_intra_heatmap_btn",
-                            )
+                            with ah1:
+                                run_intra_heatmap = st.form_submit_button(
+                                    "Run Intra Heatmap",
+                                )
 
-                        with ah2:
-                            clear_intra_heatmap = st.button(
-                                "Clear Intra Heatmap",
-                                key="clear_ml_intra_heatmap_btn",
-                            )
+                            with ah2:
+                                show_intra_heatmap_values = st.checkbox(
+                                    "Show values",
+                                    value=False,
+                                    key="show_ml_intra_heatmap_values",
+                                )
+                            with ah3:
+                                normalize_intra_heatmap = st.checkbox(
+                                    "Normalize",
+                                    value=True,
+                                    key="normalize_ml_intra_heatmap",
+                                    help="勾选后分别归一化非对角线边权和对角线自身效应；取消后显示原始量级。",
+                                )
 
-                        with ah3:
-                            show_intra_heatmap_values = st.checkbox(
-                                "Show values",
-                                value=False,
-                                key="show_ml_intra_heatmap_values",
-                            )
-                        with ah4:
-                            normalize_intra_heatmap = st.checkbox(
-                                "Normalize",
-                                value=True,
-                                key="normalize_ml_intra_heatmap",
-                                help="勾选后分别归一化非对角线边权和对角线自身效应；取消后显示原始量级。",
-                            )
+                        clear_intra_heatmap = st.button(
+                            "Clear Intra Heatmap",
+                            key="clear_ml_intra_heatmap_btn",
+                        )
                             
                         if run_intra_heatmap:
                             st.session_state["ml_intra_heatmap_request"] = {
@@ -1938,50 +1631,6 @@ with tab2:
                             )
                         else:
                             st.info("Click `Run Intra Heatmap` to render intra-cluster heatmap.")
-
-                # ========== Tab 2_2_4 Debug ==========
-                with tab2_2_4:
-                    has_inter = bool(multilayer_result["inter_cluster"])
-                    has_intra = bool(available_intra)
-                    layer_options = []
-                    if has_inter:
-                        layer_options.append("inter_cluster")
-                    if has_intra:
-                        layer_options.append("intra_cluster")
-
-                    if not layer_options:
-                        st.warning("No built network available for debug panel.")
-                    else:
-                        debug_layer = st.selectbox(
-                            "Layer",
-                            options=layer_options,
-                            key="netrecon_ml_debug_layer",
-                        )
-                        if debug_layer == "inter_cluster":
-                            debug_condition = st.selectbox(
-                                "Condition",
-                                options=list(multilayer_result["inter_cluster"].keys()),
-                                key="netrecon_ml_debug_inter_condition",
-                            )
-                            debug_network = multilayer_result["inter_cluster"][debug_condition]
-                            st.markdown(f"当前网络: `inter_cluster / {debug_condition}`")
-                        else:
-                            debug_condition = st.selectbox(
-                                "Condition",
-                                options=list(available_intra.keys()),
-                                key="netrecon_ml_debug_intra_condition",
-                            )
-                            debug_cluster = st.selectbox(
-                                "Cluster",
-                                options=list(available_intra[debug_condition].keys()),
-                                key="netrecon_ml_debug_intra_cluster",
-                            )
-                            debug_network = available_intra[debug_condition][debug_cluster]
-                            st.markdown(
-                                f"当前网络: `intra_cluster / {debug_condition} / {debug_cluster}`"
-                            )
-
-                        _render_multilayer_debug_panel(debug_network)
 
     # ========== Tab 2_3 Export ==========
     with tab2_3:

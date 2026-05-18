@@ -6,19 +6,19 @@ import zipfile
 import streamlit as st
 
 # 🌟 修改 1：换上统一的小图标，保持侧边栏默认展开 222
-st.set_page_config(page_title="Curve Fitting", page_icon="TSA.png", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Curve Fitting", page_icon="static/images/TSA.png", layout="wide", initial_sidebar_state="expanded")
 
 import numpy as np
 import pandas as pd
 
-from backend.curve_fitting import (
+from backend.curve_fitting.fitting import (
     load_csv,
     data_transformation,
     get_quasi_dynamic_df,
     get_power_function_sample,
     get_power_function_params,
 )
-from backend.plot_curve_fitting import plot_curve_fitting, plot_curve_fitting_compare
+from backend.curve_fitting.plot import plot_curve_fitting, plot_curve_fitting_compare
 
 # 🌟 修改 2：把 setup_sidebar 导进来
 from backend.utils import load_css, setup_sidebar
@@ -26,6 +26,11 @@ from backend.utils import load_css, setup_sidebar
 # 🌟 修改 3：一键加载全局样式和统一侧边栏！
 load_css()
 setup_sidebar()
+
+# ========== 登录门禁 ==========
+if not st.session_state.get("logged_in", False):
+    st.warning("请先返回首页登录后使用。")
+    st.stop()
 
 
 def _safe_zip_subdir(fname: str) -> str:
@@ -86,8 +91,12 @@ with tab1:
             for file in uploaded_files:
                 
                 # 加载并缓存原始数据 df_original
-                df_original = load_csv(file=file)
-                st.session_state.df_original[file.name] = df_original
+                try:
+                    df_original = load_csv(file=file)
+                    st.session_state.df_original[file.name] = df_original
+                except Exception as exc:
+                    st.error(f"加载文件 {file.name} 失败：{exc}")
+                    continue
                 
                 with st.expander(f"Original Data: {file.name}", expanded=False):
                     tab1_1_1, tab1_1_2, tab1_1_3 = st.tabs(["View Data", "Scatter Plot", "To Be Updated..."])
@@ -174,11 +183,14 @@ with tab1:
             # 执行数据变换
             if submit_transform:
                 for file in uploaded_files:
-                    df_original = st.session_state.df_original[file.name]
-                    # 加载并缓存数据变换结果 df_transform
-                    df_transform = data_transformation(df_original, scaler_type)
-                    st.session_state.df_transform[file.name] = df_transform
-                st.success("Success")
+                    try:
+                        df_original = st.session_state.df_original[file.name]
+                        df_transform = data_transformation(df_original, scaler_type)
+                        st.session_state.df_transform[file.name] = df_transform
+                    except Exception as exc:
+                        st.error(f"{file.name} 数据变换失败：{exc}")
+                        continue
+                st.success("变换完成")
 
             if uploaded_files:
                 for file in uploaded_files:
@@ -267,14 +279,17 @@ with tab2:
             if submit_quasi:
                 for file in uploaded_files:
                     if file.name in st.session_state.df_transform:
-                        # 加载并缓存 quasi-dynamic DataFrame df_quasi_dynamic
-                        df_transform = st.session_state.df_transform[file.name]
-                        df_quasi_dynamic = get_quasi_dynamic_df(
-                            df_transform,
-                            log_index=bool(quasi_log_index),
-                        )
-                        st.session_state.df_quasi_dynamic[file.name] = df_quasi_dynamic
-                st.success("Success")
+                        try:
+                            df_transform = st.session_state.df_transform[file.name]
+                            df_quasi_dynamic = get_quasi_dynamic_df(
+                                df_transform,
+                                log_index=bool(quasi_log_index),
+                            )
+                            st.session_state.df_quasi_dynamic[file.name] = df_quasi_dynamic
+                        except Exception as exc:
+                            st.error(f"{file.name} 拟动态变换失败：{exc}")
+                            continue
+                st.success("拟动态变换完成")
             if st.session_state.df_quasi_dynamic:
                 for file in uploaded_files:
                     if file.name in st.session_state.df_quasi_dynamic:
@@ -336,19 +351,21 @@ with tab2:
     # Allometric Scaling Law 
     with subtab2_2:
         if uploaded_files:
-            with st.form(key="Allometric Scaling Law"):
+            with st.form(key="allometric_scaling_law_form"):
                 submit_fit = st.form_submit_button("Run Allometric Scaling Law")
             if submit_fit:
                 for file in uploaded_files:
                     if file.name in st.session_state.df_quasi_dynamic:
-                        df_quasi_dynamic = st.session_state.df_quasi_dynamic[file.name]
-                        # 加载并缓存幂函数拟合曲线采样值 df_curve_sample
-                        df_curve_sample = get_power_function_sample(df_quasi_dynamic)
-                        st.session_state.df_curve_sample[file.name] = df_curve_sample
-                        # 加载并缓存幂函数拟合曲线参数 df_curve_params
-                        df_curve_params = get_power_function_params(df_quasi_dynamic)
-                        st.session_state.df_curve_params[file.name] = df_curve_params
-                st.success("Success")
+                        try:
+                            df_quasi_dynamic = st.session_state.df_quasi_dynamic[file.name]
+                            df_curve_sample = get_power_function_sample(df_quasi_dynamic)
+                            st.session_state.df_curve_sample[file.name] = df_curve_sample
+                            df_curve_params = get_power_function_params(df_quasi_dynamic)
+                            st.session_state.df_curve_params[file.name] = df_curve_params
+                        except Exception as exc:
+                            st.error(f"{file.name} 异速生长拟合失败：{exc}")
+                            continue
+                st.success("异速生长拟合完成")
             if st.session_state.df_curve_sample:
                 for file in uploaded_files:
                     if file.name in st.session_state.df_curve_sample:

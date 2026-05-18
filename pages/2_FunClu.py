@@ -8,7 +8,7 @@ import streamlit as st
 # 🌟 统一小图标和侧边栏状态
 st.set_page_config(
     page_title="Functional Clustering", 
-    page_icon="TSA.png", 
+    page_icon="static/images/TSA.png", 
     layout="wide", 
     initial_sidebar_state="expanded"
 )
@@ -16,13 +16,18 @@ st.set_page_config(
 import numpy as np
 import pandas as pd
 
-from backend.functional_clustering import FunClu
-from backend.plot_functional_clustering import plot_cluster_profiles
+from backend.clustering.funclu import FunClu
+from backend.clustering.plot import plot_cluster_profiles
 from backend.utils import load_css, setup_sidebar
 
 # 🌟 一键加载 CSS 和侧边栏
 load_css()
 setup_sidebar()
+
+# ========== 登录门禁 ==========
+if not st.session_state.get("logged_in", False):
+    st.warning("请先返回首页登录后使用。")
+    st.stop()
 
 st.title("Functional Clustering", text_alignment="center")
 

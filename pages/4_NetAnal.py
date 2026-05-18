@@ -7,13 +7,13 @@ import streamlit as st
 
 st.set_page_config(
     page_title="Network Analysis",
-    page_icon="TSA.png",
+    page_icon="static/images/TSA.png",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 # ========== 加载 CSS ==========
 from backend.utils import load_css, setup_sidebar 
-from backend.network_analysis import (
+from backend.analysis.network_analysis import (
     list_from_to_members,
     member_display_label,
     load_from_to_from_zip,
@@ -21,10 +21,10 @@ from backend.network_analysis import (
     suggest_max_x,
     sanitize_name,
 )
-from backend.plot_network_analysis import plot_glmy_barcode
+from backend.analysis.plot_analysis import plot_glmy_barcode
 
-# M3 / Paper §3.2 self-test：用 backend.Digraph 复刻原 GLMY1.py 流程，仅用于诊断。
-from backend.glmy_m3_test import (
+# M3 / Paper §3.2 self-test：用 backend.analysis.digraph 复刻原 GLMY1.py 流程，仅用于诊断。
+from backend.analysis.glmy_test import (
     DEFAULT_DIM as M3_DEFAULT_DIM,
     DEFAULT_M3_CSV,
     DEFAULT_MAX_X as M3_DEFAULT_MAX_X,
@@ -39,6 +39,11 @@ PAPER_3_2_DEFAULT_MAX_X: float = 5.5
 
 load_css()
 setup_sidebar()
+
+# ========== 登录门禁 ==========
+if not st.session_state.get("logged_in", False):
+    st.warning("请先返回首页登录后使用。")
+    st.stop()
 
 st.title("Network Analysis sss", text_alignment="center")
 
@@ -129,29 +134,30 @@ with tab1:
             st.warning("当前选择的 `from_to.csv` 为空，无法运行 GLMY。")
         else:
             default_max_x = float(suggest_max_x(from_to_df))
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                max_x = st.number_input(
-                    "Barcode max_x",
-                    min_value=1e-9,
-                    value=round(default_max_x, 4),
-                    step=0.1,
-                    format="%.4f",
-                    key="netanal_glmy_max_x",
-                    help=(
-                        "Barcode 横轴右端位置；默认按 |weight| 最大值 + 10% buffer "
-                        "自适应。仅作图横轴范围，**不**对 weight 做任何归一化。"
-                    ),
-                )
-            with col2:
-                st.caption("Auto suggestion (max_x)")
-                st.code(f"{default_max_x:.4f}", language="text")
 
-            run_clicked = st.button(
-                "Run GLMY",
-                type="primary",
-                key="netanal_glmy_run_btn",
-            )
+            with st.form(key="netanal_glmy_form"):
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    max_x = st.number_input(
+                        "Barcode max_x",
+                        min_value=1e-9,
+                        value=round(default_max_x, 4),
+                        step=0.1,
+                        format="%.4f",
+                        key="netanal_glmy_max_x",
+                        help=(
+                            "Barcode 横轴右端位置；默认按 |weight| 最大值 + 10% buffer "
+                            "自适应。仅作图横轴范围，**不**对 weight 做任何归一化。"
+                        ),
+                    )
+                with col2:
+                    st.caption("Auto suggestion (max_x)")
+                    st.code(f"{default_max_x:.4f}", language="text")
+
+                run_clicked = st.form_submit_button(
+                    "Run GLMY",
+                    type="primary",
+                )
 
             if run_clicked:
                 with st.spinner("Running Python GLMY/path homology ..."):
@@ -257,28 +263,28 @@ with tab1:
             st.markdown(f"**Source:** `{m3_csv_path.name}` (repo root)")
             st.dataframe(m3_df, width="stretch", height=240)
 
-            col_p1, col_p2 = st.columns([1, 1])
-            with col_p1:
-                m3_max_x = st.number_input(
-                    "Barcode max_x (M3)",
-                    min_value=0.01,
-                    value=float(M3_DEFAULT_MAX_X),
-                    step=0.1,
-                    format="%.4f",
-                    key="netanal_m3_max_x",
-                    help=(
-                        "原 GLMY1.py 的默认值是 2.0；横轴范围为 [-max_x, max_x*1.1]。"
-                    ),
-                )
-            with col_p2:
-                st.caption("Default (matches original GLMY1.py)")
-                st.code(f"{M3_DEFAULT_MAX_X:.4f}", language="text")
+            with st.form(key="netanal_m3_form"):
+                col_p1, col_p2 = st.columns([1, 1])
+                with col_p1:
+                    m3_max_x = st.number_input(
+                        "Barcode max_x (M3)",
+                        min_value=0.01,
+                        value=float(M3_DEFAULT_MAX_X),
+                        step=0.1,
+                        format="%.4f",
+                        key="netanal_m3_max_x",
+                        help=(
+                            "原 GLMY1.py 的默认值是 2.0；横轴范围为 [-max_x, max_x*1.1]。"
+                        ),
+                    )
+                with col_p2:
+                    st.caption("Default (matches original GLMY1.py)")
+                    st.code(f"{M3_DEFAULT_MAX_X:.4f}", language="text")
 
-            run_m3_clicked = st.button(
-                "Run M3 self-test",
-                type="primary",
-                key="netanal_m3_run_btn",
-            )
+                run_m3_clicked = st.form_submit_button(
+                    "Run M3 self-test",
+                    type="primary",
+                )
 
             if run_m3_clicked:
                 with st.spinner("Running backend.Digraph on M3.csv ..."):
@@ -390,26 +396,26 @@ with tab1:
             "横轴 ``[-max_x, max_x*1.1]`` 看不到 birth 端点 —— 这是与 M3 Self-test 一致的已知行为。"
         )
 
-        col_pp1, col_pp2 = st.columns([1, 1])
-        with col_pp1:
-            paper_max_x = st.number_input(
-                "Barcode max_x (Paper §3.2)",
-                min_value=1e-9,
-                value=float(PAPER_3_2_DEFAULT_MAX_X),
-                step=0.5,
-                format="%.4f",
-                key="netanal_paper_max_x",
-                help="filtration max = 5；默认 5.5（+ 10% buffer），仅作图横轴范围。",
-            )
-        with col_pp2:
-            st.caption("Default (filtration max + 10% buffer)")
-            st.code(f"{PAPER_3_2_DEFAULT_MAX_X:.4f}", language="text")
+        with st.form(key="netanal_paper_form"):
+            col_pp1, col_pp2 = st.columns([1, 1])
+            with col_pp1:
+                paper_max_x = st.number_input(
+                    "Barcode max_x (Paper §3.2)",
+                    min_value=1e-9,
+                    value=float(PAPER_3_2_DEFAULT_MAX_X),
+                    step=0.5,
+                    format="%.4f",
+                    key="netanal_paper_max_x",
+                    help="filtration max = 5；默认 5.5（+ 10% buffer），仅作图横轴范围。",
+                )
+            with col_pp2:
+                st.caption("Default (filtration max + 10% buffer)")
+                st.code(f"{PAPER_3_2_DEFAULT_MAX_X:.4f}", language="text")
 
-        run_paper_clicked = st.button(
-            "Run Paper §3.2 self-test",
-            type="primary",
-            key="netanal_paper_run_btn",
-        )
+            run_paper_clicked = st.form_submit_button(
+                "Run Paper §3.2 self-test",
+                type="primary",
+            )
 
         if run_paper_clicked:
             with st.spinner("Running backend.Digraph on Paper §3.2 data ..."):

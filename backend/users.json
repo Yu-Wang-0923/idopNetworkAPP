@@ -12,5 +12,19 @@
         "phone": "",
         "organization": "",
         "research_direction": ""
+    },
+    "111": {
+        "password": "111",
+        "real_name": "",
+        "phone": "",
+        "organization": "",
+        "research_direction": ""
+    },
+    "王宇": {
+        "password": "1234567890",
+        "real_name": "王宇",
+        "phone": "15802938678",
+        "organization": "北京雁栖湖应用数学研究院",
+        "research_direction": "复杂网络"
     }
 }

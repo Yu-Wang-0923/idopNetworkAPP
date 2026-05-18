@@ -67,7 +67,7 @@ def setup_sidebar():
         st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True) 
         col1, col2, col3 = st.columns([1, 3.5, 1])
         with col2:
-            st.image("TSA.png", use_container_width=True)
+            st.image("static/images/TSA.png", use_container_width=True)
         st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
         
         # 权限控制
@@ -86,13 +86,10 @@ def setup_sidebar():
                     key=HEADER_TOGGLE_KEY,
                     help="开启后可使用右上角 Streamlit 菜单（如 Clear cache）。",
                 )
-            else:
-                st.session_state[HEADER_TOGGLE_KEY] = False
             if st.button("退出登录", key="logout_btn_final"):
                 st.session_state["logged_in"] = False
                 st.rerun()
         else:
-            st.session_state[HEADER_TOGGLE_KEY] = False
             # 🌟 关键修改：即使没登录，也允许点回 Home 页面去登录！
             st.page_link("Home.py", label="返回首页登录", icon=":material/login:")
             st.markdown("<p style='color:#ef4444; font-weight:bold; text-align:center; margin-top:2rem;'>🔒 请先登录以解锁功能</p>", unsafe_allow_html=True)

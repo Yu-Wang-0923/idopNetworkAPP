@@ -1,6 +1,6 @@
 """Pure Python GLMY/path homology helpers.
 
-This module wraps :class:`backend.Digraph.Digraph` so the Streamlit page can
+This module wraps :class:`backend.analysis.digraph.Digraph` so the Streamlit page can
 compute barcode data without the legacy external executable.
 
 Algorithm inputs match the historical ``GLMY.exe`` convention: vertices as
@@ -19,7 +19,7 @@ from typing import Any
 
 import pandas as pd
 
-from backend.Digraph import Digraph
+from backend.analysis.digraph import Digraph
 
 
 DEFAULT_DIMENSION: int = 4

@@ -2,7 +2,7 @@
 
 The GLMY barcode workflow consumes ``from_to.csv`` files exported by
 ``pages/3_NetRecon.py`` and computes persistent path homology with the bundled
-pure Python implementation in ``backend.glmy``.
+pure Python implementation in ``backend.analysis.glmy``.
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from typing import Any
 
 import pandas as pd
 
-from backend.glmy import (
+from backend.analysis.glmy import (
     DEFAULT_DIMENSION,
     DEFAULT_WEIGHT_OFFSET,
     compute_glmy_homology,

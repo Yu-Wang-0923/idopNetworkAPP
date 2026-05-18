@@ -20,4 +20,4 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["backend"]
+packages = ["backend", "backend.curve_fitting", "backend.clustering", "backend.network", "backend.analysis", "backend.ml"]

@@ -5,8 +5,8 @@
 把"是不是 ``backend.Digraph`` 算错了"这件事从 NetRecon 数据流里隔离出来，
 做一个最小可复现：
 
-* 输入：仓库根的 ``M3.csv``（列 ``From, To, Effect``，与原 ``GLMY1.py`` 同源）。
-* 算法：``backend.Digraph.Digraph`` 纯 Python 实现，**不**调外部 ``GLMY.exe``。
+* 输入：``data/M3.csv``（列 ``From, To, Effect``，与原 ``GLMY1.py`` 同源）。
+* 算法：``backend.analysis.digraph.Digraph`` 纯 Python 实现，**不**调外部 ``GLMY.exe``。
 * 流程：等价复刻原 ``GLMY1.py``：
 
     1. ``vertices = sorted(set(From) | set(To))``（字符串排序）；
@@ -16,7 +16,7 @@
     5. 端点处理：``-1`` 透传，其它 ``round(value - 100, 6)``；
     6. β₀..β₃ barcode 排序与原 ``draw_unfiltered_barcode`` 一致。
 
-* 输出：``homology`` dict，可被 ``backend.plot_network_analysis.plot_glmy_barcode``
+* 输出：``homology`` dict，可被 ``backend.analysis.plot_analysis.plot_glmy_barcode``
   直接消费。
 
 历史背景
@@ -25,7 +25,7 @@
 ``import``。Streamlit Cloud 上 ``pages/`` 子模块解析时找不到顶层脚本，且原文件
 本身存在 ``SyntaxError``（``load_m3_dataframe`` 函数体被截断、``build_digraph_inputs``
 形参列表混入 ``for`` 子句），导致 ``ImportError``。现按项目规范迁入 ``backend/``，
-由页面通过 ``from backend.glmy_m3_test import ...`` 引用。
+由页面通过 ``from backend.analysis.glmy_test import ...`` 引用。
 """
 from __future__ import annotations
 
@@ -35,10 +35,10 @@ from typing import Any
 
 import pandas as pd
 
-from backend.Digraph import Digraph
+from backend.analysis.digraph import Digraph
 
-REPO_ROOT: Path = Path(__file__).resolve().parent.parent
-DEFAULT_M3_CSV: Path = REPO_ROOT / "M3.csv"
+REPO_ROOT: Path = Path(__file__).resolve().parent.parent.parent
+DEFAULT_M3_CSV: Path = REPO_ROOT / "data" / "M3.csv"
 DEFAULT_DIM: int = 4
 DEFAULT_WEIGHT_OFFSET: float = 100.0
 DEFAULT_MAX_X: float = 2.0
@@ -52,7 +52,7 @@ def load_m3_dataframe(csv_path: Path | str | None = None) -> pd.DataFrame:
     Parameters
     ----------
     csv_path:
-        CSV 路径，``None`` 表示使用仓库根 ``M3.csv``。
+        CSV 路径，``None`` 表示使用 ``data/M3.csv``。
 
     Returns
     -------
@@ -216,7 +216,7 @@ def main(
     """命令行入口：跑 M3.csv 并保存 barcode PNG/PDF。"""
     import matplotlib.pyplot as plt
 
-    from backend.plot_network_analysis import plot_glmy_barcode
+    from backend.analysis.plot_analysis import plot_glmy_barcode
 
     df = load_m3_dataframe(csv_path)
     print(f"Loaded {len(df)} edges from {Path(csv_path or DEFAULT_M3_CSV).name}.")
