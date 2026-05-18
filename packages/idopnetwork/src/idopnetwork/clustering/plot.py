@@ -18,10 +18,17 @@ from typing import List, Optional, Sequence, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import torch
 from matplotlib.figure import Figure
 
 from idopnetwork.curve_fitting import fit_power_loglinear
+
+try:
+    import torch
+except ImportError:
+    raise ImportError(
+        "idopnetwork[ml] is required for clustering plots. "
+        "Install with: pip install idopnetwork[ml]"
+    )
 
 font_prop = None  # Set by application layer for CJK font support
 
