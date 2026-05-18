@@ -21,8 +21,15 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-import torch
 from sklearn.cluster import KMeans, MiniBatchKMeans
+
+try:
+    import torch
+except ImportError:
+    raise ImportError(
+        "idopnetwork[ml] is required for clustering. "
+        "Install with: pip install idopnetwork[ml]"
+    )
 
 from idopnetwork.curve_fitting import fit_power_loglinear
 
