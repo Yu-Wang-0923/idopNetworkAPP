@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "idopnetwork"
+version = "0.1.0"
+description = "idopNetwork: complex systems analysis toolkit — curve fitting, functional clustering, network reconstruction, and topological data analysis"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Yu Wang" },
+]
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.0",
+    "scipy>=1.13",
+    "scikit-learn>=1.7",
+    "matplotlib>=3.8",
+    "cvxpy>=1.6",
+]
+
+[project.optional-dependencies]
+ml = ["torch>=2.4"]
+
+[project.urls]
+Homepage = "https://idopnetworkapp-bimsa-statistics.streamlit.app/"
+Repository = "https://github.com/Yu-Wang-0923/idopNetworkAPP"
+
+[tool.setuptools.packages.find]
+where = ["src"]

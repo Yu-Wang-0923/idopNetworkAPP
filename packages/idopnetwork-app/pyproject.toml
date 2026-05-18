@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "idopnetwork-app"
+version = "0.1.0"
+description = "idopNetwork Streamlit web application"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "idopnetwork>=0.1.0",
+    "streamlit>=1.52",
+]
+
+[project.scripts]
+idopnetwork-app = "idopnetwork_app.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+idopnetwork_app = [
+    "static/css/*.css",
+    "static/images/*",
+    "static/SimHei.ttf",
+    "data/*.csv",
+    "data/*.R",
+]

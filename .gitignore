@@ -3,11 +3,17 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.egg-info/
+*.whl
 .venv/
 venv/
+dist/
+build/
 
 # OS / IDE
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
+
+# Sensitive data (keep out of repo)
+backend/users.json

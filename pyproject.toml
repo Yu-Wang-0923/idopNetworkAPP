@@ -1,23 +1,18 @@
+# 本地开发便利文件
+# 实际的两个包分别在:
+#   packages/idopnetwork/         (核心算法库)
+#   packages/idopnetwork-app/     (Streamlit 应用)
+#
+# 开发安装:
+#   pip install -e packages/idopnetwork
+#   pip install -e packages/idopnetwork-app
+
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "idopnetworkapp"
+name = "idopnetwork-monorepo"
 version = "0.1.0"
-description = "idopNetwork Streamlit application (backend package)"
-readme = "README.md"
+description = "idopNetwork monorepo — packages/idopnetwork + packages/idopnetwork-app"
 requires-python = ">=3.10"
-dependencies = [
-    "numpy>=1.26",
-    "pandas>=3.0",
-    "scipy>=1.13",
-    "scikit-learn>=1.7",
-    "matplotlib>=3.8",
-    "streamlit>=1.52",
-    "cvxpy>=1.6",
-    "torch>=2.4",
-]
-
-[tool.setuptools]
-packages = ["backend", "backend.curve_fitting", "backend.clustering", "backend.network", "backend.analysis", "backend.ml"]
