@@ -34,7 +34,7 @@ def load_users():
 
 def save_users(users):
     """保存用户信息"""
-    _ensure_data_dir()
+    _USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
     with open(_USER_DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(users, f, indent=4, ensure_ascii=False)
 
