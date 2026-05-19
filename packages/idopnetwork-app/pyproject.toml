@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "idopnetwork-app"
-version = "0.1.1"
+version = "0.1.2"
 description = "idopNetwork Streamlit web application"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
 dependencies = [
-    "idopnetwork>=0.1.0",
+    "idopnetwork>=0.1.2",
     "streamlit>=1.52",
 ]
 

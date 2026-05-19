@@ -733,3 +733,97 @@ def _fit_mean_curve_power_sample(
     with np.errstate(over="ignore", invalid="ignore"):
         out[in_range] = a * np.power(xg[in_range], b)
     return xg, out
+
+
+def plot_bic_elbow(
+    *,
+    bic_results,  # pd.DataFrame
+    best_K: Optional[int] = None,
+    figsize: Tuple[float, float] = (8.0, 5.0),
+    dpi: int = 200,
+    show_in_streamlit: bool = False,
+    title: str = "BIC Elbow Plot",
+    xlabel: str = "Number of clusters (K)",
+    ylabel: str = "BIC",
+    best_k_color: str = "#e74c3c",
+    line_color: str = "#2c3e50",
+    marker_color: str = "#2c3e50",
+) -> Figure:
+    """BIC elbow plot for choosing the optimal number of clusters.
+
+    Plots BIC vs K as a connected line with circular markers.  The best K
+    (lowest BIC) is highlighted with a distinct marker and annotation.
+
+    Args:
+        bic_results: DataFrame with columns ``K`` and ``BIC`` (from
+            :func:`~idopnetwork.clustering.funclu.compute_bic_scores`).
+        best_K: K value to highlight.  If *None*, auto-selected from
+            the minimum BIC among converged rows.
+        figsize: Figure size in inches.
+        dpi: Figure resolution.
+        show_in_streamlit: If *True*, render via ``st.pyplot`` and also
+            return the Figure.
+        title: Plot title.
+        xlabel: X-axis label.
+        ylabel: Y-axis label.
+        best_k_color: Color for the best-K marker and annotation.
+        line_color: Color for the BIC line.
+        marker_color: Fill color for the regular BIC markers.
+
+    Returns:
+        Matplotlib Figure.
+    """
+    df = bic_results
+    df_valid = df.dropna(subset=["BIC"]).copy()
+    if df_valid.empty:
+        fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+        ax.text(0.5, 0.5, "No valid BIC results", ha="center", va="center",
+                transform=ax.transAxes, fontproperties=font_prop)
+        if show_in_streamlit:
+            import streamlit as st
+            st.pyplot(fig, use_container_width=True)
+        return fig
+
+    ks = df_valid["K"].values.astype(int)
+    bics = df_valid["BIC"].values
+
+    if best_K is None:
+        converged = df_valid[df_valid["converged"] == True]
+        if not converged.empty:
+            best_K = int(converged.loc[converged["BIC"].idxmin(), "K"])
+        else:
+            best_K = int(ks[bics.argmin()])
+
+    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+
+    ax.plot(ks, bics, "-o", color=line_color, markerfacecolor=marker_color,
+            markersize=8, linewidth=2, zorder=2, label="BIC")
+
+    if best_K in ks:
+        best_bic = bics[ks.tolist().index(best_K)]
+        ax.plot([best_K], [best_bic], "o", color=best_k_color,
+                markersize=14, zorder=3)
+        ax.annotate(
+            f"Best K={best_K}",
+            xy=(best_K, best_bic),
+            xytext=(best_K + 1.2, best_bic),
+            fontsize=11,
+            fontweight="bold",
+            color=best_k_color,
+            fontproperties=font_prop,
+            arrowprops=dict(arrowstyle="->", color=best_k_color, lw=1.5),
+        )
+
+    ax.set_xlabel(xlabel, fontproperties=font_prop)
+    ax.set_ylabel(ylabel, fontproperties=font_prop)
+    ax.set_title(title, fontweight="bold", fontproperties=font_prop)
+    ax.set_xticks(ks)
+    ax.grid(True, linestyle=":", alpha=0.5)
+    _set_chinese_axes(ax)
+
+    fig.tight_layout()
+
+    if show_in_streamlit:
+        import streamlit as st
+        st.pyplot(fig, use_container_width=True)
+    return fig

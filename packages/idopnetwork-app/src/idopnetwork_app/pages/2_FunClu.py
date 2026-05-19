@@ -19,8 +19,8 @@ st.set_page_config(
 import numpy as np
 import pandas as pd
 
-from idopnetwork.clustering.funclu import FunClu
-from idopnetwork.clustering.plot import plot_cluster_profiles
+from idopnetwork.clustering.funclu import FunClu, compute_bic_scores
+from idopnetwork.clustering.plot import plot_cluster_profiles, plot_bic_elbow
 from idopnetwork_app.utils import load_css, setup_sidebar
 
 # 🌟 一键加载 CSS 和侧边栏
@@ -43,6 +43,10 @@ if "funclu_uploaded_zip_name" not in st.session_state:
     st.session_state.funclu_uploaded_zip_name = None
 if "funclu_em_result" not in st.session_state:
     st.session_state.funclu_em_result = None
+if "funclu_bic_result" not in st.session_state:
+    st.session_state.funclu_bic_result = None
+if "funclu_bic_params" not in st.session_state:
+    st.session_state.funclu_bic_params = {}
 
 # ========== Helper Functions ==========
 def _load_netrecon_inputs_from_zip(
@@ -531,4 +535,149 @@ with tab2:
 # TAB 3: FunClu-BIC
 # =====================================================================
 with tab3:
-    st.write("To Be Updated...")
+    bic_tab1, bic_tab2 = st.tabs(["BIC Analysis", "Export"])
+
+    # ---------- BIC Analysis ----------
+    with bic_tab1:
+        curve_sample_dict = st.session_state.get("funclu_curve_sample", {})
+        if not curve_sample_dict:
+            st.info("Please upload data in the 'Uploaded Data' tab first.")
+        else:
+            cond_names = list(curve_sample_dict.keys())
+            data_list = [curve_sample_dict[n] for n in cond_names]
+            n_features = min((d.shape[1] for d in data_list), default=2)
+            k_upper = max(2, min(20, n_features))
+
+            with st.expander("BIC Scan Settings", expanded=True):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    bic_k_min = st.slider(
+                        "k_min", min_value=2, max_value=k_upper - 1,
+                        value=2, step=1, key="bic_k_min",
+                    )
+                with col2:
+                    bic_k_max = st.slider(
+                        "k_max", min_value=bic_k_min + 1, max_value=k_upper,
+                        value=min(10, k_upper), step=1, key="bic_k_max",
+                    )
+                with col3:
+                    bic_step = st.slider(
+                        "step", min_value=1, max_value=5,
+                        value=1, step=1, key="bic_step",
+                    )
+
+                with st.expander("Advanced Settings", expanded=False):
+                    col_a1, col_a2, col_a3 = st.columns(3)
+                    with col_a1:
+                        bic_max_iter = st.slider(
+                            "max_iter", 10, 200, 50, 10, key="bic_max_iter",
+                        )
+                    with col_a2:
+                        bic_tol = st.number_input(
+                            "tol", min_value=1e-10, max_value=1.0,
+                            value=1e-4, format="%.1e", key="bic_tol",
+                        )
+                    with col_a3:
+                        bic_rs = st.number_input(
+                            "random_state", 0, 9999, 42, key="bic_rs",
+                        )
+
+                run_bic = st.button("Run BIC Analysis", type="primary", key="run_bic_btn")
+
+            if run_bic:
+                ks = list(range(bic_k_min, bic_k_max + 1, bic_step))
+                with st.status(
+                    f"Scanning K from {bic_k_min} to {bic_k_max} ({len(ks)} fits)..."
+                ) as status:
+                    try:
+                        progress_bar = st.progress(0.0)
+                        status_text = st.empty()
+
+                        def _update_progress(idx: int, total: int) -> None:
+                            progress_bar.progress(idx / total)
+                            status_text.text(
+                                f"Fitting K={ks[idx - 1]} ({idx}/{total})..."
+                            )
+
+                        bic_df = compute_bic_scores(
+                            data=data_list,
+                            k_min=bic_k_min,
+                            k_max=bic_k_max,
+                            step=bic_step,
+                            max_iter=bic_max_iter,
+                            tol=bic_tol,
+                            random_state=bic_rs,
+                            progress_callback=_update_progress,
+                        )
+                        st.session_state["funclu_bic_result"] = bic_df
+                        st.session_state["funclu_bic_params"] = dict(
+                            k_min=bic_k_min, k_max=bic_k_max, step=bic_step,
+                            max_iter=bic_max_iter, tol=bic_tol, random_state=bic_rs,
+                        )
+                        progress_bar.progress(1.0)
+                        status_text.text("Done!")
+                        status.update(label="BIC scan complete!", state="complete")
+                    except Exception as e:
+                        st.error(f"BIC scan failed: {e}")
+                        st.session_state["funclu_bic_result"] = None
+
+            # Display results
+            bic_result_df = st.session_state.get("funclu_bic_result")
+            if bic_result_df is not None:
+                valid = bic_result_df.dropna(subset=["BIC"])
+                if not valid.empty:
+                    converged = valid[valid["converged"] == True]
+                    source = converged if not converged.empty else valid
+                    best_row = source.loc[source["BIC"].idxmin()]
+                    best_k_val = int(best_row["K"])
+
+                    st.markdown("### Best K Recommendation")
+                    col_c1, col_c2, col_c3, col_c4 = st.columns(4)
+                    with col_c1:
+                        st.metric("Best K", f"K = {best_k_val}")
+                    with col_c2:
+                        st.metric("BIC", f"{best_row['BIC']:.4g}")
+                    with col_c3:
+                        st.metric(
+                            "Log-Likelihood",
+                            f"{best_row['log_likelihood']:.4g}",
+                        )
+                    with col_c4:
+                        st.metric("Converged", str(best_row["converged"]))
+
+                    st.markdown("### BIC Elbow Plot")
+                    plot_bic_elbow(
+                        bic_results=bic_result_df,
+                        best_K=best_k_val,
+                        show_in_streamlit=True,
+                    )
+
+                    st.markdown("### Results Table")
+                    display_df = bic_result_df.rename(columns={
+                        "log_likelihood": "Log-Lik",
+                        "n_iter_run": "Iters",
+                        "n_features": "Features",
+                        "n_conditions": "Conds",
+                    })
+                    st.dataframe(
+                        display_df, use_container_width=True, hide_index=True,
+                    )
+
+    # ---------- Export ----------
+    with bic_tab2:
+        bic_result_df = st.session_state.get("funclu_bic_result")
+        if bic_result_df is None:
+            st.info("Run BIC Analysis first in the adjacent tab.")
+        else:
+            st.markdown("### Export BIC Results as CSV")
+            st.dataframe(
+                bic_result_df, use_container_width=True, hide_index=True,
+            )
+            csv_data = bic_result_df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="Download BIC results (CSV)",
+                data=csv_data,
+                file_name="funclu_bic_results.csv",
+                mime="text/csv",
+                key="bic_csv_download",
+            )

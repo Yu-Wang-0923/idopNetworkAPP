@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -916,3 +916,92 @@ class FunClu:
             f"n_features={self.n_features}, "
             f"backend={self._kmeans_init_backend!r})"
         )
+
+
+def compute_bic_scores(
+    data: List[pd.DataFrame],
+    k_min: int = 2,
+    k_max: int = 10,
+    step: int = 1,
+    *,
+    max_iter: int = 50,
+    tol: float = 1e-4,
+    random_state: int = 42,
+    verbose: bool = False,
+    progress_callback: Optional[Callable[[int, int], None]] = None,
+) -> pd.DataFrame:
+    """Scan a range of K values and return BIC scores.
+
+    For each K in [k_min, k_max] with given step, instantiates a
+    :class:`FunClu`, calls :meth:`~FunClu.fit`, and collects BIC, log-likelihood,
+    convergence status, etc.  Single-K failures are recorded as NaN rows rather
+    than aborting the scan.
+
+    Args:
+        data: One DataFrame per condition (same format as :meth:`FunClu.fit`).
+        k_min: Smallest K to try (must be ≥ 2).
+        k_max: Largest K to try (capped to the number of features in *data*).
+        step: Stride between consecutive K values.
+        max_iter: Passed to :class:`FunClu`.
+        tol: Passed to :class:`FunClu`.
+        random_state: Passed to :class:`FunClu`.
+        verbose: Passed to :meth:`FunClu.fit`.
+        progress_callback: Called after each K as ``callback(idx_1based, total)``.
+
+    Returns:
+        DataFrame with columns ``K``, ``BIC``, ``log_likelihood``, ``NLL``,
+        ``n_params``, ``converged``, ``n_iter_run``, ``n_features``,
+        ``n_conditions``.
+    """
+    if k_min < 2:
+        raise ValueError(f"k_min must be >= 2, got {k_min}")
+    if k_max < k_min:
+        raise ValueError(f"k_max ({k_max}) must be >= k_min ({k_min})")
+    if step < 1:
+        raise ValueError(f"step must be >= 1, got {step}")
+
+    n_features = min((d.shape[1] for d in data), default=0)
+    if n_features < 2:
+        raise ValueError(f"Data has fewer than 2 features (got {n_features})")
+    capped_k_max = min(k_max, n_features)
+
+    ks = list(range(k_min, capped_k_max + 1, step))
+    if not ks:
+        raise ValueError(
+            f"No K values to scan: k_min={k_min}, "
+            f"k_max={k_max}, n_features={n_features}"
+        )
+
+    rows: List[Dict[str, Any]] = []
+    total = len(ks)
+
+    for idx, k in enumerate(ks):
+        row: Dict[str, Any] = {
+            "K": k, "BIC": float("nan"), "log_likelihood": float("nan"),
+            "NLL": float("nan"), "n_params": 0, "converged": False,
+            "n_iter_run": 0, "n_features": 0, "n_conditions": 0,
+        }
+        try:
+            model = FunClu(
+                n_components=k, max_iter=max_iter, tol=tol,
+                random_state=random_state,
+            )
+            model.fit(data, verbose=verbose)
+            row.update({
+                "BIC": model.bic,
+                "log_likelihood": model.log_likelihood,
+                "NLL": model.neg_log_likelihood,
+                "n_params": model.n_params,
+                "converged": model.converged,
+                "n_iter_run": model.n_iter_run,
+                "n_features": model.n_features,
+                "n_conditions": model.n_conditions,
+            })
+        except Exception:
+            pass
+        rows.append(row)
+
+        if progress_callback is not None:
+            progress_callback(idx + 1, total)
+
+    return pd.DataFrame(rows)
