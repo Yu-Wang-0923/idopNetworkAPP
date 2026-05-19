@@ -546,7 +546,7 @@ with tab3:
             cond_names = list(curve_sample_dict.keys())
             data_list = [curve_sample_dict[n] for n in cond_names]
             n_features = min((d.shape[1] for d in data_list), default=2)
-            k_upper = max(2, min(20, n_features))
+            k_upper = max(2, n_features)
 
             with st.expander("BIC Scan Settings", expanded=True):
                 col1, col2, col3 = st.columns(3)
