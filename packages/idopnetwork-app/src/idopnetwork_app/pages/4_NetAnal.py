@@ -1,5 +1,6 @@
 import io
 import json
+import os
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -241,6 +242,104 @@ with tab1:
                     key="netanal_glmy_json_download",
                 )
 
+            # ========== Run GLMY on All Sub-networks ==========
+            if zip_bytes is not None and len(members) >= 2:
+                st.divider()
+                st.markdown("### Run GLMY on All Sub-networks")
+
+                run_all = st.button(
+                    f"Run GLMY on All ({len(members)} sub-networks)",
+                    type="secondary",
+                    key="netanal_glmy_run_all",
+                    use_container_width=True,
+                )
+
+                if run_all:
+                    all_results: dict[str, dict] = {}
+                    with st.status(
+                        f"Running GLMY on {len(members)} sub-networks..."
+                    ) as status:
+                        for member in members:
+                            st.write(
+                                f"Processing `{member_display_label(member)}`..."
+                            )
+                            try:
+                                df = load_from_to_from_zip(zip_bytes, member)
+                                result = run_glmy(df)
+                                all_results[member] = {
+                                    "result": result,
+                                    "df": df,
+                                }
+                            except Exception as e:
+                                all_results[member] = {"error": str(e)}
+                        status.update(
+                            label=f"Done ({len(all_results)} sub-networks)",
+                            state="complete",
+                        )
+                    st.session_state["netanal_glmy_all_results"] = all_results
+
+                all_results = st.session_state.get("netanal_glmy_all_results")
+                if all_results:
+                    for member, data in all_results.items():
+                        label = member_display_label(member)
+                        st.markdown(f"#### {label}")
+                        if "error" in data:
+                            st.error(f"GLMY 运行失败：{data['error']}")
+                        else:
+                            result = data["result"]
+                            homology = result["homology"]
+                            summary = {
+                                f"β{dim}": len(homology.get(str(dim), []))
+                                for dim in (0, 1, 2, 3)
+                            }
+                            st.json(summary)
+
+                            max_x = suggest_max_x(data["df"])
+                            fig = plot_glmy_barcode(
+                                homology, max_x=max_x,
+                            )
+                            st.pyplot(fig, width="stretch")
+
+                            base_name = sanitize_name(label)
+                            png_buf = io.BytesIO()
+                            fig.savefig(
+                                png_buf, format="png", dpi=200,
+                                bbox_inches="tight",
+                            )
+                            pdf_buf = io.BytesIO()
+                            fig.savefig(
+                                pdf_buf, format="pdf",
+                                bbox_inches="tight",
+                            )
+                            plt.close(fig)
+
+                            c1, c2, c3 = st.columns(3)
+                            c1.download_button(
+                                label="Download PNG",
+                                data=png_buf.getvalue(),
+                                file_name=f"{base_name}_barcode.png",
+                                mime="image/png",
+                                key=f"netanal_glmy_all_png_{member}",
+                            )
+                            c2.download_button(
+                                label="Download PDF",
+                                data=pdf_buf.getvalue(),
+                                file_name=f"{base_name}_barcode.pdf",
+                                mime="application/pdf",
+                                key=f"netanal_glmy_all_pdf_{member}",
+                            )
+                            c3.download_button(
+                                label="Download JSON",
+                                data=json.dumps(
+                                    homology, indent=2,
+                                    ensure_ascii=False,
+                                ).encode("utf-8"),
+                                file_name=f"{base_name}_homology.json",
+                                mime="application/json",
+                                key=f"netanal_glmy_all_json_{member}",
+                            )
+                        st.divider()
+
     # ========== Tab 1_3 M3 Self-test ==========
     with tab1_3:
         st.markdown(
@@ -264,7 +363,7 @@ with tab1:
             col_m2.metric("Nodes", f"{len(m3_nodes):,}")
             col_m3.metric("|Effect| max", f"{m3_df['Effect'].abs().max():.4f}")
 
-            st.markdown(f"**Source:** `{m3_csv_path.name}` (repo root)")
+            st.markdown(f"**Source:** `{os.path.basename(m3_csv_path)}` (repo root)")
             st.dataframe(m3_df, width="stretch", height=240)
 
             with st.form(key="netanal_m3_form"):

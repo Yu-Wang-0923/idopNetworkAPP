@@ -306,11 +306,11 @@ with tab2:
             cond_names = list(curve_sample_dict.keys())
             data_list = [curve_sample_dict[n] for n in cond_names]
             n_features_max = min((d.shape[1] for d in data_list), default=2)
-            k_upper = max(2, min(20, n_features_max))
+            k_upper = max(2, n_features_max)
 
             with st.expander("FunClu parameter settings", expanded=True):
                 with st.form(key="funclu_em_form"):
-                    K_em = st.slider(
+                    K_em = st.number_input(
                         "n_components (K)",
                         min_value=2,
                         max_value=k_upper,
@@ -626,9 +626,7 @@ with tab3:
             if bic_result_df is not None:
                 valid = bic_result_df.dropna(subset=["BIC"])
                 if not valid.empty:
-                    converged = valid[valid["converged"] == True]
-                    source = converged if not converged.empty else valid
-                    best_row = source.loc[source["BIC"].idxmin()]
+                    best_row = valid.loc[valid["BIC"].idxmin()]
                     best_k_val = int(best_row["K"])
 
                     st.markdown("### Best K Recommendation")
