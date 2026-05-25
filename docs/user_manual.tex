@@ -1,0 +1,1006 @@
+% ===========================================================================
+%  idopNetwork v2.0 在线计算平台用户手册
+%  编译: XeLaTeX user_manual.tex
+%  © 2026 北京雁栖湖应用数学研究院 (BIMSA)
+% ===========================================================================
+\documentclass[12pt,a4paper]{ctexart}
+
+% ── 页面布局 ──
+\usepackage[top=2.5cm, bottom=2.5cm, left=2.8cm, right=2.8cm]{geometry}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{tcolorbox}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{fancyhdr}
+\usepackage{caption}
+
+\setlength{\headheight}{14pt}
+\setlength{\parskip}{0.5ex plus 0.2ex minus 0.1ex}
+
+% ── 颜色 ──
+\definecolor{primary}{HTML}{3b82f6}
+\definecolor{success}{HTML}{16a34a}
+\definecolor{warning}{HTML}{ea580c}
+\definecolor{danger}{HTML}{e11d48}
+\definecolor{gray}{HTML}{64748b}
+\definecolor{lightgray}{HTML}{f1f5f9}
+
+% ── 超链接 ──
+\hypersetup{
+    colorlinks=true,
+    linkcolor=primary,
+    urlcolor=primary,
+    citecolor=primary,
+    pdfauthor={BIMSA},
+    pdftitle={idopNetwork v2.0 用户手册},
+}
+
+% ── 页眉页脚 ──
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small idopNetwork v2.0}
+\fancyhead[R]{\small BIMSA}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ── 信息框 ──
+\newtcolorbox{infobox}[1][]{
+    colback=lightgray, colframe=primary,
+    fonttitle=\bfseries, title=#1,
+    left=4mm, right=4mm, top=2mm, bottom=2mm,
+    before skip=8pt, after skip=8pt,
+}
+\newtcolorbox{warnbox}[1][]{
+    colback=lightgray, colframe=warning,
+    fonttitle=\bfseries, title=#1,
+    left=4mm, right=4mm, top=2mm, bottom=2mm,
+    before skip=8pt, after skip=8pt,
+}
+\newtcolorbox{stepbox}[1][]{
+    colback=lightgray, colframe=success,
+    fonttitle=\bfseries, title=#1,
+    left=4mm, right=4mm, top=2mm, bottom=2mm,
+    before skip=8pt, after skip=8pt,
+}
+
+% ── 语义命令 ──
+\newcommand{\btn}[1]{\texttt{[#1]}}
+\newcommand{\tab}[1]{\texttt{#1}}
+\newcommand{\file}[1]{\texttt{#1}}
+\newcommand{\param}[1]{\texttt{#1}}
+\newcommand{\uielem}[1]{\textbf{#1}}
+
+% ── 参数表格辅助命令 ──
+\newcommand{\paramtable}[1]{%
+    \begin{center}
+    \small
+    \begin{tabular}{@{}llp{5.5cm}@{}}
+    \toprule
+    \textbf{参数} & \textbf{默认值} & \textbf{说明} \\
+    \midrule
+    #1
+    \bottomrule
+    \end{tabular}
+    \end{center}
+}
+
+% ── 标题 ──
+\title{
+    \vspace{-1cm}
+    {\Huge\bfseries idopNetwork v2.0}\\[0.4cm]
+    {\Large 在线计算平台用户手册}\\[0.2cm]
+    {\normalsize\color{gray} 文档版本 1.0 \quad\today}
+}
+\author{
+    \vspace{0.3cm}
+    复杂系统拓扑统计理论及应用北京市重点实验室\\
+    北京雁栖湖应用数学研究院 (BIMSA)
+}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+\vspace{0.8cm}
+\begin{center}
+    \small\color{gray}
+    部署地址: \url{https://idopnetworkapp-bimsa-statistics.streamlit.app/}\\
+    源代码: \url{https://github.com/Yu-Wang-0923/idopNetworkAPP}
+\end{center}
+
+\newpage
+\tableofcontents
+\newpage
+
+% ===========================================================================
+\section{平台概述}
+% ===========================================================================
+
+idopNetwork 是一套基于邬荣领教授提出的统计力学框架构建的复杂系统分析体系。
+该平台通过将静态观测数据映射到高维拓扑空间，突破传统统计学的局限，实现对系统内部运作机理的深度还原。
+
+\subsection{理论渊源}
+
+idopNetwork 的理论根基来自三个核心思想：
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{统计力学映射} --- 借鉴统计物理中微观-宏观桥接的思想，将高维观测变量建模为相互作用的粒子系统。通过最大化信息熵确定系统的最概然状态，推导出变量间交互网络的数学形式。
+    \item \textbf{进化博弈论} --- 将生物系统中基因/性状间的相互作用建模为微分博弈。每个变量对其他变量的效应（激活或抑制）通过常微分方程组描述，系统整体状态是各方博弈的纳什均衡。
+    \item \textbf{拓扑数据分析} --- 采用 GLMY 路径同调理论，不依赖几何嵌入即可捕捉有向网络的高阶拓扑特征（环、洞、腔等），揭示传统图论方法无法检测的系统组织模式。
+\end{enumerate}
+
+\subsection{IDOP 核心特征}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Informative（信息丰富）} --- 将复杂数据转化为可解释的生物/物理逻辑。每条网络边不仅有权重，还有方向（激活/抑制）和多项式效应分解，完整呈现变量间的作用机制。
+    \item \textbf{Dynamic（动态演化）} --- 通过拟动态化技术，将横截面快照数据映射为伪时间序列，刻画系统沿内蕴时间轴的演化轨迹。
+    \item \textbf{Omnidirectional（全尺度覆盖）} --- 从分子互作到生态系统，从单层变量网到簇间/簇内多层网络，覆盖复杂系统的全组织尺度。
+    \item \textbf{Personalized（个性化精准）} --- 基于个体数据构建特异性网络，支持精准医学与个性化农业等场景。
+\end{itemize}
+
+\subsection{四大计算模块}
+
+平台包含四个递进式核心模块，形成完整的分析流水线：
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{曲线拟合 (Curve Fitting)} --- 基于生态位理论与异速生长定律（Huxley, 1932），实现静态数据的拟动态幂律曲线转化。
+    \item \textbf{功能聚类 (FunClu)} --- 通过 EM 高斯混合模型（含 SAD1 协方差结构）实现功能模块聚类，降低高维网络解析复杂度。
+    \item \textbf{网络重构 (NetRecon)} --- 基于 TIGER/LOP 框架，通过 Legendre 基展开与自适应稀疏群 LASSO 回归求解交互网络。
+    \item \textbf{网络解析 (NetAnal)} --- 采用 GLMY 持久路径同调方法，追踪网络拓扑结构随过滤阈值的演化。
+\end{enumerate}
+
+\begin{infobox}[数据流说明]
+    \textbf{顺序依赖}: Curve Fitting $\rightarrow$ FunClu $\rightarrow$ NetRecon $\rightarrow$ NetAnal\\
+    前一模块的导出 ZIP 文件是后一模块的输入。所有中间 ZIP 均可下载用于存档和复现。
+\end{infobox}
+
+% ===========================================================================
+\section{快速入门}
+% ===========================================================================
+
+\subsection{环境要求}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{浏览器}: 最新版 Chrome、Firefox、Edge 或 Safari；需启用 JavaScript（Streamlit 依赖 WebSocket 通信）。
+    \item \textbf{屏幕}: 建议分辨率 $1280 \times 720$ 及以上。
+    \item \textbf{网络}: 需要稳定的互联网连接。
+\end{itemize}
+
+\subsection{访问与登录}
+
+\begin{enumerate}[leftmargin=*]
+    \item 浏览器访问 \url{https://idopnetworkapp-bimsa-statistics.streamlit.app/}
+    \item 点击右上角 \btn{登录 / 注册} 按钮
+    \item 在弹出的认证对话框中：
+    \begin{itemize}
+        \item 已有账户：输入用户名和密码，点击 \btn{验证并进入系统}
+        \item 新用户：切换到 \tab{注册新账户} 标签页，填写用户名、密码和确认密码后提交
+    \end{itemize}
+    \item 登录成功后，首页将显示完整的功能导航和学术论文列表
+\end{enumerate}
+
+\begin{warnbox}[安全提示]
+    请妥善保管登录密码。认证系统基于本地 JSON 文件存储，密码以哈希形式保存。
+    建议定期更换密码，避免使用与其他平台相同的密码。
+\end{warnbox}
+
+\subsection{首次使用流程}
+
+\begin{stepbox}[推荐入门路径]
+    \begin{enumerate}[leftmargin=*]
+        \item 准备一个 CSV 数据文件（例如内置的 \file{M3.csv} 测试数据）
+        \item 进入 \uielem{Curve Fitting}，上传数据、进行变换和幂律拟合
+        \item 导出曲线拟合 ZIP，进入 \uielem{FunClu}，尝试 $K = 2$ 的 EM 聚类
+        \item 导出聚类结果，进入 \uielem{NetRecon}，构建交互网络
+        \item 导出网络结果，进入 \uielem{NetAnal}，运行 GLMY 同调分析
+    \end{enumerate}
+    全程约需 10--20 分钟（视数据规模而定）。
+\end{stepbox}
+
+\subsection{界面布局}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{左侧主区域}: 四个核心计算模块入口卡片
+    \item \textbf{右侧区域}: idopNetwork 代表性学术成果列表（按年份组织，含 DOI 链接）
+    \item \textbf{侧边栏}: 模块快捷导航菜单
+    \item \textbf{顶部栏}: 当前用户名与退出按钮
+\end{itemize}
+
+\subsection{交互约定}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{标签页导航}: 页面顶部的主标签控制大模块，内部子标签控制细分功能。
+    \item \textbf{折叠面板}: 结果以可折叠区域呈现，点击标题展开/折叠。
+    \item \textbf{文件上传}: 支持拖拽或点击上传；ZIP 文件自动解析内部结构。
+    \item \textbf{下载}: 点击下载按钮后浏览器自动保存到默认下载目录。
+\end{itemize}
+
+% ===========================================================================
+\section{模块一：曲线拟合 (Curve Fitting)}
+% ===========================================================================
+
+\subsection{功能概述}
+
+曲线拟合模块是整个分析流水线的起点。其核心任务是将\textbf{静态横截面数据}转化为\textbf{幂律函数曲线}，
+为后续微分方程建模和网络重构提供数学基础。该模块实现三项核心操作：
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{数据变换} --- 将原始数据缩放至合适量级，消除量纲影响。
+    \item \textbf{拟动态化} --- 按行和排序，为静态数据赋予伪时间序列结构。
+    \item \textbf{幂律拟合} --- 对每条特征曲线拟合模型 $y = a \cdot x^b$。
+\end{enumerate}
+
+\subsection{数据上传}
+
+\begin{stepbox}[操作步骤]
+    进入 \tab{Uploaded Data} 标签页，点击文件上传区域，选择 CSV 格式的数据文件。\\
+    \textbf{格式}: 行为样本（时间点/观测），列为特征变量。第一列自动作为行索引。
+    支持同时上传多个文件（Shift/Ctrl 多选）。
+\end{stepbox}
+
+\subsection{数据概览}
+
+上传后，每个文件展开可见三个子标签页：
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{View Data} --- 以表格形式浏览原始数据，支持滚动和排序。
+    \item \textbf{Scatter Plot} --- 绘制原始数据的散点图/折线图，支持自定义行数、列数、颜色等参数。
+    \item \textbf{To Be Updated} --- 预留扩展功能。
+\end{itemize}
+
+\subsection{数据变换}
+
+\subsubsection{数学背景}
+
+数据变换旨在消除量纲差异、将不同尺度的特征对齐到可比范围。
+对于双对数线性回归 $\ln y = \ln a + b \ln x$，要求 $x, y > 0$，因此变换后的数据需满足正值条件。
+
+\subsubsection{变换方法}
+
+在 \tab{Data Transformation} 标签页中选择变换方法后点击 \btn{Run Transform}：
+
+\paramtable{
+    \param{none} & --- & 不进行变换（适用于已预处理的数据）\\
+    \param{rescale\_to\_0\_1} & --- & Min-Max 缩放到 $[0, 1]$: $x' = (x - x_{\min}) / (x_{\max} - x_{\min})$\\
+    \param{rescale\_to\_-1\_1} & --- & Min-Max 缩放到 $[-1, 1]$\\
+    \param{log1p} & --- & $\ln(x + 1)$ 对数变换，压缩长尾分布\\
+    \param{zscore\_shift\_positive} & --- & Z-score 标准化后平移至正值\\
+    \param{zscore\_shift\_positive\_by\_row} & --- & 按行 Z-score 标准化后平移至正值\\
+}
+
+\subsubsection{选择建议}
+
+\begin{infobox}[变换策略]
+    \begin{itemize}[leftmargin=*]
+        \item 数据全正且无极端离群值 $\rightarrow$ \param{rescale\_to\_0\_1}（最常用）
+        \item 含零值、需对数压缩尺度 $\rightarrow$ \param{log1p}
+        \item 数据有正有负 $\rightarrow$ \param{zscore\_shift\_positive}
+    \end{itemize}
+\end{infobox}
+
+\subsection{拟动态化}
+
+\subsubsection{数学原理}
+
+拟动态化是 idopNetwork 的核心创新：以每个样本的\textbf{总表达量}（行和）作为\textbf{内蕴时间 (pseudotime)}的替代指标，
+将无时序信息的静态截面数据映射为有序序列：
+
+\[
+T_i = \sum_{j=1}^{p} y_j(s_i), \qquad
+\tau_i = \operatorname{rank}(T_i) \quad \text{（按行和升序排列）}
+\]
+
+其背后的物理直觉：总表达量较高的样本通常代表系统处于更活跃或成熟的状态，行和的排序等价于演化进程的排序。
+
+\subsubsection{操作}
+
+在 \tab{Static Data} $\rightarrow$ \tab{Quasi Dynamic} 中：
+\begin{enumerate}[leftmargin=*]
+    \item 可选勾选 \param{Use natural log of quasi-dynamic index}（适用于行和跨度多个数量级的数据）
+    \item 点击 \btn{Run Quasi Dynamic}
+    \item 系统按行和排序，生成拟动态序列 $y_j(\tau_1), y_j(\tau_2), \dots, y_j(\tau_n)$
+\end{enumerate}
+
+\begin{warnbox}[注意事项]
+    拟动态化依赖于"行和反映系统状态"这一假设。如果行和与系统演化状态无关（例如主要受批次效应或技术噪声影响），
+    则拟动态化可能产生误导性的伪时间排序。建议在运行前检查行和分布是否合理。
+\end{warnbox}
+
+\subsection{异速生长定律拟合}
+
+\subsubsection{数学背景}
+
+异速生长定律由 Huxley (1932) 提出，描述生物中两个性状的相对生长关系：
+$y = a \cdot x^b$，其中 $a$ 为比例系数，$b$ 为异速生长指数。
+$b = 1$ 为等速生长，$b > 1$ 为加速生长，$b < 1$ 为减速生长。
+
+idopNetwork 采用\textbf{双对数线性回归}进行拟合：
+$\ln y = \ln a + b \ln x$。该方法具有闭式解、数值稳定，且对多量级数据更鲁棒。
+
+\subsubsection{操作}
+
+在 \tab{Static Data} $\rightarrow$ \tab{Allometric Scaling Law} 中：
+\begin{enumerate}[leftmargin=*]
+    \item 点击 \btn{Run Allometric Scaling Law}
+    \item 系统对每条特征变量 $y_j$ 拟合 $y_j = a_j \cdot x^{b_j}$
+    \item 展开结果可见：
+    \begin{itemize}
+        \item \textbf{Data Overview} --- 拟动态数据表格
+        \item \textbf{Curve Fitting Plot} --- 散点叠加拟合曲线
+        \item \textbf{Curve Parameters} --- 每条曲线的 $(a, b)$ 参数表
+    \end{itemize}
+    \item \textbf{比较图}: \tab{Allometric Scaling Law Compare} 展开区支持多条件曲线拟合对比
+\end{enumerate}
+
+\subsection{拟合质量评估}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{$R^2$（决定系数）}: 越接近 1 表示幂律模型对数据的解释越好。通常 $R^2 > 0.8$ 可认为拟合合格。
+    \item \textbf{残差分布}: 残差应随机分布在零值两侧，无系统性模式。
+    \item \textbf{异常曲线}: $b$ 值极端（如 $|b| > 5$）或 $R^2$ 极低的曲线需检查数据质量。
+\end{itemize}
+
+\subsection{导出}
+
+在 \tab{Static Data} $\rightarrow$ \tab{Export} 中：
+\begin{enumerate}[leftmargin=*]
+    \item 确保所有上传文件均已完成拟动态化和幂律拟合
+    \item 点击 \btn{Export ZIP}
+    \item 下载 \file{curve\_fitting\_export.zip}，包含：
+    \begin{itemize}
+        \item \file{quasi\_dynamic.csv} --- 拟动态数据（按伪时间排序后的数据矩阵）
+        \item \file{curve\_sample.csv} --- 幂律拟合曲线在切比雪夫节点上的采样值
+        \item \file{curve\_params.csv} --- 每条曲线的拟合参数 $(a, b)$ 和 $R^2$
+    \end{itemize}
+\end{enumerate}
+
+% ===========================================================================
+\section{模块二：功能聚类 (FunClu)}
+% ===========================================================================
+
+\subsection{功能概述}
+
+功能聚类模块接收曲线拟合导出的 ZIP，通过\textbf{EM 高斯混合模型}将幂律曲线划分为若干功能模块。
+与 KMeans 等硬聚类方法不同，高斯混合模型给出每个特征属于各聚类的概率（软分配），能更精细地刻画功能模块边界。
+
+\subsection{数学模型}
+
+\subsubsection{混合模型结构}
+
+设 $K$ 个聚类，$L$ 个条件，第 $k$ 簇的混合权重为 $\pi_k$（$\sum_k \pi_k = 1$）。
+第 $k$ 簇第 $i$ 条件下，均值函数采用幂律模型：
+
+\[
+\mu_{ki}(t) = a_{ki} \cdot t^{\,b_{ki}}
+\]
+
+\subsubsection{SAD1 协方差结构}
+
+FunClu 采用\textbf{SAD1（Structured Ante-Dependence of order 1）}协方差模型，
+本质为 AR(1) 自回归过程。残差向量 $\boldsymbol{\varepsilon}_{ki} \in \mathbb{R}^n$ 的协方差为：
+
+\[
+\operatorname{Cov}(\varepsilon_t, \varepsilon_{t'}) = \gamma_{ki}^2 \cdot \phi_{ki}^{|t-t'|}
+\]
+
+其中 $\phi_{ki} \in (0, 1)$ 为一阶自相关系数，$\gamma_{ki} > 0$ 为尺度参数。
+该结构的对数行列式具有闭式解：
+$\log|\Sigma_{ki}| = 2n \log \gamma_{ki} - (n-1) \log(1 - \phi_{ki}^2)$，
+避免了显式构造和求逆 $n \times n$ 矩阵。
+
+\subsubsection{EM 算法流程}
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{初始化} --- KMeans 对拼接数据聚类，以各簇-条件子集的均值曲线拟合得到 $(a, b)$ 初值，以残差估计 $(\phi, \gamma)$ 初值。样本数 $> 8000$ 时自动切换 MiniBatchKMeans。
+    \item \textbf{E 步} --- 基于当前参数，计算每个特征属于各簇的后验概率（责任矩阵）。使用 log-sum-exp 技巧防止数值下溢。
+    \item \textbf{M 步} --- 在固定 $b, \phi$ 的前提下，对 $a$ 做加权最小二乘更新（3 次内迭代）；对 $\gamma$ 做闭式更新。混合权重 $\pi_k$ 更新为各簇样本占比。
+    \item \textbf{收敛判断} --- $|\Delta \log L| < 10^{-4}$ 时收敛；达到最大迭代次数（默认 50）时停止；对数似然显著下降时触发发散保护。
+\end{enumerate}
+
+\subsection{数据上传与概览}
+
+进入 \tab{Uploaded Data} 标签页，上传曲线拟合导出的 \file{curve\_fitting\_export.zip}。
+
+上传后系统自动解析各条件的数据，并提供三个子标签页：
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Summary} --- 条件数、共有特征数、时间点数的度量汇总
+    \item \textbf{Common Features} --- 所有条件共有的特征列表
+    \item \textbf{Data Preview} --- 按条件切换预览数据，确认解析正确
+\end{itemize}
+
+\begin{warnbox}[多条件数据要求]
+    如果上传了多条件数据（ZIP 中有多个子目录），系统取所有条件的\textbf{列名交集}作为共有特征集。
+    若不同条件的特征集合差异很大，共同特征数可能很少甚至为零，导致 EM 聚类无法进行。
+    请确保各条件包含相同（或高度重合）的特征集合。
+\end{warnbox}
+
+\subsection{FunClu-K：EM 高斯混合聚类}
+
+\subsubsection{参数设置}
+
+在 \tab{FunClu-K} $\rightarrow$ \tab{EM Fitting} 中：
+
+\paramtable{
+    \param{n\_components (K)} & (必填) & 聚类数，$\geq 2$ 的整数，上限为共有特征数\\
+    \param{max\_iter} & 50 & 最大迭代次数\\
+    \param{tol} & $10^{-4}$ & 对数似然收敛容差\\
+    \param{random\_seed} & --- & 随机种子（留空则随机）\\
+}
+
+点击 \btn{Run EM Fitting} 后，系统执行 EM 算法拟合多元高斯混合模型。
+
+\subsubsection{结果解读}
+
+拟合完成后显示：
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{收敛状态} --- 是否收敛、迭代次数、最终 $\log L$ 和 BIC。
+    \item \textbf{Cluster sizes \& weights} --- 每个簇的成员数与混合权重 $\pi_k$。
+    \item \textbf{mu\_params} --- 各簇各条件下的均值参数 $(a, b)$，刻画典型曲线形态。
+    \item \textbf{cov\_params} --- 各簇各条件下的 $(\phi, \gamma)$，反映簇内变异程度和时间依赖性。
+    \item \textbf{Cluster profiles} --- 聚类曲线可视化，支持：多条件网格/叠加布局、成员曲线开关、$\pm 1\sigma$ 置信区间、对数坐标轴、自定义颜色与线宽。
+\end{itemize}
+
+\subsection{FunClu-BIC：自动选择最优聚类数}
+
+\subsubsection{原理}
+
+BIC（贝叶斯信息准则）平衡模型拟合优度与复杂度：
+
+\[
+\text{BIC} = 2 \cdot \text{NLL} + p \cdot \ln N
+\]
+
+其中 NLL 为负对数似然，$p = K \times L \times 4 + (K - 1)$ 为自由参数数（每簇每条件含 $a, b, \phi, \gamma$ 四个参数），$N$ 为特征总数。
+BIC 最低的 $K$ 即为最优聚类数。
+
+\subsubsection{参数设置与结果}
+
+在 \tab{FunClu-BIC} 中：
+
+\paramtable{
+    \param{k\_min} & 2 & 扫描起始 K 值\\
+    \param{k\_max} & 8 & 扫描终止 K 值\\
+    \param{step} & 1 & K 值步长\\
+}
+
+点击 \btn{Run BIC Analysis} 后：
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Best K} --- BIC 最低的 K 值（推荐聚类数），通常位于肘部拐点。
+    \item \textbf{BIC Elbow Plot} --- BIC 随 K 变化的曲线。理想曲线呈 L 形：先快速下降，后趋于平缓。
+    \item \textbf{Results Table} --- 所有 K 值的详细拟合结果（含 $\log L$、BIC、收敛状态）。
+\end{itemize}
+
+\subsection{聚类数选择建议}
+
+\begin{infobox}[如何选择 $K$]
+    \begin{enumerate}[leftmargin=*]
+        \item \textbf{首选}: 使用 FunClu-BIC 自动扫描，选择 BIC 最低的 Best K。
+        \item \textbf{辅助}: 若 BIC 曲线无明显肘部（持续缓慢下降），说明数据结构聚类倾向不强，可选择较小的 $K$（2--3）。
+        \item \textbf{领域知识}: 若 BIC 建议的 $K$ 与领域知识冲突，需结合生物学/物理学解释做出最终判断。
+        \item \textbf{注意}: $K$ 不宜超过共有特征数的 1/3，否则簇的成员数太少，失去统计意义。
+    \end{enumerate}
+\end{infobox}
+
+\subsection{导出}
+
+在 \tab{FunClu-K} $\rightarrow$ \tab{Export} 中下载 \file{funclu\_k\_export.zip}，包含：
+
+\begin{itemize}[leftmargin=*]
+    \item \file{labels.csv} --- 特征到簇的标签分配（含后验概率）
+    \item \file{cluster\_sizes.csv} --- 各簇特征数量统计
+    \item \file{cluster\_members/<cond>/M*\_curve\_sample.csv} --- 各簇成员曲线采样
+    \item \file{cluster\_members/<cond>/M*\_quasi\_dynamic.csv} --- 各簇成员拟动态响应
+    \item \file{cluster\_centers/<cond>/cluster\_center\_*.csv} --- 各簇中心曲线与响应
+\end{itemize}
+
+% ===========================================================================
+\section{模块三：网络重构 (NetRecon)}
+% ===========================================================================
+
+\subsection{功能概述}
+
+网络重构模块接收 FunClu 或 Curve Fitting 的导出 ZIP，基于\textbf{TIGER/LOP（Legendre Orthogonal Polynomial）}框架，
+将变量间交互效应建模为 Legendre 多项式基展开，通过\textbf{自适应稀疏群 LASSO (ASGL)} 回归求解带约束的稀疏优化问题，
+构建有向加权交互网络。
+
+\subsection{数学模型}
+
+\subsubsection{Legendre 基展开}
+
+对每个源变量 $k$ 和 Legendre 阶数 $r$，构造积分基函数：
+
+\[
+\Phi_{k,r}(\tau) = \int_{0}^{\tau} P_r\bigl(\hat{\tau}(s)\bigr) \cdot y_k(s) \, ds
+\]
+
+其中 $P_r$ 为第 $r$ 阶 Legendre 多项式，$\hat{\tau}: [0, T] \to [-1, 1]$ 将时间归一化到标准区间。
+$a()$ 为幂律曲线在切比雪夫节点上的采样值。
+
+目标变量 $j$ 的总效应分解为自效应与跨变量效应之和：
+
+\[
+y_j(\tau) = \alpha_j \;+\;
+\underbrace{\sum_{r} \theta_{j,j,r} \cdot \Phi_{j,r}(\tau)}_{\text{自效应 (self)}} \;+\;
+\underbrace{\sum_{k \neq j} \sum_{r} \theta_{k,j,r} \cdot \Phi_{k,r}(\tau)}_{\text{跨效应 (cross)}}
+\]
+
+\subsubsection{ASGL 优化问题}
+
+系数 $\boldsymbol{\theta}$ 通过求解以下问题确定：
+
+\[
+\min_{\boldsymbol{\theta}} \; \| \mathbf{y}_j - \mathbf{X}\boldsymbol{\theta} \|_2^2
+\;+\; \lambda \Bigl( \alpha \|\boldsymbol{\theta}\|_1
++ (1 - \alpha) \sum_g \|\boldsymbol{\theta}_g\|_2 \Bigr)
+\]
+
+其中：
+\begin{itemize}[leftmargin=*]
+    \item $\|\cdot\|_1$ 鼓励整体稀疏性（L1 / LASSO）。
+    \item $\sum_g \|\cdot\|_2$ 为群 LASSO：每个源变量 $k$ 的各阶系数构成一组，鼓励组级别稀疏性。
+    \item $\alpha \in [0, 1]$ 控制 L1 与群 LASSO 的混合比例。
+    \item \textbf{惩罚权重差异化}: 自效应组权重为 1，跨效应组权重为 5（反映"自效应优先"的先验假设）。
+\end{itemize}
+
+\subsubsection{约束条件}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{自效应非负}（可选）: $\alpha_j + \text{self\_dynamic}_j(\tau) \geq 0$。
+    \item \textbf{效应方向约束}（可选）: 自效应与总效应符号一致，且自效应幅度严格大于总效应（$|\text{self}| > |\text{total}|$，gap $= 10^{-6}$）。
+\end{itemize}
+
+\subsection{上传方式}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{单层网络} --- 上传 \file{curve\_fitting\_export.zip}，直接在原始特征上构建单层交互网络。
+    \item \textbf{多层网络} --- 上传 \file{funclu\_k\_export.zip}，构建簇间/簇内多层交互网络。
+\end{itemize}
+
+\begin{warnbox}[多层网络说明]
+    上传 FunClu-K 导出 ZIP 时，系统为每个条件分别构建：\\
+    \textbf{簇间网 (inter-cluster)}: 各簇中心之间的交互网络（宏观层面）\\
+    \textbf{簇内网 (intra-cluster)}: 各簇内部成员之间的交互网络（微观层面）
+\end{warnbox}
+
+\subsection{参数设置}
+
+\subsubsection{核心参数}
+
+\paramtable{
+    \param{max\_order} & 3 & Legendre 多项式最大阶数；阶数越高非线性拟合能力越强，但计算量亦增大。建议 2--3\\
+    \param{nonneg\_self} & true & 是否强制自效应 $\geq 0$；生物网络建议勾选\\
+    \param{max\_interactions} & 0 & 最大交互边数（0=不限）；设为具体值（如 50）可控制网络规模\\
+    \param{enforce\_effect\_constraints} & true & 是否强制效应方向约束\\
+}
+
+\subsubsection{正则化参数}
+
+\paramtable{
+    \param{alpha} & 1.0 & 正则化强度；越大越稀疏；推荐范围 0.001--10\\
+    \param{mix} & 0.5 & L1 与群 LASSO 混合比例（0=纯群组，1=纯 L1）\\
+    \param{cross\_weight\_ratio} & 5.0 & 跨效应组惩罚权重倍数；越大越保守（更少跨变量连接）\\
+}
+
+\subsubsection{邻接矩阵参数}
+
+\paramtable{
+    \param{adjacency\_aggregation} & max\_abs & 聚合方式: max\_abs（最强信号）/ sum（整体贡献）/ mean（标准化量级）\\
+    \param{ebic\_gamma} & 1.0 & 扩展 BIC 惩罚系数\\
+}
+
+\subsection{模型选择}
+
+点击 \btn{Run IdopNetwork} 后，系统执行多层级 BIC 网格搜索：
+
+\begin{enumerate}[leftmargin=*]
+    \item 对 \param{max\_order} 从 1 扫描到用户设置的上限
+    \item 内层对 \param{mix} 和 \param{alpha} 做二维网格搜索
+    \item 每个配置下求解 CVXPY 约束优化问题（依次尝试 CLARABEL 和 SCS 求解器）
+    \item 选择 BIC 最小的配置作为最终模型
+\end{enumerate}
+
+\begin{infobox}[计算时间提示]
+    计算量与 $\text{max\_order} \times \text{mix\_grid} \times \text{alpha\_grid} \times (\text{变量数})$ 成正比。
+    变量数 $> 100$ 时，建议设置较小的 \param{max\_order}（2--3）和适中的 \param{max\_interactions}。
+\end{infobox}
+
+\subsection{结果展示}
+
+完成后系统以折叠面板呈现：
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{拟合质量} --- $R^2$ 散点图（每个目标变量的拟合优度）、MSE 等。
+    \item \textbf{网络图} --- 力导向布局可视化；节点大小反映度，边颜色和宽度反映效应强度与方向。
+    \item \textbf{邻接矩阵热图} --- 交互强度的矩阵热图，行列按网络模块排序。
+    \item \textbf{效应分解图} --- 每条边的多项式效应分解为各 Legendre 阶数的贡献。
+    \item \textbf{网络参数表} --- 所有配置参数与最终拟合指标汇总。
+\end{itemize}
+
+\subsection{结果解读}
+
+\begin{infobox}[如何理解边]
+    一条从 A 到 B 的边表示：\textbf{变量 A 对变量 B 的演化轨迹有系统性影响}。
+    \begin{itemize}[leftmargin=*]
+        \item 正权重（+）: A 的增长促进 B 的增长（激活/协同）。
+        \item 负权重（--）: A 的增长抑制 B 的增长（抑制/竞争）。
+        \item 权重大小: 效应强度，可在同一网络内比较相对重要性。
+    \end{itemize}
+    注意：边代表统计推断的关联效应，不必然意味着物理上的直接因果关系。
+\end{infobox}
+
+\subsection{导出}
+
+在 \tab{Export} 标签页下载网络导出 ZIP，包含：
+
+\begin{itemize}[leftmargin=*]
+    \item \file{from\_to.csv} --- 边表 (from, to, weight, type)
+    \item \file{adjacency\_matrix.csv} --- 邻接矩阵（$N \times N$）
+    \item \file{params.csv} --- 网络构建参数
+    \item \file{effect/*.csv} --- 每条边的多项式效应分解
+    \item \file{network.png} --- 高分辨率网络图
+\end{itemize}
+
+% ===========================================================================
+\section{模块四：网络解析 (NetAnal)}
+% ===========================================================================
+
+\subsection{功能概述}
+
+网络解析模块接收 NetRecon 的导出 ZIP，利用\textbf{GLMY 持久路径同调}理论分析网络的高阶拓扑结构，
+追踪不同维度的拓扑特征（连通分量、环、腔等）随过滤阈值的变化。
+
+\subsection{数学原理}
+
+\subsubsection{路径复形}
+
+普通图论（度分布、聚类系数等）仅能捕获零阶和一阶结构。GLMY 路径同调扩展到任意阶数：
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{$d$-路径}: 长度为 $d$ 的有向路径 $[v_0 \to v_1 \to \dots \to v_d]$，相邻顶点间存在有向边。
+    \item \textbf{路径复形}: 由所有允许的 $d$-路径及其面（子路径）构成的代数结构。
+    \item \textbf{边界算子} $\partial_d$: 将 $d$-路径映射到其边界（所有长度为 $d-1$ 的子路径的交替和）。
+    \item \textbf{同调群} $H_d = \ker \partial_d / \operatorname{im} \partial_{d+1}$: 捕捉 $d$ 维"洞"的信息。
+\end{itemize}
+
+\subsubsection{持久同调}
+
+对带权网络引入\textbf{过滤过程}：设定递增阈值 $\epsilon$，仅保留权重大于 $\epsilon$ 的边。
+随 $\epsilon$ 增大，网络从全连接逐渐稀疏，拓扑结构不断变化。
+同调类在某个阈值下"诞生 (birth)"，在另一个阈值下"消亡 (death)"。
+
+\textbf{持久条形码 (barcode)} 以区间 $[b, d)$ 为横条可视化所有同调类的生命周期：
+长 bar 对应持久特征（真实结构），短 bar 对应瞬时特征（噪声）。
+
+\subsubsection{各维度含义}
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{同调度} & \textbf{拓扑含义} & \textbf{网络中的解释} \\
+\midrule
+$\beta_0$ & 连通分量数 & 网络中独立的功能子模块数 \\
+$\beta_1$ & 一维环数   & 反馈回路的数量 \\
+$\beta_2$ & 二维空腔数 & 三变量协同互作的高阶结构 \\
+$\beta_3$ & 三维空腔数 & 四变量协同互作的高阶结构 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{GLMY 同调分析}
+
+\subsubsection{上传与选择}
+
+在 \tab{Uploaded Data} 标签页上传 NetRecon 导出的 ZIP。
+系统自动识别所有 \file{from\_to.csv} 文件（多层 ZIP 可能包含簇间网和多个簇内网），并在下拉菜单中列出。
+
+\subsubsection{单网络分析}
+
+在 \tab{GLMY Analysis} 中：
+\begin{enumerate}[leftmargin=*]
+    \item 从下拉菜单选择要分析的子网络
+    \item 设置 \param{Barcode max\_x} 控制条形码图横轴范围
+    \item 点击 \btn{Run GLMY}
+    \item 系统计算 $\beta_0$--$\beta_3$ 各维度的持久同调，绘制 barcode 图
+    \item 显示 Betti 数汇总及持久区间
+    \item 支持下载 PNG/PDF 格式的条形码图和 JSON 格式的同调原始数据
+\end{enumerate}
+
+\subsubsection{全子网络批量分析}
+
+当 ZIP 包含 $\geq 2$ 个 \file{from\_to.csv} 时，\tab{GLMY Analysis} 底部出现批量运行入口：
+
+\begin{stepbox}[批量运行]
+    点击 \btn{Run GLMY on All (N sub-networks)}，系统依次对所有 $N$ 个子网络运行 GLMY 同调分析：
+    \begin{itemize}[leftmargin=*]
+        \item 子网络名称标签
+        \item Betti 数汇总表
+        \item Barcode 条形码图（每个子网络自适应横轴范围）
+        \item PNG / PDF / JSON 下载按钮
+    \end{itemize}
+    批量分析特别适合多层网络场景：可一次性查看所有簇间网和簇内网的拓扑特征。
+\end{stepbox}
+
+\subsubsection{Barcode 图解读}
+
+\begin{infobox}[如何读条形码图]
+    \begin{itemize}[leftmargin=*]
+        \item 每条横条代表一个同调类，横轴为过滤阈值。
+        \item 横条左端点 $=$ birth（诞生阈值），右端点 $=$ death（消亡阈值）。
+        \item 横条越长 $=$ 该拓扑特征越持久 $=$ 越可能是真实的系统结构。
+        \item $\beta_0$ 的 bar 在 $t = 0$ 处诞生（所有顶点权重为 0），随阈值增大逐渐合并为单个连通分量。
+        \item $\text{death} = -1$ 表示该特征永不消亡（无限持久），在图中绘制到右边界。
+    \end{itemize}
+\end{infobox}
+
+\subsection{自检测试}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{M3 Self-test} --- 使用内置 \file{M3.csv} 测试数据，点击 \btn{Run M3} 验证 GLMY 实现与原始 \texttt{GLMY.exe} 计算结果的一致性，用于诊断和调试。
+    \item \textbf{Paper \S3.2 Self-test} --- 使用 Dong et al. (2023) 图 1 中的 filtered digraph 作为地面真值，运行回归测试验证路径同调计算正确性。
+\end{itemize}
+
+\subsection{后续模块（开发中）}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Machine Learning} --- 基于网络拓扑特征的分类与回归分析。
+    \item \textbf{Center Network} --- 网络深度与中位数分析，识别网络中的通信枢纽。
+\end{itemize}
+
+% ===========================================================================
+\section{常见问题 (FAQ)}
+% ===========================================================================
+
+\begin{infobox}[Q: 忘记密码怎么办？]
+    A: 请联系平台管理员重置密码。管理员可通过 admin 账号登录后在首页底部查看所有注册用户信息。
+    如无法联系管理员，请发送邮件至平台维护团队。
+\end{infobox}
+
+\medskip
+\begin{infobox}[Q: CSV 文件格式有什么具体要求？]
+    A: 文件编码建议使用 UTF-8。第一列为样本/时间点标识（字符串或数字均可），后续列为特征变量（必须为数值）。
+    确保数值列不含逗号、百分号等非数字字符。如果某列包含空值或非数字字符，该列将被忽略或引发错误。
+\end{infobox}
+
+\medskip
+\begin{infobox}[Q: 上传文件大小有限制吗？]
+    A: Streamlit 默认限制为 200--500 MB。对于超大数据集（如单细胞测序数据），建议先进行特征筛选
+    （如选取高变异基因、前 $n$ 个主成分等）或分批处理。推荐规模：样本数 $\leq 5000$，特征数 $\leq 2000$。
+\end{infobox}
+
+\medskip
+\begin{infobox}[Q: FunClu-BIC 或 EM 拟合运行很慢怎么办？]
+    A: 计算时间主要由特征数 $N$、时间点数 $T$、K 值扫描范围决定。优化建议：
+    \begin{itemize}
+        \item 增大 \param{step} 值（如从 1 改为 2），减少 K 候选数量
+        \item 减小 \param{k\_max} 值，限制扫描上限
+        \item 降低 \param{max\_iter} 值（如从 50 降至 20），允许较粗糙的早期收敛
+        \item 若启用了 PyTorch GPU 加速，确认 CUDA/cuDNN 已正确安装
+    \end{itemize}
+\end{infobox}
+
+\medskip
+\begin{infobox}[Q: GLMY barcode 图中 $\beta_0$ 的 bar 在负值区域（约 $-100$）？]
+    A: 这是算法的正常行为。GLMY 计算时对所有边权重加 100 偏移以确保正值，输出时还原为原始权重。
+    $\beta_0$ 类从顶点权重 0 处诞生，减去偏移后显示为 $-100$。这不影响相对持久性分析。
+    如需调整可见范围，请在 GLMY Analysis 中设置 \param{Barcode max\_x} 参数（建议从 0 开始）。
+\end{infobox}
+
+\medskip
+\begin{infobox}[Q: NetRecon 的网络图中节点太多看不清？]
+    A: 建议先在 FunClu 中将大量特征聚类为 3--8 个功能模块，再对簇中心构建网络。也可以：
+    \begin{itemize}
+        \item 设置 \param{max\_interactions} 参数（如 30--50）限制图中边的数量
+        \item 增大 \param{alpha} 增强正则化强度
+        \item 增大 \param{cross\_weight\_ratio}（如 10），使跨变量连接更难被选中
+    \end{itemize}
+\end{infobox}
+
+\medskip
+\begin{infobox}[Q: 幂律拟合的 $R^2$ 很低怎么办？]
+    A: 可能原因及对策：
+    \begin{itemize}
+        \item 数据本身不服从幂律关系 $\rightarrow$ 尝试 \param{log1p} 变换
+        \item 数据中存在大量零值或负值 $\rightarrow$ 幂律模型要求 $x, y > 0$，需先做变换
+        \item 拟动态化排序不合理 $\rightarrow$ 检查行和是否有意义
+        \item 离群值干扰 $\rightarrow$ 上传前剔除极端值
+    \end{itemize}
+    如果多数曲线的 $R^2 < 0.5$，建议检查数据预处理步骤或尝试其他变换方法。
+\end{infobox}
+
+\medskip
+\begin{infobox}[Q: 多条件 FunClu 报错"共同列不存在"怎么办？]
+    A: 该错误表示不同条件的特征集合交集为空或过小。请检查：
+    \begin{itemize}
+        \item 各条件的数据文件是否包含相同的特征列名
+        \item 是否存在拼写差异（空格、大小写、特殊字符）
+        \item 特征数是否过少（建议共同特征 $\geq 10$）
+    \end{itemize}
+    如果不同条件下的特征确实不同，考虑使用单条件数据分别运行 FunClu。
+\end{infobox}
+
+\medskip
+\begin{infobox}[Q: NetRecon 运行失败或超时？]
+    A: 可能原因及解决方案：
+    \begin{itemize}
+        \item 变量数过多 $\rightarrow$ 通过 FunClu 聚类减少变量数，或设置 \param{max\_interactions} 限制交互项
+        \item CVXPY 求解器不收敛 $\rightarrow$ 降低 \param{max\_order}（如从 4 降至 2），或调整 \param{alpha} 和 \param{mix}
+        \item 内存不足 $\rightarrow$ 减少数据规模，或关闭其他占用内存的程序
+        \item SCS 和 CLARABEL 都失败 $\rightarrow$ 检查数据中是否有 NaN/Inf 值
+    \end{itemize}
+\end{infobox}
+
+\medskip
+\begin{infobox}[Q: 如何复现之前的分析结果？]
+    A: 每个模块的导出 ZIP 包含了该步骤的完整中间数据和参数。建议：
+    \begin{itemize}
+        \item 每次分析完成后下载并保存中间 ZIP 文件
+        \item 记录各步骤的关键参数（K 值、max\_order、alpha 等）
+        \item 在相同参数下重新上传中间 ZIP，可直接从中间步骤恢复分析
+    \end{itemize}
+\end{infobox}
+
+\medskip
+\begin{infobox}[Q: 平台是否支持参数持久化保存？]
+    A: 目前参数设置在每次会话内有效，刷新页面后恢复默认值。Streamlit 的 session\_state 不支持跨会话持久化。
+    后续版本计划增加"参数方案保存/加载"功能。
+\end{infobox}
+
+\medskip
+\begin{infobox}[Q: 能否在本地或私有服务器上部署 idopNetwork？]
+    A: 可以。idopNetwork 完全开源（MIT 协议），源代码在 \url{https://github.com/Yu-Wang-0923/idopNetworkAPP}。
+    部署步骤：\texttt{git clone} $\rightarrow$ \texttt{pip install -e . \&\& pip install -r requirements.txt} $\rightarrow$ \texttt{streamlit run Home.py}。
+    支持本地、私有云或任何支持 Python 3.10+ 的服务器环境。
+\end{infobox}
+
+% ===========================================================================
+\section{数据格式规范}
+% ===========================================================================
+
+\subsection{输入数据格式}
+
+\subsubsection{Curve Fitting 输入 CSV}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{行列结构}: 行 = 样本/时间点，列 = 特征变量。
+    \item \textbf{第一列}: 自动作为行索引（样本标识符，可以是编号、时间戳、名称等）。
+    \item \textbf{数值列}: 所有后续列应为数值（整数或浮点数）。
+    \item \textbf{缺失值}: 建议在上传前处理（推荐中位数填充或删除含缺失值的列）。
+    \item \textbf{编码}: UTF-8（推荐）或 GBK。
+\end{itemize}
+
+\begin{center}
+\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+\textbf{Sample} & \textbf{Feature\_A} & \textbf{Feature\_B} & \textbf{Feature\_C} & \textbf{Feature\_D} \\
+\midrule
+S1 & 1.2 & 3.4 & 0.8 & 5.1 \\
+S2 & 1.5 & 3.1 & 1.2 & 4.8 \\
+S3 & 2.1 & 2.8 & 1.5 & 4.3 \\
+S4 & 2.8 & 2.3 & 1.9 & 3.7 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection{模块间传递 ZIP}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Curve Fitting 导出}: \file{<filename>/quasi\_dynamic.csv}, \file{curve\_sample.csv}, \file{curve\_params.csv}
+    \item \textbf{FunClu 导出}: \file{labels.csv}, \file{cluster\_sizes.csv}, \file{cluster\_members/<cond>/}, \file{cluster\_centers/<cond>/}
+    \item \textbf{NetRecon 导出（单层）}: \file{<cond>/from\_to.csv}, \file{adjacency\_matrix.csv}, \file{params.csv}, \file{effect/}, \file{network.png}
+    \item \textbf{NetRecon 导出（多层）}: \file{inter-cluster/<cond>/from\_to.csv}, \file{intra-cluster/<cond>/<cond2>\_M<k>/from\_to.csv} 等多子目录
+\end{itemize}
+
+\subsection{输出数据格式}
+
+\subsubsection{from\_to.csv（边表）}
+
+\begin{center}
+\small
+\begin{tabular}{@{}lllp{5.5cm}@{}}
+\toprule
+\textbf{列名} & \textbf{类型} & \textbf{可否为空} & \textbf{说明} \\
+\midrule
+\param{from}   & string & 否 & 源节点名称 \\
+\param{to}     & string & 否 & 目标节点名称 \\
+\param{weight} & float  & 否 & 交互效应强度（正=激活，负=抑制）\\
+\param{type}   & string & 否 & 效应方向（\texttt{+} 或 \texttt{-}）\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection{homology.json（同调数据）}
+
+JSON 格式，键为维度（\texttt{"0"}--\texttt{"3"}），值为 $[\text{birth}, \text{death}]$ 对的列表。
+$\text{death} = -1$ 表示无限持久区间。通过 $\text{death} - \text{birth}$ 可计算每个同调类的持久长度，
+持久长度越大的类越可能是真实的结构特征。
+
+\begin{verbatim}
+{
+  "0": [[b1, d1], [b2, d2], ...],
+  "1": [[b1, d1], ...],
+  "2": [[b1, d1], ...],
+  "3": [[b1, d1], ...]
+}
+\end{verbatim}
+
+% ===========================================================================
+\section{技术参考}
+% ===========================================================================
+
+\subsection{技术栈}
+
+\begin{center}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{层级} & \textbf{技术} & \textbf{用途} \\
+\midrule
+前端框架 & Streamlit $\geq$ 1.52 & Web 界面与交互（含 st.dialog 弹窗认证）\\
+数值计算 & NumPy, SciPy, pandas & 矩阵运算、数值积分、数据处理 \\
+机器学习 & scikit-learn & KMeans / MiniBatchKMeans 聚类初始化 \\
+张量计算 & PyTorch（可选）  & FunClu EM 迭代加速（支持 GPU）\\
+优化求解 & CVXPY           & 网络重构的约束稀疏回归（CLARABEL/SCS）\\
+可视化   & Matplotlib + SimHei & 曲线图、网络图、条形码图（中文支持）\\
+认证     & JSON 文件存储   & 用户注册与登录（含密码哈希）\\
+包管理   & pyproject.toml  & 声明式依赖 + \texttt{pip install -e .} 开发安装\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{本地部署}
+
+\begin{stepbox}[部署步骤]
+    \begin{enumerate}[leftmargin=*]
+        \item 确保系统已安装 Python 3.10 或更高版本
+        \item \texttt{git clone https://github.com/Yu-Wang-0923/idopNetworkAPP.git}
+        \item \texttt{cd idopNetworkAPP}
+        \item \texttt{pip install -e .}
+        \item \texttt{pip install -r requirements.txt}
+        \item \texttt{streamlit run Home.py}
+        \item 浏览器访问 \url{http://localhost:8501}
+    \end{enumerate}
+    可选：如需 GPU 加速，安装 PyTorch CUDA 版本（见 \url{https://pytorch.org}）。
+\end{stepbox}
+
+% ===========================================================================
+\section{联系与引用}
+% ===========================================================================
+
+\subsection{引用信息}
+
+如果您在研究中使用了 idopNetwork，请引用以下核心论文：
+
+\begin{itemize}[leftmargin=*]
+    \item Dong, A., Wu, S., Che, J., et al. (2023). idopNetwork: A network tool to dissect spatial community ecology. \textit{Methods in Ecology and Evolution}, 14(11), 2760--2768. \url{https://doi.org/10.1111/2041-210X.14172}
+    \item Wu, R., \& Jiang, L. (2021). Recovering dynamic networks in big static datasets. \textit{Physics Reports}, 912, 1--57. \url{https://doi.org/10.1016/j.physrep.2021.01.003}
+    \item Yang, D., Jin, Y., He, X., et al. (2021). Inferring multilayer interactome networks shaping phenotypic plasticity and evolution. \textit{Nature Communications}, 12, 5305. \url{https://doi.org/10.1038/s41467-021-25086-5}
+\end{itemize}
+
+\subsection{联系方式}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{单位}: 复杂系统拓扑统计理论及应用北京市重点实验室，北京雁栖湖应用数学研究院 (BIMSA)
+    \item \textbf{平台}: \url{https://idopnetworkapp-bimsa-statistics.streamlit.app/}
+    \item \textbf{源码}: \url{https://github.com/Yu-Wang-0923/idopNetworkAPP}
+    \item \textbf{反馈}: 请在 GitHub 仓库提交 Issue，或联系平台维护团队
+\end{itemize}
+
+\vspace{1.2cm}
+\begin{center}
+    \small\color{gray}
+    idopNetwork v2.0 \\
+    复杂系统拓扑统计理论及应用北京市重点实验室 \\
+    北京雁栖湖应用数学研究院 (BIMSA) \\
+    \copyright\ 2026
+\end{center}
+
+\end{document}
