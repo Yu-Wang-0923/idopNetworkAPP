@@ -70,6 +70,19 @@ def tiger_lop_basis_expansion(
 
     for k, feature_name in enumerate(data.columns):
         x = values[:, k]
+        # 将非有限值（Inf/NaN）替换为列中有限值的极值，避免 Inf/Inf → NaN
+        # 污染整个基函数列。
+        finite_mask = np.isfinite(x)
+        if not np.all(finite_mask):
+            finite_vals = x[finite_mask]
+            if finite_vals.size == 0:
+                # 整列全是 Inf/NaN，退化为全 0 列（下游会被过滤）
+                out[:, k * max_order : (k + 1) * max_order] = 0.0
+                for order in range(max_order):
+                    columns.append(f"{feature_name}_o({order})")
+                continue
+            fill_val = float(np.median(finite_vals))
+            x = np.where(finite_mask, x, fill_val)
         x_min = float(np.min(x))
         x_max = float(np.max(x))
         if x_max > x_min:
@@ -606,24 +619,30 @@ class IDOPRegressor:
             else:
                 self_dynamic_frac = np.inf if self_dynamic_range > 0 else 0.0
 
-            above_ok = min_delta >= gap_min
-            below_ok = max_delta <= -gap_min
-            if above_ok:
-                direction = "self_above_total"
-                direction_ok = True
-            elif below_ok:
-                direction = "self_below_total"
+            # 当 self 效应占绝对主导（>99.9% 动态范围），cross 效应可忽略或不存在，
+            # 方向约束自然满足，无需检查 gap。
+            if self_dynamic_frac > 0.999:
+                direction = "self_only"
                 direction_ok = True
             else:
-                direction = "invalid"
-                direction_ok = False
+                above_ok = min_delta >= gap_min
+                below_ok = max_delta <= -gap_min
+                if above_ok:
+                    direction = "self_above_total"
+                    direction_ok = True
+                elif below_ok:
+                    direction = "self_below_total"
+                    direction_ok = True
+                else:
+                    direction = "invalid"
+                    direction_ok = False
 
             reason = "ok"
             target_valid = True
             if not direction_ok:
                 reason = "direction_violation"
                 target_valid = False
-            elif mean_abs_delta < mean_gap_min:
+            elif direction != "self_only" and mean_abs_delta < mean_gap_min:
                 reason = "mean_gap_too_small"
                 target_valid = False
 
@@ -707,11 +726,14 @@ class IDOPRegressor:
         if not np.any(keep_cols):
             return []
 
-        X_scaled = X_cross[:, keep_cols] / col_norms[keep_cols]
+        # 使用安全缩放避免极小 norm 列在除法后产生 Inf，进而导致
+        # np.geomspace(Inf, Inf, …) 产生 NaN 传入 Lasso。
+        safe_norms = np.maximum(col_norms[keep_cols], 1e-8)
+        X_scaled = X_cross[:, keep_cols] / safe_norms
         residual_centered = y_adj - float(np.mean(y_adj))
         n_samples = max(X_scaled.shape[0], 1)
         alpha_max = float(np.max(np.abs(X_scaled.T @ residual_centered))) / n_samples
-        if alpha_max <= 1e-12:
+        if not np.isfinite(alpha_max) or alpha_max <= 1e-12:
             return []
 
         selected_local: np.ndarray | None = None
@@ -860,7 +882,9 @@ class IDOPRegressor:
                             ]
                         )
                 elif self.enforce_effect_constraints:
-                    continue
+                    # cross_pos 非空时此分支不可达（已被上方 if 捕获）；
+                    # cross_pos 为空时无需方向约束，自然满足，直接继续。
+                    pass
                 if self.nonneg_self:
                     self_dynamic_expr = B_active[:, self_pos] @ theta[self_pos]
                     constraints.append(y0_arr[j] + self_dynamic_expr >= 0.0)

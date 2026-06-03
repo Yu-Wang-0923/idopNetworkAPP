@@ -154,7 +154,10 @@ def fit_power_loglinear(
     if not (np.isfinite(slope) and np.isfinite(intercept)):
         return 1.0, 0.5
 
-    a = float(np.exp(intercept))
+    # 防止 np.exp(intercept) 溢出为 Inf，限制 a 值在 float64 安全范围内。
+    # exp(690) ≈ 1.4e299, exp(-690) ≈ 1e-300，足以覆盖所有生物学实际量级。
+    safe_intercept = float(np.clip(intercept, -690.0, 690.0))
+    a = float(np.exp(safe_intercept))
     b = slope
     a = float(np.clip(a, clip_a[0], clip_a[1]))
     b = float(np.clip(b, clip_b[0], clip_b[1]))
