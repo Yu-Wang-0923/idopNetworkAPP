@@ -58,6 +58,8 @@ if "original_plot_params" not in st.session_state:
     st.session_state.original_plot_params = {}
 if "transform_plot_params" not in st.session_state:
     st.session_state.transform_plot_params = {}
+if "transform_data_expanded" not in st.session_state:
+    st.session_state.transform_data_expanded = {}
 if "show_original_data" not in st.session_state:
     st.session_state.show_original_data = {}
 if "show_transform_data" not in st.session_state:
@@ -191,6 +193,7 @@ with tab1:
                         df_original = st.session_state.df_original[file.name]
                         df_transform = data_transformation(df_original, scaler_type)
                         st.session_state.df_transform[file.name] = df_transform
+                        st.session_state.transform_data_expanded[file.name] = True
                     except Exception as exc:
                         st.error(f"{file.name} 数据变换失败：{exc}")
                         continue
@@ -200,16 +203,25 @@ with tab1:
                 for file in uploaded_files:
                     if file.name in st.session_state.df_transform:
                         df_transform = st.session_state.df_transform[file.name]
-                        with st.expander(f"Transform Data: {file.name}", expanded=False):
-                            tab1_2_1, tab1_2_2, tab1_2_3 = st.tabs(["Data Overview", "Scatter Plot", "To Be Updated..."])
+                        with st.expander(
+                            f"Transform Data: {file.name}",
+                            expanded=st.session_state.transform_data_expanded.get(file.name, False),
+                        ):
+                            transform_data_view = st.radio(
+                                "Transform Data View",
+                                ["Data Overview", "Scatter Plot", "To Be Updated..."],
+                                horizontal=True,
+                                label_visibility="collapsed",
+                                key=f"transform_data_view_{file.name}",
+                            )
                             # 查看数据
-                            with tab1_2_1:
+                            if transform_data_view == "Data Overview":
                                 if st.button("View Data", key=f"view_transformed_data_{file.name}"):
                                     st.session_state.show_transform_data[file.name] = True
                                 if st.session_state.show_transform_data.get(file.name):
                                     st.dataframe(df_transform, use_container_width=True)
                             # 绘制数据散点图
-                            with tab1_2_2:
+                            elif transform_data_view == "Scatter Plot":
                                 with st.form(key=f"transform_data_plot_{file.name}"):
                                     with st.expander("⚙️ Transform Data Plot Settings", expanded=False):
                                         tab_layout, tab_color = st.tabs(["Layout", "Color"])
@@ -245,6 +257,7 @@ with tab1:
                                             color_scatter=color_scatter,
                                             subfig_background_color=subfig_background_color,
                                         )
+                                        st.session_state.transform_data_expanded[file.name] = True
 
                                 if file.name in st.session_state.transform_plot_params:
                                     fig = plot_curve_fitting(
@@ -253,6 +266,8 @@ with tab1:
                                         **st.session_state.transform_plot_params[file.name],
                                     )
                                     st.pyplot(fig)
+                            else:
+                                st.write("To Be Updated...")
         else:
             st.info("Please upload CSV file(s)")
 
