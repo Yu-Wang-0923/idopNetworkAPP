@@ -2,7 +2,10 @@ import io
 import json
 import os
 
+import matplotlib
+matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -27,6 +30,17 @@ from idopnetwork.analysis.network_analysis import (
     sanitize_name,
 )
 from idopnetwork.analysis.plot_analysis import plot_glmy_barcode
+from idopnetwork.ml.core import (
+    compare_hub_tables,
+    funclu_k_export_summary,
+    get_funclu_ml_matrix,
+    hub_table_from_adjacency,
+    infer_signed_hub_network,
+    load_funclu_k_export,
+    load_idopnetwork_adjacencies,
+    matching_topology_key,
+)
+from idopnetwork.ml.plot import plot_hub_network
 
 # M3 / Paper §3.2 self-test：用 backend.analysis.digraph 复刻原 GLMY1.py 流程，仅用于诊断。
 from idopnetwork.analysis.glmy_test import (
@@ -593,21 +607,649 @@ with tab1:
 
 # ========== Tab 2 Machine Learning ==========
 with tab2:
-    st.write("待更新...")
+    st.markdown("### Machine Learning Validation for Topology Hubs")
+    st.markdown(
+        "Upload the **FunClu-K export ZIP** as the ML input source, and optionally upload "
+        "the **Multi-Layer IdopNetwork export ZIP** from NetRecon. The ML run uses the same "
+        "inter-cluster or intra-cluster data layer selected by NetRecon, then compares ML Hub "
+        "ranking against the topology Hub ranking."
+    )
+    st.caption(
+        "Validation mode is IDOP-aligned by default: Hub ranking uses out-degree, matching "
+        "NetRecon's default topology Hub selection."
+    )
 
-    tab2_1, tab2_2, tab2_3 = st.tabs(["Uploaded Data", "Classification", "Regression"])
+    tab2_1, tab2_2, tab2_3 = st.tabs(
+        ["Aligned Inputs", "Run Validation", "Network View"]
+    )
 
-    # ========== Tab 2_1 Uploaded Data ==========
+    # ========== Tab 2_1 Aligned Inputs ==========
     with tab2_1:
-        st.write("待更新...")
+        funclu_zip = st.file_uploader(
+            label="Upload FunClu-K export ZIP",
+            type=["zip"],
+            key="netanal_ml_funclu_zip_upload",
+            help="Expected file: funclu_k_export.zip from Curve Fitting -> FunctionClu/K-Cluster.",
+        )
+        topology_zip = st.file_uploader(
+            label="Upload NetRecon Multi-Layer IdopNetwork export ZIP (optional)",
+            type=["zip"],
+            key="netanal_ml_topology_zip_upload",
+            help="Expected file: multi_layer_idopnetwork_export.zip from NetRecon -> Export.",
+        )
 
-    # ========== Tab 2_2 Classification ==========
+        if funclu_zip is None:
+            st.info("Please upload a FunClu-K export ZIP first.")
+        else:
+            funclu_signature = (funclu_zip.name, funclu_zip.size)
+            if st.session_state.get("netanal_ml_funclu_signature") != funclu_signature:
+                st.session_state.pop("netanal_ml_validation_result", None)
+                st.session_state["netanal_ml_funclu_signature"] = funclu_signature
+
+            try:
+                funclu_export = load_funclu_k_export(funclu_zip.getvalue())
+                funclu_summary = funclu_k_export_summary(funclu_export)
+            except Exception as e:
+                st.error(f"Unable to read the FunClu-K ZIP: {e}")
+            else:
+                st.session_state["netanal_ml_funclu_export"] = funclu_export
+                st.session_state["netanal_ml_funclu_summary"] = funclu_summary
+
+                labels_df = funclu_export["labels"]
+                clusters = (
+                    int(labels_df["cluster"].nunique())
+                    if "cluster" in labels_df.columns
+                    else int(labels_df["cluster_id"].nunique())
+                    if "cluster_id" in labels_df.columns
+                    else 0
+                )
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Features", f"{len(labels_df):,}")
+                c2.metric("Clusters", f"{clusters:,}")
+                c3.metric("Inter layers", f"{len(funclu_export['center_responses']):,}")
+                c4.metric(
+                    "Intra networks",
+                    f"{sum(len(v) for v in funclu_export['member_responses'].values()):,}",
+                )
+
+                st.markdown("#### FunClu-K ZIP datasets")
+                st.dataframe(funclu_summary, width="stretch", height=300)
+
+                with st.expander("ZIP contents"):
+                    st.code("\\n".join(funclu_export["zip_members"][:120]), language="text")
+                    if len(funclu_export["zip_members"]) > 120:
+                        st.caption(
+                            f"Showing first 120 of {len(funclu_export['zip_members']):,} files."
+                        )
+
+        if topology_zip is not None:
+            topology_signature = (topology_zip.name, topology_zip.size)
+            if st.session_state.get("netanal_ml_topology_signature") != topology_signature:
+                st.session_state.pop("netanal_ml_validation_result", None)
+                st.session_state["netanal_ml_topology_signature"] = topology_signature
+
+            try:
+                topology_adjs = load_idopnetwork_adjacencies(topology_zip.getvalue())
+            except Exception as e:
+                st.error(f"Unable to read the NetRecon ZIP: {e}")
+            else:
+                st.session_state["netanal_ml_topology_adjs"] = topology_adjs
+                topology_summary = pd.DataFrame(
+                    [
+                        {
+                            "network": key,
+                            "nodes": int(adj.shape[0]),
+                            "edges_nonzero": int(
+                                (
+                                    adj.apply(pd.to_numeric, errors="coerce")
+                                    .fillna(0.0)
+                                    .to_numpy()
+                                    != 0
+                                ).sum()
+                            ),
+                        }
+                        for key, adj in topology_adjs.items()
+                    ]
+                )
+                st.markdown("#### NetRecon topology networks")
+                st.dataframe(topology_summary, width="stretch", height=260)
+        else:
+            st.session_state.pop("netanal_ml_topology_adjs", None)
+
+    # ========== Tab 2_2 Validation ==========
     with tab2_2:
-        st.write("待更新...")
+        funclu_export = st.session_state.get("netanal_ml_funclu_export")
+        topology_adjs = st.session_state.get("netanal_ml_topology_adjs", {})
 
-    # ========== Tab 2_3 Regression ==========
+        if funclu_export is None:
+            st.info("Please upload a FunClu-K ZIP in **Aligned Inputs** first.")
+        else:
+            rank_options = {
+                "out_degree": "IDOP-aligned: out-degree (default NetRecon Hub)",
+                "out_strength": "IDOP-aligned: weighted out-degree",
+                "total_degree": "Topology: total degree",
+                "total_strength": "Topology: weighted total degree",
+            }
+            layer_options = []
+            if funclu_export.get("center_responses"):
+                layer_options.append("inter_cluster")
+            if funclu_export.get("member_responses"):
+                layer_options.append("intra_cluster")
+
+            col_s1, col_s2, col_s3, col_s4 = st.columns([1, 1, 1, 1])
+            with col_s1:
+                selected_layer = st.selectbox(
+                    "Layer",
+                    options=layer_options,
+                    format_func=lambda x: {
+                        "inter_cluster": "Inter-cluster centers",
+                        "intra_cluster": "Intra-cluster members",
+                    }[x],
+                    key="netanal_ml_selected_layer",
+                )
+            if selected_layer == "inter_cluster":
+                condition_options = list(funclu_export["center_responses"].keys())
+                with col_s2:
+                    selected_condition = st.selectbox(
+                        "Condition",
+                        options=condition_options,
+                        key="netanal_ml_inter_condition",
+                    )
+                selected_cluster = ""
+            else:
+                condition_options = list(funclu_export["member_responses"].keys())
+                with col_s2:
+                    selected_condition = st.selectbox(
+                        "Condition",
+                        options=condition_options,
+                        key="netanal_ml_intra_condition",
+                    )
+                cluster_options = list(funclu_export["member_responses"][selected_condition].keys())
+                with col_s3:
+                    selected_cluster = st.selectbox(
+                        "Cluster",
+                        options=cluster_options,
+                        key="netanal_ml_intra_cluster",
+                    )
+            with col_s4:
+                data_source = st.selectbox(
+                    "ML data source",
+                    options=["quasi_dynamic", "curve_sample"],
+                    format_func=lambda x: {
+                        "quasi_dynamic": "Quasi-dynamic response",
+                        "curve_sample": "Curve sample",
+                    }[x],
+                    key="netanal_ml_data_source",
+                )
+
+            topology_key = matching_topology_key(
+                layer=str(selected_layer),
+                condition=str(selected_condition),
+                cluster=str(selected_cluster),
+            )
+            try:
+                ml_matrix = get_funclu_ml_matrix(
+                    funclu_export,
+                    layer=str(selected_layer),
+                    condition=str(selected_condition),
+                    cluster=str(selected_cluster),
+                    data_source=str(data_source),
+                )
+            except Exception as e:
+                st.error(f"Unable to prepare this FunClu-K dataset for ML: {e}")
+                ml_matrix = None
+
+            if ml_matrix is not None:
+                n_variables, n_samples = ml_matrix.shape
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("ML variables", f"{n_variables:,}")
+                c2.metric("ML samples", f"{n_samples:,}")
+                c3.metric("Expected topology key", topology_key)
+                if topology_adjs and topology_key in topology_adjs:
+                    c4.metric("Topology match", "Found")
+                    st.success(f"Matched NetRecon adjacency: `{topology_key}`")
+                elif topology_adjs:
+                    c4.metric("Topology match", "Missing")
+                    st.warning(
+                        f"No topology adjacency named `{topology_key}` was found in the NetRecon ZIP."
+                    )
+                else:
+                    c4.metric("Topology match", "Not uploaded")
+                    st.info("Upload the NetRecon export ZIP to compute ML-vs-topology overlap.")
+
+                with st.expander("ML-ready matrix preview"):
+                    st.dataframe(ml_matrix.head(80), width="stretch", height=300)
+
+                if n_variables < 2 or n_samples < 3:
+                    st.error("This selected dataset needs at least 2 variables and 3 samples.")
+                else:
+                    default_max_variables = min(250, int(n_variables))
+                    default_cv = min(5, max(2, int(n_samples)))
+                    max_possible_edges = max(1, int(n_variables) * max(1, int(n_variables) - 1))
+
+                    if n_variables > default_max_variables:
+                        st.warning(
+                            f"This layer has {n_variables:,} variables. The default run keeps "
+                            f"the top {default_max_variables:,} variables by variance."
+                        )
+
+                    with st.form(key="netanal_ml_validation_form"):
+                        col_h1, col_h2, col_h3, col_h4 = st.columns(4)
+                        with col_h1:
+                            hub_rank_metric = st.selectbox(
+                                "Hub ranking metric",
+                                options=list(rank_options.keys()),
+                                format_func=lambda x: rank_options[x],
+                                index=0,
+                                key="netanal_ml_hub_rank_metric",
+                            )
+                            max_variables = st.number_input(
+                                "Max variables to analyze",
+                                min_value=2,
+                                max_value=max(2, int(n_variables)),
+                                value=max(2, int(default_max_variables)),
+                                step=10,
+                                key="netanal_ml_max_variables",
+                            )
+                        with col_h2:
+                            variable_selection = st.selectbox(
+                                "If variables exceed the limit",
+                                options=["variance", "mean_abs", "first"],
+                                format_func=lambda x: {
+                                    "variance": "Keep highest-variance variables",
+                                    "mean_abs": "Keep highest mean absolute variables",
+                                    "first": "Keep first variables",
+                                }[x],
+                                key="netanal_ml_variable_selection",
+                            )
+                            l1_ratio = st.slider(
+                                "ElasticNet sparsity (L1 ratio)",
+                                min_value=0.05,
+                                max_value=1.00,
+                                value=0.75,
+                                step=0.05,
+                                key="netanal_ml_l1_ratio",
+                            )
+                        with col_h3:
+                            coefficient_threshold = st.number_input(
+                                "Min |ML coefficient| edge",
+                                min_value=0.0,
+                                max_value=1.0,
+                                value=0.03,
+                                step=0.01,
+                                format="%.3f",
+                                key="netanal_ml_coefficient_threshold",
+                            )
+                            topology_edge_threshold = st.number_input(
+                                "Min |topology weight| edge",
+                                min_value=0.0,
+                                max_value=1000000.0,
+                                value=0.0,
+                                step=0.01,
+                                format="%.4f",
+                                key="netanal_ml_topology_edge_threshold",
+                            )
+                        with col_h4:
+                            cv_folds = st.number_input(
+                                "Cross-validation folds",
+                                min_value=2,
+                                max_value=max(2, min(10, int(n_samples))),
+                                value=int(default_cv),
+                                step=1,
+                                key="netanal_ml_cv_folds",
+                            )
+                            max_edges = st.number_input(
+                                "Max retained ML edges",
+                                min_value=1,
+                                max_value=max_possible_edges,
+                                value=min(5000, max_possible_edges),
+                                step=max(1, min(500, max_possible_edges)),
+                                key="netanal_ml_max_edges",
+                            )
+
+                        col_v1, col_v2 = st.columns(2)
+                        with col_v1:
+                            topology_top_n = st.number_input(
+                                "Topology top N to validate",
+                                min_value=1,
+                                max_value=max(1, int(n_variables)),
+                                value=min(3, int(n_variables)),
+                                step=1,
+                                key="netanal_ml_topology_top_n",
+                            )
+                        with col_v2:
+                            ml_top_n = st.number_input(
+                                "ML top N candidate list",
+                                min_value=1,
+                                max_value=max(1, int(n_variables)),
+                                value=min(20, int(n_variables)),
+                                step=1,
+                                key="netanal_ml_top_n",
+                            )
+
+                        run_ml_hub = st.form_submit_button(
+                            "Run ML Validation",
+                            type="primary",
+                        )
+
+                    if run_ml_hub:
+                        with st.spinner("Running target-wise ElasticNet and Hub comparison ..."):
+                            try:
+                                ml_result = infer_signed_hub_network(
+                                    ml_matrix,
+                                    max_variables=int(max_variables),
+                                    variable_selection=str(variable_selection),
+                                    l1_ratio=float(l1_ratio),
+                                    cv_folds=int(cv_folds),
+                                    coefficient_threshold=float(coefficient_threshold),
+                                    max_edges=int(max_edges),
+                                    random_state=123,
+                                )
+                                ranked_hubs = ml_result["hub_scores"].copy()
+                                tie_cols = []
+                                for col in [
+                                    str(hub_rank_metric),
+                                    "out_degree",
+                                    "out_strength",
+                                    "hub_score",
+                                ]:
+                                    if col in ranked_hubs.columns and col not in tie_cols:
+                                        tie_cols.append(col)
+                                ranked_hubs = ranked_hubs.sort_values(
+                                    tie_cols,
+                                    ascending=False,
+                                ).reset_index(drop=True)
+                                ranked_hubs.insert(
+                                    0,
+                                    "hub_rank",
+                                    np.arange(1, len(ranked_hubs) + 1),
+                                )
+
+                                topology_hubs = None
+                                comparison = None
+                                if topology_adjs and topology_key in topology_adjs:
+                                    topology_hubs = hub_table_from_adjacency(
+                                        topology_adjs[topology_key],
+                                        edge_threshold=float(topology_edge_threshold),
+                                        rank_metric=str(hub_rank_metric),
+                                    )
+                                    comparison = compare_hub_tables(
+                                        ranked_hubs,
+                                        topology_hubs,
+                                        rank_metric=str(hub_rank_metric),
+                                        topology_top_n=int(topology_top_n),
+                                        ml_top_n=int(ml_top_n),
+                                    )
+                            except Exception as e:
+                                st.error(f"ML validation failed: {e}")
+                            else:
+                                st.session_state["netanal_ml_validation_result"] = {
+                                    "ml_result": ml_result,
+                                    "ranked_hubs": ranked_hubs,
+                                    "topology_hubs": topology_hubs,
+                                    "comparison": comparison,
+                                    "matrix": ml_matrix,
+                                    "context": {
+                                        "layer": str(selected_layer),
+                                        "condition": str(selected_condition),
+                                        "cluster": str(selected_cluster),
+                                        "data_source": str(data_source),
+                                        "topology_key": topology_key,
+                                        "rank_metric": str(hub_rank_metric),
+                                    },
+                                }
+
+        validation_result = st.session_state.get("netanal_ml_validation_result")
+        if validation_result is None:
+            st.info("Click **Run ML Validation** to generate the ML Hub list and topology comparison.")
+        else:
+            ml_result = validation_result["ml_result"]
+            ranked_hubs = validation_result["ranked_hubs"]
+            signed_edges = ml_result["edges"]
+            model_scores = ml_result["model_scores"]
+            adjacency = ml_result["adjacency"]
+            metadata = ml_result["metadata"]
+            topology_hubs = validation_result.get("topology_hubs")
+            comparison = validation_result.get("comparison")
+            context = validation_result["context"]
+            hub_rank_metric = context["rank_metric"]
+
+            top_ml_hub = ranked_hubs.iloc[0] if not ranked_hubs.empty else None
+            col_r1, col_r2, col_r3, col_r4, col_r5 = st.columns(5)
+            col_r1.metric(
+                "ML top Hub",
+                str(top_ml_hub["variable"]) if top_ml_hub is not None else "N/A",
+            )
+            col_r2.metric(
+                "ML rank value",
+                f"{float(top_ml_hub[hub_rank_metric]):.4f}" if top_ml_hub is not None else "0.0000",
+            )
+            col_r3.metric("ML signed edges", f"{metadata['edge_count']:,}")
+            col_r4.metric("Median target R2", f"{model_scores['r2'].median():.3f}")
+            if comparison is not None:
+                summary = comparison["summary"]
+                col_r5.metric(
+                    "Overlap",
+                    f"{summary['overlap_count']}/{summary['topology_top_n']}",
+                    help=f"Topology top N vs ML top {summary['ml_top_n']}",
+                )
+            else:
+                col_r5.metric("Overlap", "N/A")
+
+            st.caption(
+                "Selection: "
+                f"{context['topology_key']} | data={context['data_source']} | "
+                f"rank={hub_rank_metric}"
+            )
+
+            if metadata["variables_dropped_by_selection"] > 0:
+                st.warning(
+                    f"{metadata['variables_dropped_by_selection']:,} variables were not modeled "
+                    "because of the current Max variables limit."
+                )
+
+            if comparison is not None:
+                summary = comparison["summary"]
+                if summary["overlap_count"] > 0:
+                    st.success(
+                        "Matched topology Hub candidates in the ML list: "
+                        f"{summary['overlap_nodes']}"
+                    )
+                else:
+                    st.warning(
+                        "No overlap between the selected topology top N and ML candidate list. "
+                        "Try lowering ML sparsity/threshold, increasing ML top N, or validating "
+                        "the same layer/data source used by NetRecon."
+                    )
+                comp_cols = st.columns(3)
+                comp_cols[0].metric("Common nodes", f"{summary['common_nodes']:,}")
+                comp_cols[1].metric(
+                    "Overlap rate",
+                    f"{summary['overlap_rate_vs_topology_top_n']:.2%}",
+                )
+                comp_cols[2].metric(
+                    "Spearman",
+                    (
+                        f"{summary['spearman_metric_correlation']:.3f}"
+                        if pd.notna(summary["spearman_metric_correlation"])
+                        else "N/A"
+                    ),
+                )
+
+            st.markdown("#### ML Hub ranking")
+            hub_columns = []
+            for col in [
+                "hub_rank",
+                "rank",
+                "variable",
+                str(hub_rank_metric),
+                "hub_score",
+                "role",
+                "out_strength",
+                "in_strength",
+                "out_degree",
+                "in_degree",
+                "promoting_out_strength",
+                "inhibiting_out_strength",
+                "pagerank",
+                "betweenness",
+                "target_r2",
+            ]:
+                if col in ranked_hubs.columns and col not in hub_columns:
+                    hub_columns.append(col)
+            st.dataframe(ranked_hubs[hub_columns].head(100), width="stretch", height=340)
+
+            if topology_hubs is not None:
+                st.markdown("#### Topology Hub ranking from NetRecon adjacency")
+                st.dataframe(topology_hubs.head(100), width="stretch", height=300)
+
+            if comparison is not None:
+                st.markdown("#### ML vs topology rank comparison")
+                st.dataframe(comparison["detail"], width="stretch", height=320)
+
+            st.markdown("#### Signed ML source -> target effects")
+            edge_display = signed_edges.copy()
+            if not edge_display.empty:
+                edge_display["effect_label"] = edge_display["effect"].map(
+                    {"promote": "Promote (+)", "inhibit": "Inhibit (-)"}
+                )
+                edge_columns = [
+                    "source",
+                    "target",
+                    "effect_label",
+                    "coefficient",
+                    "abs_weight",
+                    "target_r2",
+                    "alpha",
+                ]
+                st.dataframe(edge_display[edge_columns].head(200), width="stretch", height=320)
+            else:
+                st.warning(
+                    "No ML edges passed the current coefficient threshold. Try lowering the "
+                    "threshold or reducing ElasticNet sparsity."
+                )
+
+            dl1, dl2, dl3, dl4 = st.columns(4)
+            dl1.download_button(
+                label="Download ML Hub CSV",
+                data=ranked_hubs.to_csv(index=False).encode("utf-8"),
+                file_name="ml_validation_hub_ranking.csv",
+                mime="text/csv",
+                key="netanal_ml_hub_download",
+            )
+            dl2.download_button(
+                label="Download ML edges CSV",
+                data=signed_edges.to_csv(index=False).encode("utf-8"),
+                file_name="ml_validation_signed_edges.csv",
+                mime="text/csv",
+                key="netanal_ml_edges_download",
+            )
+            dl3.download_button(
+                label="Download ML adjacency CSV",
+                data=adjacency.to_csv(index=True).encode("utf-8"),
+                file_name="ml_validation_signed_adjacency.csv",
+                mime="text/csv",
+                key="netanal_ml_adjacency_download",
+            )
+            if comparison is not None:
+                dl4.download_button(
+                    label="Download comparison CSV",
+                    data=comparison["detail"].to_csv(index=False).encode("utf-8"),
+                    file_name="ml_vs_topology_hub_comparison.csv",
+                    mime="text/csv",
+                    key="netanal_ml_comparison_download",
+                )
+
+    # ========== Tab 2_3 Network View ==========
     with tab2_3:
-        st.write("待更新...")
+        validation_result = st.session_state.get("netanal_ml_validation_result")
+
+        if validation_result is None:
+            st.info("Run **ML Validation** first to generate a signed network.")
+        else:
+            ml_result = validation_result["ml_result"]
+            signed_edges = ml_result["edges"]
+            hub_scores = validation_result["ranked_hubs"]
+            hub_rank_metric = validation_result["context"].get("rank_metric", "out_degree")
+
+            col_v1, col_v2, col_v3 = st.columns(3)
+            with col_v1:
+                plot_node_count = int(len(hub_scores))
+                plot_node_max = min(100, plot_node_count)
+                if plot_node_max <= 5:
+                    plot_top_nodes = max(1, plot_node_count)
+                    st.metric("Top nodes in plot", plot_top_nodes)
+                else:
+                    plot_top_nodes = st.slider(
+                        "Top nodes in plot",
+                        min_value=5,
+                        max_value=plot_node_max,
+                        value=min(40, plot_node_max),
+                        step=5,
+                        key="netanal_ml_plot_top_nodes",
+                    )
+            with col_v2:
+                plot_edge_count = int(len(signed_edges))
+                plot_edge_max = min(500, plot_edge_count)
+                if plot_edge_max <= 10:
+                    plot_top_edges = max(1, plot_edge_count)
+                    st.metric("Top edges in plot", plot_top_edges)
+                else:
+                    plot_top_edges = st.slider(
+                        "Top edges in plot",
+                        min_value=10,
+                        max_value=plot_edge_max,
+                        value=min(120, plot_edge_max),
+                        step=10,
+                        key="netanal_ml_plot_top_edges",
+                    )
+            with col_v3:
+                label_max = min(40, int(len(hub_scores)))
+                if label_max <= 0:
+                    label_top_n = 0
+                    st.metric("Labels for top hubs", label_top_n)
+                else:
+                    label_top_n = st.slider(
+                        "Labels for top hubs",
+                        min_value=0,
+                        max_value=label_max,
+                        value=min(12, label_max),
+                        step=1,
+                        key="netanal_ml_label_top_n",
+                    )
+
+            ml_fig = plot_hub_network(
+                signed_edges,
+                hub_scores,
+                top_nodes=int(plot_top_nodes),
+                top_edges=int(plot_top_edges),
+                label_top_n=int(label_top_n),
+                rank_metric=str(hub_rank_metric),
+                random_state=123,
+            )
+            st.pyplot(ml_fig, width="stretch")
+
+            png_buf = io.BytesIO()
+            ml_fig.savefig(png_buf, format="png", dpi=220, bbox_inches="tight")
+            pdf_buf = io.BytesIO()
+            ml_fig.savefig(pdf_buf, format="pdf", bbox_inches="tight")
+            plt.close(ml_fig)
+
+            c_png, c_pdf = st.columns(2)
+            c_png.download_button(
+                label="Download ML network PNG",
+                data=png_buf.getvalue(),
+                file_name="ml_hub_network.png",
+                mime="image/png",
+                key="netanal_ml_network_png_download",
+            )
+            c_pdf.download_button(
+                label="Download ML network PDF",
+                data=pdf_buf.getvalue(),
+                file_name="ml_hub_network.pdf",
+                mime="application/pdf",
+                key="netanal_ml_network_pdf_download",
+            )
 
 
 # ========== Tab 3 Center Network ==========
