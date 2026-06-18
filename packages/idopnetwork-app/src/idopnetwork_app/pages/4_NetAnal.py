@@ -39,6 +39,8 @@ from idopnetwork.ml.core import (
     load_funclu_k_export,
     load_idopnetwork_adjacencies,
     matching_topology_key,
+    run_module_classification_validation,
+    topology_hubs_from_adjacencies,
 )
 from idopnetwork.ml.plot import plot_hub_network
 
@@ -619,8 +621,8 @@ with tab2:
         "NetRecon's default topology Hub selection."
     )
 
-    tab2_1, tab2_2, tab2_3 = st.tabs(
-        ["Aligned Inputs", "Run Validation", "Network View"]
+    tab2_1, tab2_2, tab2_3, tab2_4 = st.tabs(
+        ["Aligned Inputs", "Network Validation", "Classification Validation", "Network View"]
     )
 
     # ========== Tab 2_1 Aligned Inputs ==========
@@ -636,6 +638,21 @@ with tab2:
             type=["zip"],
             key="netanal_ml_topology_zip_upload",
             help="Expected file: multi_layer_idopnetwork_export.zip from NetRecon -> Export.",
+        )
+        condition_csvs = st.file_uploader(
+            label="Upload condition CSV files for classification validation",
+            type=["csv"],
+            accept_multiple_files=True,
+            key="netanal_ml_condition_csv_uploads",
+            help=(
+                "Each CSV is one condition/label. Rows are samples/subjects; "
+                "columns are shared indicators/features."
+            ),
+        )
+        first_column_as_sample_id = st.checkbox(
+            "Condition CSV first column contains sample IDs",
+            value=True,
+            key="netanal_ml_condition_first_col_sample_id",
         )
 
         if funclu_zip is None:
@@ -715,6 +732,52 @@ with tab2:
                 st.dataframe(topology_summary, width="stretch", height=260)
         else:
             st.session_state.pop("netanal_ml_topology_adjs", None)
+
+        if condition_csvs:
+            condition_signature = tuple((f.name, f.size) for f in condition_csvs) + (
+                bool(first_column_as_sample_id),
+            )
+            if st.session_state.get("netanal_ml_condition_signature") != condition_signature:
+                st.session_state.pop("netanal_ml_classification_result", None)
+                st.session_state["netanal_ml_condition_signature"] = condition_signature
+
+            condition_tables = {}
+            condition_rows = []
+            duplicate_counts = {}
+            for uploaded_condition in condition_csvs:
+                base_label = os.path.splitext(uploaded_condition.name)[0]
+                duplicate_counts[base_label] = duplicate_counts.get(base_label, 0) + 1
+                condition_label = (
+                    base_label
+                    if duplicate_counts[base_label] == 1
+                    else f"{base_label}_{duplicate_counts[base_label]}"
+                )
+                try:
+                    raw_condition_df = pd.read_csv(uploaded_condition)
+                except Exception as e:
+                    st.error(f"Unable to read condition CSV `{uploaded_condition.name}`: {e}")
+                    continue
+                condition_tables[condition_label] = raw_condition_df
+                feature_count = (
+                    max(0, int(raw_condition_df.shape[1]) - 1)
+                    if first_column_as_sample_id
+                    else int(raw_condition_df.shape[1])
+                )
+                condition_rows.append(
+                    {
+                        "condition_label": condition_label,
+                        "file": uploaded_condition.name,
+                        "samples": int(raw_condition_df.shape[0]),
+                        "feature_columns": feature_count,
+                    }
+                )
+
+            if condition_tables:
+                st.session_state["netanal_ml_condition_tables"] = condition_tables
+                st.markdown("#### Classification condition CSVs")
+                st.dataframe(pd.DataFrame(condition_rows), width="stretch", height=220)
+        else:
+            st.session_state.pop("netanal_ml_condition_tables", None)
 
     # ========== Tab 2_2 Validation ==========
     with tab2_2:
@@ -1160,8 +1223,279 @@ with tab2:
                     key="netanal_ml_comparison_download",
                 )
 
-    # ========== Tab 2_3 Network View ==========
+    # ========== Tab 2_3 Classification Validation ==========
     with tab2_3:
+        funclu_export = st.session_state.get("netanal_ml_funclu_export")
+        condition_tables = st.session_state.get("netanal_ml_condition_tables")
+        topology_adjs = st.session_state.get("netanal_ml_topology_adjs", {})
+
+        if funclu_export is None:
+            st.info("Please upload a FunClu-K ZIP in **Aligned Inputs** first.")
+        elif not condition_tables:
+            st.info(
+                "Please upload two or more condition CSV files in **Aligned Inputs**. "
+                "Each CSV is treated as one class label."
+            )
+        else:
+            condition_options = list(condition_tables.keys())
+            if len(condition_options) < 2:
+                st.warning("Classification validation needs at least two condition CSVs.")
+            else:
+                with st.form(key="netanal_ml_classification_form"):
+                    col_c1, col_c2, col_c3, col_c4 = st.columns(4)
+                    with col_c1:
+                        classification_task = st.selectbox(
+                            "Classification task",
+                            options=["one_vs_rest", "multiclass"],
+                            format_func=lambda x: {
+                                "one_vs_rest": "One condition vs others",
+                                "multiclass": "All conditions multiclass",
+                            }[x],
+                            key="netanal_ml_classification_task",
+                        )
+                        positive_label = st.selectbox(
+                            "Positive condition",
+                            options=condition_options,
+                            key="netanal_ml_classification_positive_label",
+                            disabled=classification_task != "one_vs_rest",
+                        )
+                    with col_c2:
+                        classifier = st.selectbox(
+                            "Classifier",
+                            options=["logistic_regression", "random_forest"],
+                            format_func=lambda x: {
+                                "logistic_regression": "Logistic Regression (L2)",
+                                "random_forest": "Random Forest",
+                            }[x],
+                            key="netanal_ml_classification_classifier",
+                        )
+                        cv_folds = st.number_input(
+                            "Cross-validation folds",
+                            min_value=2,
+                            max_value=10,
+                            value=5,
+                            step=1,
+                            key="netanal_ml_classification_cv_folds",
+                        )
+                    with col_c3:
+                        max_missing_fraction = st.slider(
+                            "Max missing fraction per feature",
+                            min_value=0.0,
+                            max_value=0.95,
+                            value=0.50,
+                            step=0.05,
+                            key="netanal_ml_classification_max_missing",
+                        )
+                    with col_c4:
+                        topology_rank_metric = st.selectbox(
+                            "Topology Hub metric",
+                            options=["out_degree", "out_strength", "total_degree", "total_strength"],
+                            index=0,
+                            key="netanal_ml_classification_topology_metric",
+                        )
+                        topology_edge_threshold = st.number_input(
+                            "Min |topology weight| edge",
+                            min_value=0.0,
+                            max_value=1000000.0,
+                            value=0.0,
+                            step=0.01,
+                            format="%.4f",
+                            key="netanal_ml_classification_topology_edge_threshold",
+                        )
+
+                    run_classification = st.form_submit_button(
+                        "Run Module Classification Validation",
+                        type="primary",
+                    )
+
+                if run_classification:
+                    with st.spinner("Running module-level classification validation ..."):
+                        try:
+                            classification_result = run_module_classification_validation(
+                                condition_tables,
+                                funclu_export["labels"],
+                                first_column_as_sample_id=bool(
+                                    st.session_state.get(
+                                        "netanal_ml_condition_first_col_sample_id",
+                                        True,
+                                    )
+                                ),
+                                max_missing_fraction=float(max_missing_fraction),
+                                task=str(classification_task),
+                                positive_label=(
+                                    str(positive_label)
+                                    if classification_task == "one_vs_rest"
+                                    else None
+                                ),
+                                classifier=str(classifier),
+                                cv_folds=int(cv_folds),
+                                random_state=123,
+                            )
+                            topology_hubs = (
+                                topology_hubs_from_adjacencies(
+                                    topology_adjs,
+                                    rank_metric=str(topology_rank_metric),
+                                    edge_threshold=float(topology_edge_threshold),
+                                )
+                                if topology_adjs
+                                else pd.DataFrame()
+                            )
+                        except Exception as e:
+                            st.error(f"Module classification validation failed: {e}")
+                        else:
+                            classification_result["topology_hubs"] = topology_hubs
+                            classification_result["context"] = {
+                                "task": str(classification_task),
+                                "positive_label": (
+                                    str(positive_label)
+                                    if classification_task == "one_vs_rest"
+                                    else ""
+                                ),
+                                "classifier": str(classifier),
+                                "topology_rank_metric": str(topology_rank_metric),
+                            }
+                            st.session_state[
+                                "netanal_ml_classification_result"
+                            ] = classification_result
+
+        classification_result = st.session_state.get("netanal_ml_classification_result")
+        if classification_result is None:
+            st.info(
+                "Run classification to compare M1, M2, ..., All as predictors of condition labels."
+            )
+        else:
+            scores = classification_result["scores"].copy()
+            dataset_info = classification_result["dataset"]
+            context = classification_result["context"]
+            topology_hubs = classification_result.get("topology_hubs", pd.DataFrame())
+
+            expected_hub = ""
+            if context.get("task") == "one_vs_rest" and not topology_hubs.empty:
+                positive_label = context.get("positive_label", "")
+                aliases = {positive_label, f"{positive_label}.csv"}
+                topo_match = topology_hubs[
+                    topology_hubs["condition"].astype(str).map(
+                        lambda c: c in aliases or os.path.splitext(c)[0] == positive_label
+                    )
+                ]
+                if not topo_match.empty:
+                    expected_hub = str(topo_match.iloc[0]["topology_hub"])
+                    scores["is_topology_hub"] = scores["module"].astype(str) == expected_hub
+                else:
+                    scores["is_topology_hub"] = False
+            else:
+                scores["is_topology_hub"] = False
+
+            best_row = scores.iloc[0] if not scores.empty else None
+            topology_row = (
+                scores[scores["module"].astype(str) == expected_hub].iloc[0]
+                if expected_hub and (scores["module"].astype(str) == expected_hub).any()
+                else None
+            )
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric(
+                "Best module",
+                str(best_row["module"]) if best_row is not None else "N/A",
+            )
+            m2.metric(
+                "Best score",
+                (
+                    f"{float(best_row['primary_score_mean']):.3f}"
+                    if best_row is not None and pd.notna(best_row["primary_score_mean"])
+                    else "N/A"
+                ),
+                help=(
+                    str(best_row["primary_metric"])
+                    if best_row is not None and "primary_metric" in best_row
+                    else None
+                ),
+            )
+            m3.metric("Topology Hub", expected_hub if expected_hub else "N/A")
+            m4.metric(
+                "Topology Hub rank",
+                (
+                    str(int(topology_row["module_rank"]))
+                    if topology_row is not None
+                    else "N/A"
+                ),
+            )
+
+            if expected_hub:
+                if best_row is not None and str(best_row["module"]) == expected_hub:
+                    st.success(
+                        f"Classification supports topology Hub `{expected_hub}`: "
+                        "it is the best single module for this task."
+                    )
+                else:
+                    st.warning(
+                        f"Topology Hub `{expected_hub}` is not the best classification module "
+                        "under the current settings."
+                    )
+
+            st.caption(
+                f"Task: {context.get('task')} | positive={context.get('positive_label', '')} | "
+                f"classifier={context.get('classifier')}"
+            )
+
+            st.markdown("#### Module classification scores")
+            display_cols = [
+                "module_rank",
+                "module",
+                "is_topology_hub",
+                "primary_metric",
+                "primary_score_mean",
+                "primary_score_std",
+                "balanced_accuracy_mean",
+                "roc_auc_mean",
+                "accuracy_mean",
+                "f1_macro_mean",
+                "n_features",
+                "n_samples",
+                "cv_folds_used",
+                "status",
+            ]
+            display_cols = [col for col in display_cols if col in scores.columns]
+            st.dataframe(scores[display_cols], width="stretch", height=360)
+
+            st.markdown("#### Dataset summary")
+            c_sum1, c_sum2 = st.columns(2)
+            with c_sum1:
+                st.dataframe(
+                    dataset_info["sample_summary"],
+                    width="stretch",
+                    height=220,
+                )
+            with c_sum2:
+                st.dataframe(
+                    dataset_info["feature_summary"],
+                    width="stretch",
+                    height=220,
+                )
+            st.json(dataset_info["diagnostics"])
+
+            if not topology_hubs.empty:
+                st.markdown("#### Topology inter-cluster Hub by condition")
+                st.dataframe(topology_hubs, width="stretch", height=240)
+
+            dl_c1, dl_c2 = st.columns(2)
+            dl_c1.download_button(
+                label="Download classification scores CSV",
+                data=scores.to_csv(index=False).encode("utf-8"),
+                file_name="module_classification_scores.csv",
+                mime="text/csv",
+                key="netanal_ml_classification_scores_download",
+            )
+            if not topology_hubs.empty:
+                dl_c2.download_button(
+                    label="Download topology hubs CSV",
+                    data=topology_hubs.to_csv(index=False).encode("utf-8"),
+                    file_name="classification_topology_hubs.csv",
+                    mime="text/csv",
+                    key="netanal_ml_classification_topology_download",
+                )
+
+    # ========== Tab 2_4 Network View ==========
+    with tab2_4:
         validation_result = st.session_state.get("netanal_ml_validation_result")
 
         if validation_result is None:

@@ -23,9 +23,15 @@ from typing import Any
 import networkx as nx
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.exceptions import ConvergenceWarning
+from sklearn.impute import SimpleImputer
 from sklearn.linear_model import ElasticNet, ElasticNetCV
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.model_selection import StratifiedKFold, cross_validate
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 import warnings
 
 
@@ -154,6 +160,449 @@ def funclu_k_export_summary(funclu_export: dict[str, Any]) -> pd.DataFrame:
         rows,
         columns=["layer", "condition", "cluster", "data_source", "variables", "samples"],
     )
+
+
+def module_feature_map_from_labels(labels_df: pd.DataFrame) -> dict[str, list[str]]:
+    """Return ``cluster -> feature names`` from a FunClu ``labels.csv`` table."""
+    if labels_df.empty:
+        raise ValueError("FunClu labels table is empty.")
+
+    if "feature" in labels_df.columns:
+        feature_col = "feature"
+    else:
+        feature_col = str(labels_df.columns[0])
+
+    if "cluster" in labels_df.columns:
+        cluster_col = "cluster"
+    elif "cluster_id" in labels_df.columns:
+        cluster_col = "cluster_id"
+    else:
+        raise ValueError("FunClu labels table must contain a cluster or cluster_id column.")
+
+    clean = labels_df[[feature_col, cluster_col]].copy()
+    clean[feature_col] = clean[feature_col].astype(str).str.strip()
+    clean[cluster_col] = clean[cluster_col].astype(str).str.strip()
+    clean = clean[(clean[feature_col] != "") & (clean[cluster_col] != "")]
+
+    cluster_map: dict[str, list[str]] = {}
+    for cluster, group in clean.groupby(cluster_col, sort=False):
+        label = str(cluster)
+        if cluster_col == "cluster_id" and not label.upper().startswith("M"):
+            label = f"M{label}"
+        features = []
+        seen: set[str] = set()
+        for feature in group[feature_col].tolist():
+            feature = str(feature)
+            if feature not in seen:
+                features.append(feature)
+                seen.add(feature)
+        cluster_map[label] = features
+
+    if not cluster_map:
+        raise ValueError("No cluster-feature mapping could be read from FunClu labels.")
+    return dict(sorted(cluster_map.items(), key=lambda item: _module_sort_key(item[0])))
+
+
+def _module_sort_key(label: str) -> tuple[int, str]:
+    text = str(label)
+    if len(text) > 1 and text[0].upper() == "M" and text[1:].isdigit():
+        return (int(text[1:]), text)
+    return (10**9, text)
+
+
+def _prepare_condition_frame(
+    raw_df: pd.DataFrame,
+    *,
+    first_column_as_sample_id: bool,
+    condition: str,
+) -> tuple[pd.DataFrame, list[str]]:
+    if raw_df.empty:
+        raise ValueError(f"Condition {condition!r} CSV is empty.")
+
+    if first_column_as_sample_id and raw_df.shape[1] >= 2:
+        sample_ids = _make_unique_labels(raw_df.iloc[:, 0].tolist())
+        feature_part = raw_df.iloc[:, 1:].copy()
+    else:
+        sample_ids = [f"{condition}_S{i}" for i in range(1, raw_df.shape[0] + 1)]
+        feature_part = raw_df.copy()
+
+    feature_part.columns = [str(col).strip() for col in feature_part.columns]
+    numeric = feature_part.apply(pd.to_numeric, errors="coerce")
+    numeric.index = sample_ids
+    return numeric, sample_ids
+
+
+def prepare_module_classification_dataset(
+    condition_tables: dict[str, pd.DataFrame],
+    labels_df: pd.DataFrame,
+    *,
+    first_column_as_sample_id: bool = True,
+    max_missing_fraction: float = 0.5,
+) -> dict[str, Any]:
+    """Merge condition CSV tables into a sample-by-feature classification dataset."""
+    if len(condition_tables) < 2:
+        raise ValueError("At least two condition CSV files are required for classification.")
+
+    cluster_map = module_feature_map_from_labels(labels_df)
+    mapped_features: list[str] = []
+    seen_features: set[str] = set()
+    for cluster in sorted(cluster_map, key=_module_sort_key):
+        for feature in cluster_map[cluster]:
+            if feature not in seen_features:
+                mapped_features.append(feature)
+                seen_features.add(feature)
+
+    condition_frames: dict[str, pd.DataFrame] = {}
+    sample_rows: list[dict[str, Any]] = []
+    for condition, raw_df in condition_tables.items():
+        frame, sample_ids = _prepare_condition_frame(
+            raw_df,
+            first_column_as_sample_id=first_column_as_sample_id,
+            condition=condition,
+        )
+        condition_frames[str(condition)] = frame
+        sample_rows.append(
+            {
+                "condition": str(condition),
+                "samples": int(frame.shape[0]),
+                "numeric_features": int(frame.shape[1]),
+            }
+        )
+
+    feature_sets = [set(frame.columns) for frame in condition_frames.values()]
+    common_feature_set = set.intersection(*feature_sets)
+    usable_features = [feature for feature in mapped_features if feature in common_feature_set]
+    if not usable_features:
+        raise ValueError(
+            "No FunClu-labeled features were found in every uploaded condition CSV."
+        )
+
+    x_parts: list[pd.DataFrame] = []
+    y_values: list[str] = []
+    sample_info_rows: list[dict[str, Any]] = []
+    for condition, frame in condition_frames.items():
+        part = frame.loc[:, usable_features].copy()
+        x_parts.append(part)
+        y_values.extend([condition] * len(part))
+        for sample_id in part.index:
+            sample_info_rows.append({"sample_id": str(sample_id), "condition": condition})
+
+    x = pd.concat(x_parts, axis=0)
+    x.index = _make_unique_labels([str(idx) for idx in x.index])
+    y = pd.Series(y_values, index=x.index, name="condition")
+
+    missing_fraction = x.isna().mean(axis=0)
+    keep_missing = missing_fraction <= float(max_missing_fraction)
+    x = x.loc[:, keep_missing].copy()
+
+    std = x.std(axis=0, ddof=0, skipna=True).fillna(0.0)
+    keep_nonconstant = std > 1e-12
+    x = x.loc[:, keep_nonconstant].copy()
+    if x.empty:
+        raise ValueError("No usable features remain after missing/constant filtering.")
+
+    filtered_cluster_map: dict[str, list[str]] = {}
+    for cluster, features in cluster_map.items():
+        filtered_cluster_map[cluster] = [feature for feature in features if feature in x.columns]
+
+    feature_summary = pd.DataFrame(
+        [
+            {
+                "module": cluster,
+                "funclu_features": int(len(features)),
+                "usable_features": int(len(filtered_cluster_map[cluster])),
+            }
+            for cluster, features in cluster_map.items()
+        ]
+    )
+    sample_summary = pd.DataFrame(sample_rows)
+    sample_info = pd.DataFrame(sample_info_rows)
+
+    diagnostics = {
+        "conditions": int(len(condition_tables)),
+        "samples": int(len(y)),
+        "funclu_features": int(len(mapped_features)),
+        "features_common_to_all_conditions": int(len(usable_features)),
+        "features_used": int(x.shape[1]),
+        "features_dropped_missing": int((~keep_missing).sum()),
+        "features_dropped_constant": int((~keep_nonconstant).sum()),
+        "max_missing_fraction": float(max_missing_fraction),
+    }
+    return {
+        "x": x,
+        "y": y,
+        "cluster_map": filtered_cluster_map,
+        "sample_summary": sample_summary,
+        "sample_info": sample_info,
+        "feature_summary": feature_summary,
+        "diagnostics": diagnostics,
+    }
+
+
+def _classification_pipeline(classifier: str, *, random_state: int) -> Pipeline:
+    classifier = str(classifier)
+    if classifier == "random_forest":
+        estimator = RandomForestClassifier(
+            n_estimators=400,
+            random_state=int(random_state),
+            class_weight="balanced_subsample",
+            min_samples_leaf=2,
+            n_jobs=-1,
+        )
+    else:
+        estimator = LogisticRegression(
+            C=1.0,
+            class_weight="balanced",
+            max_iter=5000,
+            solver="lbfgs",
+            random_state=int(random_state),
+        )
+
+    return Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+            ("classifier", estimator),
+        ]
+    )
+
+
+def _cross_validate_classifier(
+    x: pd.DataFrame,
+    y: pd.Series,
+    *,
+    classifier: str,
+    cv_folds: int,
+    random_state: int,
+    task: str,
+) -> dict[str, float]:
+    class_counts = y.value_counts()
+    if len(class_counts) < 2:
+        raise ValueError("Classification requires at least two classes.")
+    n_splits = min(int(cv_folds), int(class_counts.min()))
+    if n_splits < 2:
+        raise ValueError("Each class needs at least two samples for cross-validation.")
+
+    cv = StratifiedKFold(
+        n_splits=n_splits,
+        shuffle=True,
+        random_state=int(random_state),
+    )
+    scoring = {
+        "accuracy": "accuracy",
+        "balanced_accuracy": "balanced_accuracy",
+        "f1_macro": "f1_macro",
+    }
+    if task == "one_vs_rest":
+        scoring["roc_auc"] = "roc_auc"
+    elif len(class_counts) > 2:
+        scoring["roc_auc"] = "roc_auc_ovr_weighted"
+
+    model = _classification_pipeline(classifier, random_state=random_state)
+    try:
+        cv_result = cross_validate(
+            model,
+            x,
+            y,
+            cv=cv,
+            scoring=scoring,
+            error_score=np.nan,
+        )
+    except Exception:
+        scoring.pop("roc_auc", None)
+        cv_result = cross_validate(
+            model,
+            x,
+            y,
+            cv=cv,
+            scoring=scoring,
+            error_score=np.nan,
+        )
+
+    out: dict[str, float] = {"cv_folds_used": float(n_splits)}
+    for metric in ["accuracy", "balanced_accuracy", "f1_macro", "roc_auc"]:
+        values = cv_result.get(f"test_{metric}")
+        if values is None:
+            out[f"{metric}_mean"] = np.nan
+            out[f"{metric}_std"] = np.nan
+        else:
+            values = np.asarray(values, dtype=float)
+            out[f"{metric}_mean"] = float(np.nanmean(values))
+            out[f"{metric}_std"] = float(np.nanstd(values, ddof=0))
+
+    primary_metric = (
+        "roc_auc"
+        if pd.notna(out.get("roc_auc_mean", np.nan))
+        else "balanced_accuracy"
+    )
+    out["primary_score_mean"] = float(out[f"{primary_metric}_mean"])
+    out["primary_score_std"] = float(out[f"{primary_metric}_std"])
+    out["primary_metric"] = primary_metric  # type: ignore[assignment]
+    return out
+
+
+def run_module_classification_validation(
+    condition_tables: dict[str, pd.DataFrame],
+    labels_df: pd.DataFrame,
+    *,
+    first_column_as_sample_id: bool = True,
+    max_missing_fraction: float = 0.5,
+    task: str = "one_vs_rest",
+    positive_label: str | None = None,
+    classifier: str = "logistic_regression",
+    cv_folds: int = 5,
+    random_state: int = 123,
+) -> dict[str, Any]:
+    """Score each FunClu module as a condition classifier.
+
+    ``task='one_vs_rest'`` is the main topology-Hub validation mode: it asks
+    whether the topology Hub module for one condition is also the strongest
+    classifier for that condition.
+    """
+    dataset = prepare_module_classification_dataset(
+        condition_tables,
+        labels_df,
+        first_column_as_sample_id=first_column_as_sample_id,
+        max_missing_fraction=max_missing_fraction,
+    )
+    x: pd.DataFrame = dataset["x"]
+    y: pd.Series = dataset["y"]
+    cluster_map: dict[str, list[str]] = dataset["cluster_map"]
+
+    task = str(task)
+    if task not in {"one_vs_rest", "multiclass"}:
+        raise ValueError("task must be 'one_vs_rest' or 'multiclass'.")
+
+    if task == "one_vs_rest":
+        if positive_label is None:
+            raise ValueError("positive_label is required for one-vs-rest classification.")
+        positive_label = str(positive_label)
+        if positive_label not in set(y.astype(str)):
+            raise ValueError(f"Positive label {positive_label!r} was not found.")
+        y_model = (y.astype(str) == positive_label).astype(int)
+        task_label = f"{positive_label} vs Other"
+    else:
+        y_model = y.astype(str)
+        task_label = "multiclass"
+
+    module_features = {
+        module: [feature for feature in features if feature in x.columns]
+        for module, features in cluster_map.items()
+    }
+    module_features["All"] = list(x.columns)
+
+    rows: list[dict[str, Any]] = []
+    for module in sorted(module_features, key=lambda m: (m == "All", _module_sort_key(m))):
+        features = module_features[module]
+        base_row: dict[str, Any] = {
+            "module": module,
+            "task": task_label,
+            "classifier": classifier,
+            "n_features": int(len(features)),
+            "n_samples": int(len(y_model)),
+            "n_classes": int(y_model.nunique()),
+        }
+        if len(features) == 0:
+            base_row.update(
+                {
+                    "status": "no usable features",
+                    "primary_metric": "",
+                    "primary_score_mean": np.nan,
+                    "primary_score_std": np.nan,
+                    "accuracy_mean": np.nan,
+                    "accuracy_std": np.nan,
+                    "balanced_accuracy_mean": np.nan,
+                    "balanced_accuracy_std": np.nan,
+                    "f1_macro_mean": np.nan,
+                    "f1_macro_std": np.nan,
+                    "roc_auc_mean": np.nan,
+                    "roc_auc_std": np.nan,
+                    "cv_folds_used": np.nan,
+                }
+            )
+        else:
+            try:
+                scores = _cross_validate_classifier(
+                    x.loc[:, features],
+                    y_model,
+                    classifier=classifier,
+                    cv_folds=int(cv_folds),
+                    random_state=int(random_state),
+                    task=task,
+                )
+            except Exception as exc:
+                scores = {
+                    "status": f"failed: {exc}",
+                    "primary_metric": "",
+                    "primary_score_mean": np.nan,
+                    "primary_score_std": np.nan,
+                    "accuracy_mean": np.nan,
+                    "accuracy_std": np.nan,
+                    "balanced_accuracy_mean": np.nan,
+                    "balanced_accuracy_std": np.nan,
+                    "f1_macro_mean": np.nan,
+                    "f1_macro_std": np.nan,
+                    "roc_auc_mean": np.nan,
+                    "roc_auc_std": np.nan,
+                    "cv_folds_used": np.nan,
+                }
+            else:
+                scores["status"] = "ok"
+            base_row.update(scores)
+        rows.append(base_row)
+
+    scores_df = pd.DataFrame(rows)
+    scores_df = scores_df.sort_values(
+        ["primary_score_mean", "n_features"],
+        ascending=[False, False],
+        na_position="last",
+    ).reset_index(drop=True)
+    scores_df.insert(0, "module_rank", np.arange(1, len(scores_df) + 1))
+
+    return {
+        "scores": scores_df,
+        "dataset": {
+            "sample_summary": dataset["sample_summary"],
+            "feature_summary": dataset["feature_summary"],
+            "diagnostics": dataset["diagnostics"],
+        },
+        "task": task,
+        "positive_label": positive_label,
+    }
+
+
+def topology_hubs_from_adjacencies(
+    topology_adjs: dict[str, pd.DataFrame],
+    *,
+    rank_metric: str = "out_degree",
+    edge_threshold: float = 0.0,
+) -> pd.DataFrame:
+    """Return the top inter-cluster Hub for each NetRecon condition adjacency."""
+    rows: list[dict[str, Any]] = []
+    for key, adj in topology_adjs.items():
+        if not str(key).startswith("inter_cluster/"):
+            continue
+        condition = str(key).split("/", 1)[1]
+        hub_table = hub_table_from_adjacency(
+            adj,
+            edge_threshold=float(edge_threshold),
+            rank_metric=str(rank_metric),
+        )
+        if hub_table.empty:
+            continue
+        top = hub_table.iloc[0]
+        rows.append(
+            {
+                "condition": condition,
+                "topology_key": key,
+                "topology_hub": str(top["variable"]),
+                "rank_metric": rank_metric,
+                "rank_value": float(top[rank_metric]) if rank_metric in top else np.nan,
+                "out_degree": int(top["out_degree"]) if "out_degree" in top else np.nan,
+                "out_strength": float(top["out_strength"]) if "out_strength" in top else np.nan,
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 def get_funclu_ml_matrix(

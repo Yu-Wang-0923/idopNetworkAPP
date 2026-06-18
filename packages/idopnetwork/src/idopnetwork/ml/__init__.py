@@ -9,8 +9,11 @@ from idopnetwork.ml.core import (
     load_funclu_k_export,
     load_idopnetwork_adjacencies,
     matching_topology_key,
+    module_feature_map_from_labels,
     prepare_variable_sample_matrix,
+    run_module_classification_validation,
     signed_edges_to_adjacency,
+    topology_hubs_from_adjacencies,
 )
 
 __all__ = [
@@ -22,6 +25,9 @@ __all__ = [
     "load_funclu_k_export",
     "load_idopnetwork_adjacencies",
     "matching_topology_key",
+    "module_feature_map_from_labels",
     "prepare_variable_sample_matrix",
+    "run_module_classification_validation",
     "signed_edges_to_adjacency",
+    "topology_hubs_from_adjacencies",
 ]
