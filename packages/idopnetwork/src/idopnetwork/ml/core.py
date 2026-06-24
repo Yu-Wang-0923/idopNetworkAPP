@@ -26,9 +26,17 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.impute import SimpleImputer
+from sklearn.inspection import permutation_importance
 from sklearn.linear_model import ElasticNet, ElasticNetCV
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import (
+    accuracy_score,
+    balanced_accuracy_score,
+    f1_score,
+    mean_squared_error,
+    r2_score,
+    roc_auc_score,
+)
 from sklearn.model_selection import StratifiedKFold, cross_validate
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -441,6 +449,277 @@ def _cross_validate_classifier(
     return out
 
 
+def _module_feature_sets(
+    x: pd.DataFrame,
+    cluster_map: dict[str, list[str]],
+    *,
+    include_all: bool = True,
+) -> dict[str, list[str]]:
+    module_features = {
+        module: [feature for feature in features if feature in x.columns]
+        for module, features in cluster_map.items()
+    }
+    if include_all:
+        module_features["All"] = list(x.columns)
+    return module_features
+
+
+def _score_fitted_classifier(
+    model: Pipeline,
+    x_test: pd.DataFrame,
+    y_test: pd.Series,
+    *,
+    task: str,
+) -> dict[str, float | str]:
+    y_pred = model.predict(x_test)
+    out: dict[str, float | str] = {
+        "accuracy": float(accuracy_score(y_test, y_pred)),
+        "balanced_accuracy": float(balanced_accuracy_score(y_test, y_pred)),
+        "f1_macro": float(f1_score(y_test, y_pred, average="macro", zero_division=0)),
+        "roc_auc": np.nan,
+    }
+
+    try:
+        proba = model.predict_proba(x_test)
+        if task == "one_vs_rest":
+            if len(np.unique(y_test)) >= 2 and proba.shape[1] >= 2:
+                out["roc_auc"] = float(roc_auc_score(y_test, proba[:, 1]))
+        elif proba.shape[1] >= 2:
+            classes = list(model.named_steps["classifier"].classes_)
+            out["roc_auc"] = float(
+                roc_auc_score(
+                    y_test,
+                    proba,
+                    labels=classes,
+                    multi_class="ovr",
+                    average="weighted",
+                )
+            )
+    except Exception:
+        out["roc_auc"] = np.nan
+
+    primary_metric = "roc_auc" if pd.notna(out["roc_auc"]) else "balanced_accuracy"
+    out["primary_metric"] = primary_metric
+    out["primary_score"] = float(out[primary_metric])
+    return out
+
+
+def run_module_stability_validation(
+    condition_tables: dict[str, pd.DataFrame],
+    labels_df: pd.DataFrame,
+    *,
+    first_column_as_sample_id: bool = True,
+    max_missing_fraction: float = 0.5,
+    task: str = "one_vs_rest",
+    positive_label: str | None = None,
+    classifier: str = "logistic_regression",
+    cv_folds: int = 5,
+    n_repeats: int = 20,
+    include_all: bool = True,
+    random_state: int = 123,
+) -> dict[str, Any]:
+    """Repeated CV stability of module ranks for condition classification."""
+    dataset = prepare_module_classification_dataset(
+        condition_tables,
+        labels_df,
+        first_column_as_sample_id=first_column_as_sample_id,
+        max_missing_fraction=max_missing_fraction,
+    )
+    x: pd.DataFrame = dataset["x"]
+    y: pd.Series = dataset["y"].astype(str)
+    cluster_map: dict[str, list[str]] = dataset["cluster_map"]
+
+    task = str(task)
+    if task not in {"one_vs_rest", "multiclass"}:
+        raise ValueError("task must be 'one_vs_rest' or 'multiclass'.")
+    if task == "one_vs_rest":
+        if positive_label is None:
+            raise ValueError("positive_label is required for one-vs-rest stability.")
+        positive_label = str(positive_label)
+        if positive_label not in set(y):
+            raise ValueError(f"Positive label {positive_label!r} was not found.")
+        y_model = (y == positive_label).astype(int)
+        task_label = f"{positive_label} vs Other"
+    else:
+        y_model = y
+        task_label = "multiclass"
+
+    class_counts = y_model.value_counts()
+    if len(class_counts) < 2:
+        raise ValueError("Stability validation requires at least two classes.")
+    n_splits = min(int(cv_folds), int(class_counts.min()))
+    if n_splits < 2:
+        raise ValueError("Each class needs at least two samples for repeated CV.")
+    repeats = max(1, int(n_repeats))
+
+    module_features = _module_feature_sets(
+        x,
+        cluster_map,
+        include_all=bool(include_all),
+    )
+    split_rows: list[dict[str, Any]] = []
+    split_index = 0
+    for repeat_idx in range(repeats):
+        cv = StratifiedKFold(
+            n_splits=n_splits,
+            shuffle=True,
+            random_state=int(random_state) + repeat_idx,
+        )
+        for fold_idx, (train_idx, test_idx) in enumerate(cv.split(x, y_model), start=1):
+            split_index += 1
+            fold_rows: list[dict[str, Any]] = []
+            x_train = x.iloc[train_idx]
+            x_test = x.iloc[test_idx]
+            y_train = y_model.iloc[train_idx]
+            y_test = y_model.iloc[test_idx]
+
+            for module in sorted(module_features, key=lambda m: (m == "All", _module_sort_key(m))):
+                features = module_features[module]
+                base_row: dict[str, Any] = {
+                    "split_id": split_index,
+                    "repeat": repeat_idx + 1,
+                    "fold": fold_idx,
+                    "module": module,
+                    "task": task_label,
+                    "classifier": classifier,
+                    "n_features": int(len(features)),
+                    "train_samples": int(len(y_train)),
+                    "test_samples": int(len(y_test)),
+                }
+                if not features:
+                    base_row.update(
+                        {
+                            "status": "no usable features",
+                            "primary_metric": "",
+                            "primary_score": np.nan,
+                            "accuracy": np.nan,
+                            "balanced_accuracy": np.nan,
+                            "f1_macro": np.nan,
+                            "roc_auc": np.nan,
+                        }
+                    )
+                else:
+                    try:
+                        model = _classification_pipeline(
+                            classifier,
+                            random_state=int(random_state) + repeat_idx,
+                        )
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore", category=ConvergenceWarning)
+                            model.fit(x_train.loc[:, features], y_train)
+                        scores = _score_fitted_classifier(
+                            model,
+                            x_test.loc[:, features],
+                            y_test,
+                            task=task,
+                        )
+                    except Exception as exc:
+                        scores = {
+                            "status": f"failed: {exc}",
+                            "primary_metric": "",
+                            "primary_score": np.nan,
+                            "accuracy": np.nan,
+                            "balanced_accuracy": np.nan,
+                            "f1_macro": np.nan,
+                            "roc_auc": np.nan,
+                        }
+                    else:
+                        scores["status"] = "ok"
+                    base_row.update(scores)
+                fold_rows.append(base_row)
+
+            fold_df = pd.DataFrame(fold_rows)
+            ok_mask = fold_df["status"].eq("ok") & pd.notna(fold_df["primary_score"])
+            if ok_mask.any():
+                ranked = fold_df.loc[ok_mask].sort_values(
+                    ["primary_score", "n_features"],
+                    ascending=[False, False],
+                )
+                rank_map = {
+                    str(module): rank
+                    for rank, module in enumerate(ranked["module"].astype(str), start=1)
+                }
+                fold_df["split_rank"] = fold_df["module"].astype(str).map(rank_map)
+            else:
+                fold_df["split_rank"] = np.nan
+            split_rows.extend(fold_df.to_dict("records"))
+
+    split_scores = pd.DataFrame(split_rows)
+    summary_rows: list[dict[str, Any]] = []
+    for module, group in split_scores.groupby("module", sort=False):
+        ok = group[group["status"].eq("ok") & pd.notna(group["primary_score"])].copy()
+        values = ok["primary_score"].astype(float).to_numpy()
+        ranks = ok["split_rank"].astype(float).to_numpy()
+        if values.size == 0:
+            summary_rows.append(
+                {
+                    "module": module,
+                    "status": "no successful splits",
+                    "primary_metric": "",
+                    "primary_score_mean": np.nan,
+                    "primary_score_std": np.nan,
+                    "primary_score_p025": np.nan,
+                    "primary_score_p975": np.nan,
+                    "mean_rank": np.nan,
+                    "rank_std": np.nan,
+                    "rank_1_frequency": np.nan,
+                    "top_2_frequency": np.nan,
+                    "top_3_frequency": np.nan,
+                    "successful_splits": 0,
+                    "total_splits": int(group["split_id"].nunique()),
+                    "n_features": int(group["n_features"].max()) if "n_features" in group else 0,
+                }
+            )
+            continue
+
+        primary_metric = (
+            ok["primary_metric"].mode().iloc[0]
+            if not ok["primary_metric"].dropna().empty
+            else "primary_score"
+        )
+        summary_rows.append(
+            {
+                "module": module,
+                "status": "ok",
+                "primary_metric": str(primary_metric),
+                "primary_score_mean": float(np.mean(values)),
+                "primary_score_std": float(np.std(values, ddof=0)),
+                "primary_score_p025": float(np.quantile(values, 0.025)),
+                "primary_score_p975": float(np.quantile(values, 0.975)),
+                "mean_rank": float(np.nanmean(ranks)),
+                "rank_std": float(np.nanstd(ranks, ddof=0)),
+                "rank_1_frequency": float(np.mean(ranks == 1)),
+                "top_2_frequency": float(np.mean(ranks <= 2)),
+                "top_3_frequency": float(np.mean(ranks <= 3)),
+                "successful_splits": int(len(ok)),
+                "total_splits": int(group["split_id"].nunique()),
+                "n_features": int(group["n_features"].max()),
+            }
+        )
+
+    summary_df = pd.DataFrame(summary_rows)
+    summary_df = summary_df.sort_values(
+        ["rank_1_frequency", "primary_score_mean", "mean_rank"],
+        ascending=[False, False, True],
+        na_position="last",
+    ).reset_index(drop=True)
+    summary_df.insert(0, "stability_rank", np.arange(1, len(summary_df) + 1))
+
+    return {
+        "summary": summary_df,
+        "split_scores": split_scores,
+        "dataset": {
+            "sample_summary": dataset["sample_summary"],
+            "feature_summary": dataset["feature_summary"],
+            "diagnostics": dataset["diagnostics"],
+        },
+        "task": task,
+        "positive_label": positive_label,
+        "cv_folds_used": int(n_splits),
+        "n_repeats": int(repeats),
+    }
+
+
 def run_module_classification_validation(
     condition_tables: dict[str, pd.DataFrame],
     labels_df: pd.DataFrame,
@@ -568,6 +847,536 @@ def run_module_classification_validation(
         },
         "task": task,
         "positive_label": positive_label,
+    }
+
+
+def run_module_single_feature_validation(
+    condition_tables: dict[str, pd.DataFrame],
+    labels_df: pd.DataFrame,
+    *,
+    modules: list[str],
+    first_column_as_sample_id: bool = True,
+    max_missing_fraction: float = 0.5,
+    task: str = "one_vs_rest",
+    positive_label: str | None = None,
+    classifier: str = "logistic_regression",
+    cv_folds: int = 5,
+    random_state: int = 123,
+    max_features_per_module: int | None = None,
+) -> dict[str, Any]:
+    """Score each single feature inside selected modules as a classifier.
+
+    This follows the Feishu validation figure pattern: compare a module's
+    whole-feature score against the scores obtained by using each feature in
+    that module alone.
+    """
+    selected_modules = []
+    seen_modules: set[str] = set()
+    for module in modules:
+        module = str(module)
+        if module and module not in seen_modules:
+            selected_modules.append(module)
+            seen_modules.add(module)
+    if not selected_modules:
+        raise ValueError("At least one module is required.")
+
+    dataset = prepare_module_classification_dataset(
+        condition_tables,
+        labels_df,
+        first_column_as_sample_id=first_column_as_sample_id,
+        max_missing_fraction=max_missing_fraction,
+    )
+    x: pd.DataFrame = dataset["x"]
+    y: pd.Series = dataset["y"].astype(str)
+    cluster_map: dict[str, list[str]] = dataset["cluster_map"]
+
+    task = str(task)
+    if task not in {"one_vs_rest", "multiclass"}:
+        raise ValueError("task must be 'one_vs_rest' or 'multiclass'.")
+
+    if task == "one_vs_rest":
+        if positive_label is None:
+            raise ValueError("positive_label is required for one-vs-rest validation.")
+        positive_label = str(positive_label)
+        if positive_label not in set(y):
+            raise ValueError(f"Positive label {positive_label!r} was not found.")
+        y_model = (y == positive_label).astype(int)
+        task_label = f"{positive_label} vs Other"
+    else:
+        y_model = y
+        task_label = "multiclass"
+
+    max_features = (
+        int(max_features_per_module)
+        if max_features_per_module is not None and int(max_features_per_module) > 0
+        else None
+    )
+
+    module_rows: list[dict[str, Any]] = []
+    feature_rows: list[dict[str, Any]] = []
+    selected_features: dict[str, list[str]] = {}
+    for module in selected_modules:
+        if module not in cluster_map:
+            raise ValueError(f"Module {module!r} was not found in FunClu labels.")
+
+        features = [feature for feature in cluster_map[module] if feature in x.columns]
+        if max_features is not None and len(features) > max_features:
+            variances = x.loc[:, features].var(axis=0, skipna=True).sort_values(
+                ascending=False
+            )
+            features = [str(feature) for feature in variances.head(max_features).index]
+        selected_features[module] = [str(feature) for feature in features]
+
+        module_base: dict[str, Any] = {
+            "module": module,
+            "task": task_label,
+            "classifier": classifier,
+            "n_features": int(len(features)),
+            "n_samples": int(len(y_model)),
+            "n_classes": int(pd.Series(y_model).nunique()),
+        }
+        if not features:
+            module_scores = {
+                "status": "no usable features",
+                "primary_metric": "",
+                "primary_score_mean": np.nan,
+                "primary_score_std": np.nan,
+                "accuracy_mean": np.nan,
+                "accuracy_std": np.nan,
+                "balanced_accuracy_mean": np.nan,
+                "balanced_accuracy_std": np.nan,
+                "f1_macro_mean": np.nan,
+                "f1_macro_std": np.nan,
+                "roc_auc_mean": np.nan,
+                "roc_auc_std": np.nan,
+                "cv_folds_used": np.nan,
+            }
+        else:
+            try:
+                module_scores = _cross_validate_classifier(
+                    x.loc[:, features],
+                    y_model,
+                    classifier=classifier,
+                    cv_folds=int(cv_folds),
+                    random_state=int(random_state),
+                    task=task,
+                )
+            except Exception as exc:
+                module_scores = {
+                    "status": f"failed: {exc}",
+                    "primary_metric": "",
+                    "primary_score_mean": np.nan,
+                    "primary_score_std": np.nan,
+                    "accuracy_mean": np.nan,
+                    "accuracy_std": np.nan,
+                    "balanced_accuracy_mean": np.nan,
+                    "balanced_accuracy_std": np.nan,
+                    "f1_macro_mean": np.nan,
+                    "f1_macro_std": np.nan,
+                    "roc_auc_mean": np.nan,
+                    "roc_auc_std": np.nan,
+                    "cv_folds_used": np.nan,
+                }
+            else:
+                module_scores["status"] = "ok"
+        module_base.update(module_scores)
+        module_rows.append(module_base)
+
+        for feature in features:
+            feature_base: dict[str, Any] = {
+                "module": module,
+                "feature": str(feature),
+                "task": task_label,
+                "classifier": classifier,
+                "n_features": 1,
+                "n_samples": int(len(y_model)),
+                "n_classes": int(pd.Series(y_model).nunique()),
+                "module_primary_score_mean": module_base.get(
+                    "primary_score_mean",
+                    np.nan,
+                ),
+                "module_primary_score_std": module_base.get(
+                    "primary_score_std",
+                    np.nan,
+                ),
+                "module_primary_metric": module_base.get("primary_metric", ""),
+                "module_n_features": int(len(features)),
+            }
+            try:
+                feature_scores = _cross_validate_classifier(
+                    x.loc[:, [feature]],
+                    y_model,
+                    classifier=classifier,
+                    cv_folds=int(cv_folds),
+                    random_state=int(random_state),
+                    task=task,
+                )
+            except Exception as exc:
+                feature_scores = {
+                    "status": f"failed: {exc}",
+                    "primary_metric": "",
+                    "primary_score_mean": np.nan,
+                    "primary_score_std": np.nan,
+                    "accuracy_mean": np.nan,
+                    "accuracy_std": np.nan,
+                    "balanced_accuracy_mean": np.nan,
+                    "balanced_accuracy_std": np.nan,
+                    "f1_macro_mean": np.nan,
+                    "f1_macro_std": np.nan,
+                    "roc_auc_mean": np.nan,
+                    "roc_auc_std": np.nan,
+                    "cv_folds_used": np.nan,
+                }
+            else:
+                feature_scores["status"] = "ok"
+            feature_base.update(feature_scores)
+            feature_rows.append(feature_base)
+
+    module_scores_df = pd.DataFrame(module_rows)
+    if not module_scores_df.empty:
+        module_scores_df = module_scores_df.sort_values(
+            ["primary_score_mean", "n_features"],
+            ascending=[False, False],
+            na_position="last",
+        ).reset_index(drop=True)
+        module_scores_df.insert(
+            0,
+            "module_single_feature_rank",
+            np.arange(1, len(module_scores_df) + 1),
+        )
+
+    feature_scores_df = pd.DataFrame(feature_rows)
+    if not feature_scores_df.empty:
+        feature_scores_df = feature_scores_df.sort_values(
+            ["module", "primary_score_mean", "feature"],
+            ascending=[True, False, True],
+            na_position="last",
+        ).reset_index(drop=True)
+        feature_scores_df.insert(
+            0,
+            "feature_rank_within_module",
+            feature_scores_df.groupby("module").cumcount() + 1,
+        )
+
+    return {
+        "feature_scores": feature_scores_df,
+        "module_scores": module_scores_df,
+        "dataset": {
+            "sample_summary": dataset["sample_summary"],
+            "feature_summary": dataset["feature_summary"],
+            "diagnostics": dataset["diagnostics"],
+        },
+        "selected_features": selected_features,
+        "context": {
+            "modules": selected_modules,
+            "task": task,
+            "task_label": task_label,
+            "positive_label": positive_label if positive_label is not None else "",
+            "classifier": classifier,
+            "cv_folds": int(cv_folds),
+            "max_features_per_module": max_features,
+        },
+    }
+
+
+def run_intra_module_feature_importance(
+    condition_tables: dict[str, pd.DataFrame],
+    labels_df: pd.DataFrame,
+    *,
+    module: str,
+    first_column_as_sample_id: bool = True,
+    max_missing_fraction: float = 0.5,
+    positive_label: str | None = None,
+    classifier: str = "logistic_regression",
+    cv_folds: int = 5,
+    random_state: int = 123,
+    n_repeats: int = 20,
+) -> dict[str, Any]:
+    """Rank features inside one FunClu module for one-vs-rest validation.
+
+    This is the intra-cluster counterpart of module-level classification:
+    after a topology/ML workflow points to a candidate Hub module, the model
+    asks which features inside that module carry the strongest condition signal.
+    """
+    if positive_label is None:
+        raise ValueError("positive_label is required for intra-module validation.")
+
+    dataset = prepare_module_classification_dataset(
+        condition_tables,
+        labels_df,
+        first_column_as_sample_id=first_column_as_sample_id,
+        max_missing_fraction=max_missing_fraction,
+    )
+    x: pd.DataFrame = dataset["x"]
+    y: pd.Series = dataset["y"].astype(str)
+    cluster_map: dict[str, list[str]] = dataset["cluster_map"]
+
+    module = str(module)
+    positive_label = str(positive_label)
+    if positive_label not in set(y):
+        raise ValueError(f"Positive label {positive_label!r} was not found.")
+    if module not in cluster_map:
+        raise ValueError(f"Module {module!r} was not found in FunClu labels.")
+
+    features = [feature for feature in cluster_map[module] if feature in x.columns]
+    if not features:
+        raise ValueError(f"Module {module!r} has no usable features after filtering.")
+
+    y_model = (y == positive_label).astype(int)
+    x_module = x.loc[:, features].copy()
+    module_scores = _cross_validate_classifier(
+        x_module,
+        y_model,
+        classifier=classifier,
+        cv_folds=int(cv_folds),
+        random_state=int(random_state),
+        task="one_vs_rest",
+    )
+
+    model = _classification_pipeline(classifier, random_state=int(random_state))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=ConvergenceWarning)
+        model.fit(x_module, y_model)
+
+    repeats = max(1, int(n_repeats))
+    try:
+        perm = permutation_importance(
+            model,
+            x_module,
+            y_model,
+            scoring="roc_auc",
+            n_repeats=repeats,
+            random_state=int(random_state),
+            n_jobs=1,
+        )
+        perm_mean = perm.importances_mean
+        perm_std = perm.importances_std
+    except Exception:
+        perm_mean = np.full(len(features), np.nan)
+        perm_std = np.full(len(features), np.nan)
+
+    estimator = model.named_steps["classifier"]
+    coefficients = np.full(len(features), np.nan, dtype=float)
+    embedded_importance = np.full(len(features), np.nan, dtype=float)
+    if hasattr(estimator, "coef_"):
+        coef = np.asarray(estimator.coef_, dtype=float)
+        if coef.ndim == 2 and coef.shape[0] >= 1:
+            coefficients = coef[0]
+    if hasattr(estimator, "feature_importances_"):
+        embedded_importance = np.asarray(estimator.feature_importances_, dtype=float)
+
+    pos_mask = y == positive_label
+    positive_means = x_module.loc[pos_mask].mean(axis=0, skipna=True)
+    other_means = x_module.loc[~pos_mask].mean(axis=0, skipna=True)
+    missing_fraction = x_module.isna().mean(axis=0)
+
+    rows: list[dict[str, Any]] = []
+    for idx, feature in enumerate(features):
+        coefficient = float(coefficients[idx])
+        mean_positive = float(positive_means.loc[feature])
+        mean_other = float(other_means.loc[feature])
+        mean_difference = mean_positive - mean_other
+        if pd.notna(coefficient):
+            if coefficient > 0:
+                direction = f"higher -> {positive_label}"
+            elif coefficient < 0:
+                direction = f"higher -> other"
+            else:
+                direction = "neutral"
+        elif mean_difference > 0:
+            direction = f"higher in {positive_label}"
+        elif mean_difference < 0:
+            direction = "higher in other"
+        else:
+            direction = "neutral"
+
+        rows.append(
+            {
+                "module": module,
+                "feature": str(feature),
+                "positive_condition": positive_label,
+                "classifier": classifier,
+                "coefficient": coefficient,
+                "abs_coefficient": abs(coefficient) if pd.notna(coefficient) else np.nan,
+                "embedded_importance": float(embedded_importance[idx]),
+                "permutation_importance_mean": float(perm_mean[idx]),
+                "permutation_importance_std": float(perm_std[idx]),
+                "mean_positive": mean_positive,
+                "mean_other": mean_other,
+                "mean_difference": mean_difference,
+                "abs_mean_difference": abs(mean_difference),
+                "missing_fraction": float(missing_fraction.loc[feature]),
+                "direction": direction,
+            }
+        )
+
+    importance_df = pd.DataFrame(rows)
+    importance_df = importance_df.sort_values(
+        [
+            "permutation_importance_mean",
+            "abs_coefficient",
+            "embedded_importance",
+            "abs_mean_difference",
+        ],
+        ascending=[False, False, False, False],
+        na_position="last",
+    ).reset_index(drop=True)
+    importance_df.insert(0, "feature_rank", np.arange(1, len(importance_df) + 1))
+
+    module_scores.update(
+        {
+            "module": module,
+            "positive_label": positive_label,
+            "classifier": classifier,
+            "n_features": int(len(features)),
+            "n_samples": int(len(y_model)),
+        }
+    )
+
+    return {
+        "importance": importance_df,
+        "module_score": module_scores,
+        "dataset": {
+            "sample_summary": dataset["sample_summary"],
+            "feature_summary": dataset["feature_summary"],
+            "diagnostics": dataset["diagnostics"],
+        },
+        "selected_features": features,
+    }
+
+
+def predict_unknown_condition_samples(
+    condition_tables: dict[str, pd.DataFrame],
+    labels_df: pd.DataFrame,
+    unknown_table: pd.DataFrame,
+    *,
+    module: str = "All",
+    first_column_as_sample_id: bool = True,
+    unknown_first_column_as_sample_id: bool | None = None,
+    max_missing_fraction: float = 0.5,
+    task: str = "multiclass",
+    positive_label: str | None = None,
+    classifier: str = "logistic_regression",
+    random_state: int = 123,
+) -> dict[str, Any]:
+    """Train a condition classifier and predict labels for unknown samples."""
+    if unknown_first_column_as_sample_id is None:
+        unknown_first_column_as_sample_id = first_column_as_sample_id
+
+    dataset = prepare_module_classification_dataset(
+        condition_tables,
+        labels_df,
+        first_column_as_sample_id=first_column_as_sample_id,
+        max_missing_fraction=max_missing_fraction,
+    )
+    x: pd.DataFrame = dataset["x"]
+    y: pd.Series = dataset["y"].astype(str)
+    cluster_map: dict[str, list[str]] = dataset["cluster_map"]
+
+    module = str(module)
+    if module == "All":
+        features = list(x.columns)
+    else:
+        if module not in cluster_map:
+            raise ValueError(f"Module {module!r} was not found in FunClu labels.")
+        features = [feature for feature in cluster_map[module] if feature in x.columns]
+    if not features:
+        raise ValueError(f"Prediction feature set {module!r} has no usable features.")
+
+    task = str(task)
+    if task not in {"one_vs_rest", "multiclass"}:
+        raise ValueError("task must be 'one_vs_rest' or 'multiclass'.")
+    if task == "one_vs_rest":
+        if positive_label is None:
+            raise ValueError("positive_label is required for one-vs-rest prediction.")
+        positive_label = str(positive_label)
+        if positive_label not in set(y):
+            raise ValueError(f"Positive label {positive_label!r} was not found.")
+        y_model = (y == positive_label).astype(int)
+        class_labels = ["Other", positive_label]
+    else:
+        y_model = y
+        class_labels = sorted(y.unique().tolist())
+
+    unknown_numeric, sample_ids = _prepare_condition_frame(
+        unknown_table,
+        first_column_as_sample_id=bool(unknown_first_column_as_sample_id),
+        condition="unknown",
+    )
+    if unknown_numeric.empty:
+        raise ValueError("Unknown sample CSV is empty after reading numeric columns.")
+    unknown_x = unknown_numeric.reindex(columns=features)
+
+    model = _classification_pipeline(classifier, random_state=int(random_state))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=ConvergenceWarning)
+        model.fit(x.loc[:, features], y_model)
+
+    pred = model.predict(unknown_x)
+    proba = model.predict_proba(unknown_x)
+    estimator = model.named_steps["classifier"]
+    model_classes = list(estimator.classes_)
+
+    rows: list[dict[str, Any]] = []
+    for row_idx, sample_id in enumerate(sample_ids):
+        if task == "one_vs_rest":
+            positive_class_index = model_classes.index(1) if 1 in model_classes else -1
+            positive_prob = (
+                float(proba[row_idx, positive_class_index])
+                if positive_class_index >= 0
+                else np.nan
+            )
+            predicted_label = positive_label if int(pred[row_idx]) == 1 else "Other"
+            confidence = (
+                max(positive_prob, 1.0 - positive_prob)
+                if pd.notna(positive_prob)
+                else np.nan
+            )
+            row = {
+                "sample_id": str(sample_id),
+                "predicted_label": predicted_label,
+                "confidence": float(confidence) if pd.notna(confidence) else np.nan,
+                f"prob_{positive_label}": positive_prob,
+                "prob_Other": 1.0 - positive_prob if pd.notna(positive_prob) else np.nan,
+            }
+        else:
+            class_prob = {
+                f"prob_{str(cls)}": float(proba[row_idx, col_idx])
+                for col_idx, cls in enumerate(model_classes)
+            }
+            predicted_label = str(pred[row_idx])
+            predicted_prob_key = f"prob_{predicted_label}"
+            row = {
+                "sample_id": str(sample_id),
+                "predicted_label": predicted_label,
+                "confidence": class_prob.get(predicted_prob_key, np.nan),
+            }
+            row.update(class_prob)
+        rows.append(row)
+
+    prediction_df = pd.DataFrame(rows)
+    missing_features = [feature for feature in features if feature not in unknown_numeric.columns]
+    extra_features = [feature for feature in unknown_numeric.columns if feature not in features]
+    context = {
+        "module": module,
+        "classifier": classifier,
+        "task": task,
+        "positive_label": positive_label if positive_label is not None else "",
+        "n_training_samples": int(len(y_model)),
+        "n_unknown_samples": int(len(prediction_df)),
+        "n_features_used": int(len(features)),
+        "classes": class_labels,
+        "missing_features_in_unknown": missing_features,
+        "extra_features_ignored": extra_features,
+    }
+    return {
+        "predictions": prediction_df,
+        "context": context,
+        "dataset": {
+            "sample_summary": dataset["sample_summary"],
+            "feature_summary": dataset["feature_summary"],
+            "diagnostics": dataset["diagnostics"],
+        },
     }
 
 

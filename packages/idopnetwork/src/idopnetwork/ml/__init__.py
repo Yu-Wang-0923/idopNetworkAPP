@@ -11,7 +11,11 @@ from idopnetwork.ml.core import (
     matching_topology_key,
     module_feature_map_from_labels,
     prepare_variable_sample_matrix,
+    predict_unknown_condition_samples,
+    run_intra_module_feature_importance,
+    run_module_stability_validation,
     run_module_classification_validation,
+    run_module_single_feature_validation,
     signed_edges_to_adjacency,
     topology_hubs_from_adjacencies,
 )
@@ -27,7 +31,11 @@ __all__ = [
     "matching_topology_key",
     "module_feature_map_from_labels",
     "prepare_variable_sample_matrix",
+    "predict_unknown_condition_samples",
+    "run_intra_module_feature_importance",
+    "run_module_stability_validation",
     "run_module_classification_validation",
+    "run_module_single_feature_validation",
     "signed_edges_to_adjacency",
     "topology_hubs_from_adjacencies",
 ]

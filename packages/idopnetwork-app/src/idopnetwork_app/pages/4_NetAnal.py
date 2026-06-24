@@ -39,7 +39,12 @@ from idopnetwork.ml.core import (
     load_funclu_k_export,
     load_idopnetwork_adjacencies,
     matching_topology_key,
+    module_feature_map_from_labels,
+    predict_unknown_condition_samples,
+    run_intra_module_feature_importance,
     run_module_classification_validation,
+    run_module_single_feature_validation,
+    run_module_stability_validation,
     topology_hubs_from_adjacencies,
 )
 from idopnetwork.ml.plot import plot_hub_network
@@ -57,6 +62,397 @@ from idopnetwork.analysis.glmy_test import (
 )
 
 PAPER_3_2_DEFAULT_MAX_X: float = 5.5
+
+
+def _clean_condition_label(value: object) -> str:
+    """Normalize condition/file labels for loose topology-vs-ML matching."""
+    text = os.path.basename(str(value).strip())
+    text = os.path.splitext(text)[0]
+    return text.casefold()
+
+
+def _topology_rows_for_classification(
+    topology_hubs: pd.DataFrame,
+    *,
+    positive_label: str,
+    module_names: list[str],
+) -> tuple[pd.DataFrame, str]:
+    """Choose topology Hub rows that should be compared with classification scores."""
+    if topology_hubs.empty:
+        return topology_hubs, "not uploaded"
+
+    positive_key = _clean_condition_label(positive_label)
+    exact_mask = topology_hubs["condition"].map(
+        lambda value: _clean_condition_label(value) == positive_key
+    )
+    exact_rows = topology_hubs[exact_mask].copy()
+    if not exact_rows.empty:
+        return exact_rows, "matched condition name"
+
+    if len(topology_hubs) == 1:
+        return topology_hubs.copy(), "single inter-cluster topology fallback"
+
+    module_set = {str(name) for name in module_names if str(name) != "All"}
+    module_rows = topology_hubs[
+        topology_hubs["topology_hub"].astype(str).isin(module_set)
+    ].copy()
+    if not module_rows.empty:
+        return module_rows.drop_duplicates("topology_hub"), "matched Hub module name"
+
+    return topology_hubs.iloc[0:0].copy(), "no topology row matched"
+
+
+def _plot_module_classification_scores(
+    scores: pd.DataFrame,
+    *,
+    expected_hubs: list[str],
+    task_label: str,
+):
+    """Visualize module-level classification scores for Hub validation."""
+    if scores.empty or "primary_score_mean" not in scores.columns:
+        return None
+
+    plot_df = scores.copy()
+    plot_df["module"] = plot_df["module"].astype(str)
+    plot_df["score"] = pd.to_numeric(
+        plot_df["primary_score_mean"],
+        errors="coerce",
+    )
+    if "primary_score_std" in plot_df.columns:
+        plot_df["score_std"] = pd.to_numeric(
+            plot_df["primary_score_std"],
+            errors="coerce",
+        ).fillna(0.0)
+    else:
+        plot_df["score_std"] = 0.0
+    plot_df = plot_df[pd.notna(plot_df["score"])].copy()
+    if plot_df.empty:
+        return None
+
+    plot_df = plot_df.sort_values(["score", "module"], ascending=[True, True])
+    y_pos = np.arange(len(plot_df))
+
+    metric_name = (
+        str(plot_df["primary_metric"].dropna().iloc[0])
+        if "primary_metric" in plot_df.columns
+        and not plot_df["primary_metric"].dropna().empty
+        else "primary score"
+    )
+    expected_set = {str(hub) for hub in expected_hubs}
+    best_single = plot_df[plot_df["module"] != "All"]
+    best_single_module = (
+        str(best_single.sort_values("score", ascending=False).iloc[0]["module"])
+        if not best_single.empty
+        else ""
+    )
+
+    score_min = float(plot_df["score"].min())
+    score_max = float((plot_df["score"] + plot_df["score_std"]).max())
+    use_unit_axis = score_min >= -0.02 and score_max <= 1.05
+    if use_unit_axis:
+        x_left = 0.0
+        x_right = 1.0
+    else:
+        pad = max(0.05, (score_max - score_min) * 0.12)
+        x_left = max(0.0, score_min - pad)
+        x_right = score_max + pad
+
+    cmap = plt.cm.Blues
+    denom = max(1e-9, float(plot_df["score"].max() - plot_df["score"].min()))
+    colors = []
+    edgecolors = []
+    hatches = []
+    for _, row in plot_df.iterrows():
+        module = str(row["module"])
+        if module in expected_set:
+            colors.append("#f59e0b")
+            edgecolors.append("#92400e")
+            hatches.append("")
+        elif module == best_single_module:
+            colors.append("#2563eb")
+            edgecolors.append("#1e3a8a")
+            hatches.append("")
+        elif module == "All":
+            colors.append("#64748b")
+            edgecolors.append("#334155")
+            hatches.append("//")
+        else:
+            normalized = 0.35 + 0.55 * (float(row["score"]) - score_min) / denom
+            colors.append(cmap(normalized))
+            edgecolors.append("#475569")
+            hatches.append("")
+
+    fig_height = max(3.6, 0.42 * len(plot_df) + 1.4)
+    fig, ax = plt.subplots(figsize=(9.5, fig_height))
+    bars = ax.barh(
+        y_pos,
+        plot_df["score"].to_numpy(dtype=float),
+        color=colors,
+        edgecolor=edgecolors,
+        linewidth=1.0,
+    )
+    for bar, hatch in zip(bars, hatches):
+        if hatch:
+            bar.set_hatch(hatch)
+
+    xerr = plot_df["score_std"].to_numpy(dtype=float)
+    if np.nanmax(xerr) > 0:
+        ax.errorbar(
+            plot_df["score"].to_numpy(dtype=float),
+            y_pos,
+            xerr=xerr,
+            fmt="none",
+            ecolor="#334155",
+            elinewidth=1.0,
+            capsize=3,
+            capthick=1.0,
+            zorder=3,
+        )
+
+    for y, (_, row) in zip(y_pos, plot_df.iterrows()):
+        score = float(row["score"])
+        label_x = min(x_right - 0.01, score + (x_right - x_left) * 0.012)
+        ax.text(
+            label_x,
+            y,
+            f"{score:.3f}",
+            va="center",
+            ha="left",
+            fontsize=9,
+            color="#0f172a",
+        )
+
+    all_rows = plot_df[plot_df["module"] == "All"]
+    if not all_rows.empty:
+        all_score = float(all_rows.iloc[0]["score"])
+        ax.axvline(
+            all_score,
+            color="#64748b",
+            linestyle=":",
+            linewidth=1.4,
+            label="All-feature baseline",
+        )
+
+    chance_line = 0.5 if metric_name == "roc_auc" else None
+    if chance_line is not None and x_left <= chance_line <= x_right:
+        ax.axvline(
+            chance_line,
+            color="#94a3b8",
+            linestyle="--",
+            linewidth=1.0,
+            label="Chance level",
+        )
+
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(plot_df["module"].tolist())
+    ax.invert_yaxis()
+    ax.set_xlim(x_left, x_right)
+    ax.set_xlabel(metric_name)
+    ax.set_title(f"Module classification score ({task_label})")
+    ax.grid(axis="x", color="#e5e7eb", linestyle="-", linewidth=0.8)
+    ax.set_axisbelow(True)
+
+    from matplotlib.patches import Patch
+
+    legend_handles = [
+        Patch(facecolor="#f59e0b", edgecolor="#92400e", label="Topology Hub"),
+        Patch(facecolor="#2563eb", edgecolor="#1e3a8a", label="Best single module"),
+        Patch(facecolor="#64748b", edgecolor="#334155", hatch="//", label="All"),
+    ]
+    line_handles, line_labels = ax.get_legend_handles_labels()
+    ax.legend(
+        handles=legend_handles + line_handles,
+        labels=[h.get_label() for h in legend_handles] + line_labels,
+        loc="lower right",
+        frameon=True,
+        fontsize=9,
+    )
+    fig.tight_layout()
+    return fig
+
+
+def _plot_single_feature_module_scores(
+    feature_scores: pd.DataFrame,
+    module_scores: pd.DataFrame,
+    *,
+    modules: list[str],
+    task_label: str,
+    max_features_per_module: int,
+):
+    """Draw Feishu-style single-feature AUC bars against module-level score."""
+    if feature_scores.empty or "primary_score_mean" not in feature_scores.columns:
+        return None
+
+    plot_source = feature_scores.copy()
+    plot_source["module"] = plot_source["module"].astype(str)
+    plot_source["feature"] = plot_source["feature"].astype(str)
+    plot_source["score"] = pd.to_numeric(
+        plot_source["primary_score_mean"],
+        errors="coerce",
+    )
+    if "primary_score_std" in plot_source.columns:
+        plot_source["score_std"] = pd.to_numeric(
+            plot_source["primary_score_std"],
+            errors="coerce",
+        ).fillna(0.0)
+    else:
+        plot_source["score_std"] = 0.0
+    plot_source = plot_source[pd.notna(plot_source["score"])].copy()
+    if plot_source.empty:
+        return None
+
+    module_source = module_scores.copy()
+    if not module_source.empty:
+        module_source["module"] = module_source["module"].astype(str)
+        module_source["module_score"] = pd.to_numeric(
+            module_source["primary_score_mean"],
+            errors="coerce",
+        )
+    module_score_lookup = (
+        module_source.drop_duplicates("module").set_index("module")["module_score"].to_dict()
+        if not module_source.empty and "module_score" in module_source.columns
+        else {}
+    )
+
+    modules_to_plot = [
+        str(module)
+        for module in modules
+        if not plot_source[plot_source["module"] == str(module)].empty
+    ]
+    if not modules_to_plot:
+        modules_to_plot = plot_source["module"].drop_duplicates().astype(str).tolist()
+    if not modules_to_plot:
+        return None
+
+    max_plot_features = max(1, int(max_features_per_module))
+    metric_name = (
+        str(plot_source["primary_metric"].dropna().iloc[0])
+        if "primary_metric" in plot_source.columns
+        and not plot_source["primary_metric"].dropna().empty
+        else "primary score"
+    )
+    score_max = float(
+        max(
+            plot_source["score"].max(),
+            plot_source["score"].add(plot_source["score_std"]).max(),
+            max(
+                [value for value in module_score_lookup.values() if pd.notna(value)]
+                or [0.0]
+            ),
+        )
+    )
+    use_unit_axis = float(plot_source["score"].min()) >= -0.02 and score_max <= 1.05
+    x_left = 0.0
+    x_right = 1.0 if use_unit_axis else score_max + max(0.05, score_max * 0.08)
+
+    height_ratios = []
+    prepared: list[tuple[str, pd.DataFrame]] = []
+    for module in modules_to_plot:
+        module_df = plot_source[plot_source["module"] == module].copy()
+        module_df = module_df.sort_values(
+            ["score", "feature"],
+            ascending=[False, True],
+        ).head(max_plot_features)
+        module_df = module_df.sort_values(["score", "feature"], ascending=[True, True])
+        if module_df.empty:
+            continue
+        prepared.append((module, module_df))
+        height_ratios.append(max(2.4, 0.34 * len(module_df) + 0.9))
+    if not prepared:
+        return None
+
+    fig_height = max(3.2, sum(height_ratios) + 0.6)
+    fig, axes = plt.subplots(
+        len(prepared),
+        1,
+        figsize=(10.5, fig_height),
+        sharex=True,
+        gridspec_kw={"height_ratios": height_ratios},
+    )
+    if len(prepared) == 1:
+        axes = [axes]
+
+    for ax, (module, module_df) in zip(axes, prepared):
+        y_pos = np.arange(len(module_df))
+        denom = max(1e-9, float(module_df["score"].max() - module_df["score"].min()))
+        colors = [
+            plt.cm.Blues(0.35 + 0.55 * (float(score) - float(module_df["score"].min())) / denom)
+            for score in module_df["score"].tolist()
+        ]
+        if colors:
+            colors[-1] = "#1d4ed8"
+
+        ax.barh(
+            y_pos,
+            module_df["score"].to_numpy(dtype=float),
+            color=colors,
+            edgecolor="#475569",
+            linewidth=0.9,
+        )
+        xerr = module_df["score_std"].to_numpy(dtype=float)
+        if np.nanmax(xerr) > 0:
+            ax.errorbar(
+                module_df["score"].to_numpy(dtype=float),
+                y_pos,
+                xerr=xerr,
+                fmt="none",
+                ecolor="#334155",
+                elinewidth=0.9,
+                capsize=2.5,
+                capthick=0.9,
+                zorder=3,
+            )
+        for y, (_, row) in zip(y_pos, module_df.iterrows()):
+            score = float(row["score"])
+            ax.text(
+                min(x_right - 0.01, score + (x_right - x_left) * 0.012),
+                y,
+                f"{score:.3f}",
+                va="center",
+                ha="left",
+                fontsize=8.5,
+                color="#0f172a",
+            )
+
+        module_score = module_score_lookup.get(module, np.nan)
+        if pd.notna(module_score):
+            ax.axvline(
+                float(module_score),
+                color="#ef4444",
+                linestyle=(0, (4, 3)),
+                linewidth=1.2,
+                label="Module score",
+            )
+        if metric_name == "roc_auc" and x_left <= 0.5 <= x_right:
+            ax.axvline(
+                0.5,
+                color="#94a3b8",
+                linestyle=":",
+                linewidth=1.0,
+                label="Chance level",
+            )
+
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels(module_df["feature"].tolist(), fontsize=8.5)
+        ax.invert_yaxis()
+        ax.set_xlim(x_left, x_right)
+        ax.set_title(f"{module} ({task_label})", fontsize=10, fontweight="bold")
+        ax.grid(axis="x", color="#e5e7eb", linestyle="-", linewidth=0.8)
+        ax.set_axisbelow(True)
+
+    axes[-1].set_xlabel(metric_name)
+    handles, labels = axes[0].get_legend_handles_labels()
+    if handles:
+        fig.legend(
+            handles,
+            labels,
+            loc="lower right",
+            frameon=True,
+            fontsize=9,
+        )
+    fig.tight_layout()
+    return fig
+
 
 load_css()
 setup_sidebar()
@@ -621,8 +1017,14 @@ with tab2:
         "NetRecon's default topology Hub selection."
     )
 
-    tab2_1, tab2_2, tab2_3, tab2_4 = st.tabs(
-        ["Aligned Inputs", "Network Validation", "Classification Validation", "Network View"]
+    tab2_1, tab2_2, tab2_3, tab2_4, tab2_5 = st.tabs(
+        [
+            "Aligned Inputs",
+            "Network Validation",
+            "Classification Validation",
+            "Sample Prediction",
+            "Network View",
+        ]
     )
 
     # ========== Tab 2_1 Aligned Inputs ==========
@@ -661,6 +1063,11 @@ with tab2:
             funclu_signature = (funclu_zip.name, funclu_zip.size)
             if st.session_state.get("netanal_ml_funclu_signature") != funclu_signature:
                 st.session_state.pop("netanal_ml_validation_result", None)
+                st.session_state.pop("netanal_ml_classification_result", None)
+                st.session_state.pop("netanal_ml_intra_result", None)
+                st.session_state.pop("netanal_ml_stability_result", None)
+                st.session_state.pop("netanal_ml_single_feature_result", None)
+                st.session_state.pop("netanal_ml_prediction_result", None)
                 st.session_state["netanal_ml_funclu_signature"] = funclu_signature
 
             try:
@@ -739,6 +1146,10 @@ with tab2:
             )
             if st.session_state.get("netanal_ml_condition_signature") != condition_signature:
                 st.session_state.pop("netanal_ml_classification_result", None)
+                st.session_state.pop("netanal_ml_intra_result", None)
+                st.session_state.pop("netanal_ml_stability_result", None)
+                st.session_state.pop("netanal_ml_single_feature_result", None)
+                st.session_state.pop("netanal_ml_prediction_result", None)
                 st.session_state["netanal_ml_condition_signature"] = condition_signature
 
             condition_tables = {}
@@ -778,6 +1189,11 @@ with tab2:
                 st.dataframe(pd.DataFrame(condition_rows), width="stretch", height=220)
         else:
             st.session_state.pop("netanal_ml_condition_tables", None)
+            st.session_state.pop("netanal_ml_classification_result", None)
+            st.session_state.pop("netanal_ml_intra_result", None)
+            st.session_state.pop("netanal_ml_stability_result", None)
+            st.session_state.pop("netanal_ml_single_feature_result", None)
+            st.session_state.pop("netanal_ml_prediction_result", None)
 
     # ========== Tab 2_2 Validation ==========
     with tab2_2:
@@ -1352,11 +1768,16 @@ with tab2:
                                     else ""
                                 ),
                                 "classifier": str(classifier),
+                                "cv_folds": int(cv_folds),
+                                "max_missing_fraction": float(max_missing_fraction),
                                 "topology_rank_metric": str(topology_rank_metric),
                             }
                             st.session_state[
                                 "netanal_ml_classification_result"
                             ] = classification_result
+                            st.session_state.pop("netanal_ml_intra_result", None)
+                            st.session_state.pop("netanal_ml_stability_result", None)
+                            st.session_state.pop("netanal_ml_single_feature_result", None)
 
         classification_result = st.session_state.get("netanal_ml_classification_result")
         if classification_result is None:
@@ -1370,26 +1791,33 @@ with tab2:
             topology_hubs = classification_result.get("topology_hubs", pd.DataFrame())
 
             expected_hub = ""
+            expected_hubs: list[str] = []
+            topology_match_source = ""
             if context.get("task") == "one_vs_rest" and not topology_hubs.empty:
                 positive_label = context.get("positive_label", "")
-                aliases = {positive_label, f"{positive_label}.csv"}
-                topo_match = topology_hubs[
-                    topology_hubs["condition"].astype(str).map(
-                        lambda c: c in aliases or os.path.splitext(c)[0] == positive_label
-                    )
-                ]
+                topo_match, topology_match_source = _topology_rows_for_classification(
+                    topology_hubs,
+                    positive_label=str(positive_label),
+                    module_names=scores["module"].astype(str).tolist(),
+                )
                 if not topo_match.empty:
-                    expected_hub = str(topo_match.iloc[0]["topology_hub"])
-                    scores["is_topology_hub"] = scores["module"].astype(str) == expected_hub
+                    expected_hubs = [
+                        str(value)
+                        for value in topo_match["topology_hub"].dropna().astype(str).unique()
+                    ]
+                    expected_hub = ", ".join(expected_hubs)
+                    scores["is_topology_hub"] = scores["module"].astype(str).isin(expected_hubs)
                 else:
                     scores["is_topology_hub"] = False
             else:
                 scores["is_topology_hub"] = False
 
             best_row = scores.iloc[0] if not scores.empty else None
+            single_scores = scores[scores["module"].astype(str) != "All"]
+            best_single_row = single_scores.iloc[0] if not single_scores.empty else None
             topology_row = (
-                scores[scores["module"].astype(str) == expected_hub].iloc[0]
-                if expected_hub and (scores["module"].astype(str) == expected_hub).any()
+                scores[scores["module"].astype(str).isin(expected_hubs)].iloc[0]
+                if expected_hubs and scores["module"].astype(str).isin(expected_hubs).any()
                 else None
             )
             m1, m2, m3, m4 = st.columns(4)
@@ -1421,7 +1849,7 @@ with tab2:
             )
 
             if expected_hub:
-                if best_row is not None and str(best_row["module"]) == expected_hub:
+                if best_single_row is not None and str(best_single_row["module"]) in expected_hubs:
                     st.success(
                         f"Classification supports topology Hub `{expected_hub}`: "
                         "it is the best single module for this task."
@@ -1431,6 +1859,7 @@ with tab2:
                         f"Topology Hub `{expected_hub}` is not the best classification module "
                         "under the current settings."
                     )
+                st.caption(f"Topology matching rule: {topology_match_source}")
 
             st.caption(
                 f"Task: {context.get('task')} | positive={context.get('positive_label', '')} | "
@@ -1456,6 +1885,1090 @@ with tab2:
             ]
             display_cols = [col for col in display_cols if col in scores.columns]
             st.dataframe(scores[display_cols], width="stretch", height=360)
+
+            st.markdown("#### Module score visualization")
+            task_title = (
+                f"{context.get('positive_label')} vs Other"
+                if context.get("task") == "one_vs_rest"
+                and context.get("positive_label")
+                else "multiclass"
+            )
+            score_fig = _plot_module_classification_scores(
+                scores,
+                expected_hubs=expected_hubs,
+                task_label=str(task_title),
+            )
+            if score_fig is None:
+                st.info("No valid module scores are available for visualization.")
+            else:
+                st.pyplot(score_fig, width="stretch")
+                st.caption(
+                    "Bars show the cross-validated module score; error bars show the "
+                    "cross-validation standard deviation. A topology Hub is supported "
+                    "when its highlighted bar is also among the strongest single-module "
+                    "classifiers."
+                )
+                score_png = io.BytesIO()
+                score_fig.savefig(
+                    score_png,
+                    format="png",
+                    dpi=220,
+                    bbox_inches="tight",
+                )
+                score_pdf = io.BytesIO()
+                score_fig.savefig(score_pdf, format="pdf", bbox_inches="tight")
+                plt.close(score_fig)
+                dl_score_png, dl_score_pdf = st.columns(2)
+                dl_score_png.download_button(
+                    label="Download module score PNG",
+                    data=score_png.getvalue(),
+                    file_name="module_classification_score_visualization.png",
+                    mime="image/png",
+                    key="netanal_ml_classification_score_png_download",
+                )
+                dl_score_pdf.download_button(
+                    label="Download module score PDF",
+                    data=score_pdf.getvalue(),
+                    file_name="module_classification_score_visualization.pdf",
+                    mime="application/pdf",
+                    key="netanal_ml_classification_score_pdf_download",
+                )
+
+            st.markdown("#### Single-feature validation inside modules")
+            if "n_features" in single_scores.columns:
+                single_feature_counts = pd.to_numeric(
+                    single_scores["n_features"],
+                    errors="coerce",
+                ).fillna(0)
+            else:
+                single_feature_counts = pd.Series(
+                    1,
+                    index=single_scores.index,
+                    dtype=float,
+                )
+            feature_module_options = (
+                single_scores[single_feature_counts > 0]["module"]
+                .astype(str)
+                .tolist()
+            )
+            if not feature_module_options:
+                st.info("No usable single modules are available for single-feature validation.")
+            else:
+                default_feature_modules: list[str] = []
+                for module in expected_hubs:
+                    if module in feature_module_options and module not in default_feature_modules:
+                        default_feature_modules.append(module)
+                if best_single_row is not None:
+                    best_single_module = str(best_single_row["module"])
+                    if (
+                        best_single_module in feature_module_options
+                        and best_single_module not in default_feature_modules
+                    ):
+                        default_feature_modules.append(best_single_module)
+                for module in single_scores["module"].astype(str).head(2).tolist():
+                    if module in feature_module_options and module not in default_feature_modules:
+                        default_feature_modules.append(module)
+                default_feature_modules = default_feature_modules[:2] or [
+                    feature_module_options[0]
+                ]
+
+                with st.form(key="netanal_ml_single_feature_form"):
+                    sf_c1, sf_c2, sf_c3, sf_c4 = st.columns(4)
+                    with sf_c1:
+                        single_feature_modules = st.multiselect(
+                            "Modules to compare",
+                            options=feature_module_options,
+                            default=default_feature_modules,
+                            key="netanal_ml_single_feature_modules",
+                            help=(
+                                "Feishu-style plot: each selected module gets one panel. "
+                                "Each bar is one feature used alone."
+                            ),
+                        )
+                        single_feature_classifier = st.selectbox(
+                            "Single-feature model",
+                            options=["logistic_regression", "random_forest"],
+                            index=(
+                                ["logistic_regression", "random_forest"].index(
+                                    str(context.get("classifier", "logistic_regression"))
+                                )
+                                if str(context.get("classifier", "logistic_regression"))
+                                in {"logistic_regression", "random_forest"}
+                                else 0
+                            ),
+                            format_func=lambda x: {
+                                "logistic_regression": "Logistic Regression (L2)",
+                                "random_forest": "Random Forest",
+                            }[x],
+                            key="netanal_ml_single_feature_classifier",
+                        )
+                    with sf_c2:
+                        single_feature_cv_folds = st.number_input(
+                            "Single-feature CV folds",
+                            min_value=2,
+                            max_value=10,
+                            value=int(context.get("cv_folds", 5)),
+                            step=1,
+                            key="netanal_ml_single_feature_cv_folds",
+                        )
+                        single_feature_max_missing = st.slider(
+                            "Single-feature max missing",
+                            min_value=0.0,
+                            max_value=0.95,
+                            value=float(context.get("max_missing_fraction", 0.5)),
+                            step=0.05,
+                            key="netanal_ml_single_feature_max_missing",
+                        )
+                    with sf_c3:
+                        single_feature_max_tested = st.number_input(
+                            "Max features tested per module",
+                            min_value=0,
+                            max_value=100000,
+                            value=0,
+                            step=1,
+                            key="netanal_ml_single_feature_max_tested",
+                            help="0 means test all usable features in each selected module.",
+                        )
+                        single_feature_plot_top_n = st.number_input(
+                            "Plot top features per module",
+                            min_value=1,
+                            max_value=200,
+                            value=25,
+                            step=1,
+                            key="netanal_ml_single_feature_plot_top_n",
+                        )
+                    with sf_c4:
+                        st.caption("Feishu interpretation")
+                        st.write(
+                            "The red dashed line is the whole-module score; bars are "
+                            "single-feature scores."
+                        )
+
+                    run_single_feature = st.form_submit_button(
+                        "Run Single-feature AUC Validation",
+                        type="primary",
+                    )
+
+                if run_single_feature:
+                    if not single_feature_modules:
+                        st.warning("Please select at least one module.")
+                    else:
+                        with st.spinner(
+                            "Running Feishu-style single-feature validation ..."
+                        ):
+                            try:
+                                single_feature_result = (
+                                    run_module_single_feature_validation(
+                                        condition_tables,
+                                        funclu_export["labels"],
+                                        modules=[str(m) for m in single_feature_modules],
+                                        first_column_as_sample_id=bool(
+                                            st.session_state.get(
+                                                "netanal_ml_condition_first_col_sample_id",
+                                                True,
+                                            )
+                                        ),
+                                        max_missing_fraction=float(
+                                            single_feature_max_missing
+                                        ),
+                                        task=str(context.get("task", "one_vs_rest")),
+                                        positive_label=(
+                                            str(context.get("positive_label", ""))
+                                            if context.get("task") == "one_vs_rest"
+                                            else None
+                                        ),
+                                        classifier=str(single_feature_classifier),
+                                        cv_folds=int(single_feature_cv_folds),
+                                        random_state=123,
+                                        max_features_per_module=(
+                                            int(single_feature_max_tested)
+                                            if int(single_feature_max_tested) > 0
+                                            else None
+                                        ),
+                                    )
+                                )
+                                single_feature_result["context"][
+                                    "plot_top_features_per_module"
+                                ] = int(single_feature_plot_top_n)
+                            except Exception as e:
+                                st.error(f"Single-feature validation failed: {e}")
+                            else:
+                                st.session_state[
+                                    "netanal_ml_single_feature_result"
+                                ] = single_feature_result
+
+                single_feature_result = st.session_state.get(
+                    "netanal_ml_single_feature_result"
+                )
+                if single_feature_result is not None:
+                    sf_context = single_feature_result["context"]
+                    sf_feature_scores = single_feature_result["feature_scores"].copy()
+                    sf_module_scores = single_feature_result["module_scores"].copy()
+                    valid_sf = sf_feature_scores[
+                        pd.notna(
+                            pd.to_numeric(
+                                sf_feature_scores["primary_score_mean"],
+                                errors="coerce",
+                            )
+                        )
+                    ].copy()
+                    best_sf = (
+                        valid_sf.sort_values(
+                            "primary_score_mean",
+                            ascending=False,
+                        ).iloc[0]
+                        if not valid_sf.empty
+                        else None
+                    )
+                    sf_m1, sf_m2, sf_m3, sf_m4 = st.columns(4)
+                    sf_m1.metric(
+                        "Modules plotted",
+                        f"{len(sf_context.get('modules', [])):,}",
+                    )
+                    sf_m2.metric(
+                        "Single-feature tests",
+                        f"{len(sf_feature_scores):,}",
+                    )
+                    sf_m3.metric(
+                        "Best feature",
+                        (
+                            str(best_sf["feature"])
+                            if best_sf is not None
+                            else "N/A"
+                        ),
+                    )
+                    sf_m4.metric(
+                        "Best feature score",
+                        (
+                            f"{float(best_sf['primary_score_mean']):.3f}"
+                            if best_sf is not None
+                            and pd.notna(best_sf["primary_score_mean"])
+                            else "N/A"
+                        ),
+                    )
+
+                    summary_rows = []
+                    for module in sf_context.get("modules", []):
+                        module = str(module)
+                        module_row = sf_module_scores[
+                            sf_module_scores["module"].astype(str) == module
+                        ]
+                        module_score = (
+                            float(module_row.iloc[0]["primary_score_mean"])
+                            if not module_row.empty
+                            and pd.notna(module_row.iloc[0]["primary_score_mean"])
+                            else np.nan
+                        )
+                        module_features = valid_sf[
+                            valid_sf["module"].astype(str) == module
+                        ].copy()
+                        if module_features.empty:
+                            continue
+                        best_feature_row = module_features.sort_values(
+                            "primary_score_mean",
+                            ascending=False,
+                        ).iloc[0]
+                        best_feature_score = float(
+                            best_feature_row["primary_score_mean"]
+                        )
+                        summary_rows.append(
+                            {
+                                "module": module,
+                                "module_score": module_score,
+                                "best_single_feature": str(best_feature_row["feature"]),
+                                "best_single_feature_score": best_feature_score,
+                                "module_minus_best_feature": (
+                                    module_score - best_feature_score
+                                    if pd.notna(module_score)
+                                    else np.nan
+                                ),
+                            }
+                        )
+                    if summary_rows:
+                        sf_summary = pd.DataFrame(summary_rows)
+                        st.markdown("##### Module vs best single feature")
+                        st.dataframe(sf_summary, width="stretch", height=180)
+
+                    sf_fig = _plot_single_feature_module_scores(
+                        sf_feature_scores,
+                        sf_module_scores,
+                        modules=[str(m) for m in sf_context.get("modules", [])],
+                        task_label=str(sf_context.get("task_label", task_title)),
+                        max_features_per_module=int(
+                            sf_context.get("plot_top_features_per_module", 25)
+                        ),
+                    )
+                    if sf_fig is None:
+                        st.info("No valid single-feature scores are available to plot.")
+                    else:
+                        st.pyplot(sf_fig, width="stretch")
+                        st.caption(
+                            "Feishu-style validation: each bar is the cross-validated "
+                            "score using one feature alone; the red dashed line is the "
+                            "score using all selected-module features together."
+                        )
+                        sf_png = io.BytesIO()
+                        sf_fig.savefig(
+                            sf_png,
+                            format="png",
+                            dpi=220,
+                            bbox_inches="tight",
+                        )
+                        sf_pdf = io.BytesIO()
+                        sf_fig.savefig(sf_pdf, format="pdf", bbox_inches="tight")
+                        plt.close(sf_fig)
+                        sf_dl1, sf_dl2 = st.columns(2)
+                        sf_dl1.download_button(
+                            label="Download single-feature AUC PNG",
+                            data=sf_png.getvalue(),
+                            file_name="single_feature_module_auc_visualization.png",
+                            mime="image/png",
+                            key="netanal_ml_single_feature_png_download",
+                        )
+                        sf_dl2.download_button(
+                            label="Download single-feature AUC PDF",
+                            data=sf_pdf.getvalue(),
+                            file_name="single_feature_module_auc_visualization.pdf",
+                            mime="application/pdf",
+                            key="netanal_ml_single_feature_pdf_download",
+                        )
+
+                    st.markdown("##### Single-feature score table")
+                    sf_cols = [
+                        "feature_rank_within_module",
+                        "module",
+                        "feature",
+                        "primary_metric",
+                        "primary_score_mean",
+                        "primary_score_std",
+                        "module_primary_score_mean",
+                        "roc_auc_mean",
+                        "roc_auc_std",
+                        "balanced_accuracy_mean",
+                        "accuracy_mean",
+                        "f1_macro_mean",
+                        "cv_folds_used",
+                        "status",
+                    ]
+                    sf_cols = [
+                        col for col in sf_cols if col in sf_feature_scores.columns
+                    ]
+                    st.dataframe(
+                        sf_feature_scores[sf_cols],
+                        width="stretch",
+                        height=320,
+                    )
+                    sf_t1, sf_t2 = st.columns(2)
+                    sf_t1.download_button(
+                        label="Download single-feature scores CSV",
+                        data=sf_feature_scores.to_csv(index=False).encode("utf-8"),
+                        file_name="single_feature_module_scores.csv",
+                        mime="text/csv",
+                        key="netanal_ml_single_feature_scores_download",
+                    )
+                    sf_t2.download_button(
+                        label="Download selected module scores CSV",
+                        data=sf_module_scores.to_csv(index=False).encode("utf-8"),
+                        file_name="single_feature_selected_module_scores.csv",
+                        mime="text/csv",
+                        key="netanal_ml_single_feature_module_scores_download",
+                    )
+
+            st.markdown("#### Module stability / robustness")
+            if context.get("task") not in {"one_vs_rest", "multiclass"}:
+                st.info("Run module classification first to enable stability validation.")
+            else:
+                with st.form(key="netanal_ml_stability_form"):
+                    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+                    with col_s1:
+                        stability_repeats = st.number_input(
+                            "Repeated CV runs",
+                            min_value=1,
+                            max_value=200,
+                            value=20,
+                            step=1,
+                            key="netanal_ml_stability_repeats",
+                        )
+                        stability_include_all = st.checkbox(
+                            "Include All baseline",
+                            value=False,
+                            key="netanal_ml_stability_include_all",
+                        )
+                    with col_s2:
+                        stability_cv_folds = st.number_input(
+                            "Stability CV folds",
+                            min_value=2,
+                            max_value=10,
+                            value=5,
+                            step=1,
+                            key="netanal_ml_stability_cv_folds",
+                        )
+                        stability_classifier = st.selectbox(
+                            "Stability model",
+                            options=["logistic_regression", "random_forest"],
+                            index=(
+                                ["logistic_regression", "random_forest"].index(
+                                    str(context.get("classifier", "logistic_regression"))
+                                )
+                                if str(context.get("classifier", "logistic_regression"))
+                                in {"logistic_regression", "random_forest"}
+                                else 0
+                            ),
+                            format_func=lambda x: {
+                                "logistic_regression": "Logistic Regression (L2)",
+                                "random_forest": "Random Forest",
+                            }[x],
+                            key="netanal_ml_stability_classifier",
+                        )
+                    with col_s3:
+                        stability_max_missing = st.slider(
+                            "Stability max missing",
+                            min_value=0.0,
+                            max_value=0.95,
+                            value=0.50,
+                            step=0.05,
+                            key="netanal_ml_stability_max_missing",
+                        )
+                    with col_s4:
+                        st.caption("Interpretation")
+                        st.write("Rank-1 frequency is the share of repeated CV splits where a module ranks first.")
+
+                    run_stability = st.form_submit_button(
+                        "Run Module Stability Validation",
+                        type="primary",
+                    )
+
+                if run_stability:
+                    with st.spinner("Running repeated module stability validation ..."):
+                        try:
+                            stability_result = run_module_stability_validation(
+                                condition_tables,
+                                funclu_export["labels"],
+                                first_column_as_sample_id=bool(
+                                    st.session_state.get(
+                                        "netanal_ml_condition_first_col_sample_id",
+                                        True,
+                                    )
+                                ),
+                                max_missing_fraction=float(stability_max_missing),
+                                task=str(context.get("task", "one_vs_rest")),
+                                positive_label=(
+                                    str(context.get("positive_label", ""))
+                                    if context.get("task") == "one_vs_rest"
+                                    else None
+                                ),
+                                classifier=str(stability_classifier),
+                                cv_folds=int(stability_cv_folds),
+                                n_repeats=int(stability_repeats),
+                                include_all=bool(stability_include_all),
+                                random_state=123,
+                            )
+                        except Exception as e:
+                            st.error(f"Module stability validation failed: {e}")
+                        else:
+                            st.session_state[
+                                "netanal_ml_stability_result"
+                            ] = stability_result
+
+            stability_result = st.session_state.get("netanal_ml_stability_result")
+            if stability_result is not None:
+                stability_summary = stability_result["summary"].copy()
+                stability_summary["is_topology_hub"] = (
+                    stability_summary["module"].astype(str).isin(expected_hubs)
+                    if expected_hubs
+                    else False
+                )
+                best_stable = (
+                    stability_summary.iloc[0]
+                    if not stability_summary.empty
+                    else None
+                )
+                topo_stable = (
+                    stability_summary[
+                        stability_summary["module"].astype(str).isin(expected_hubs)
+                    ].iloc[0]
+                    if expected_hubs
+                    and stability_summary["module"].astype(str).isin(expected_hubs).any()
+                    else None
+                )
+                s_m1, s_m2, s_m3, s_m4 = st.columns(4)
+                s_m1.metric(
+                    "Most stable module",
+                    str(best_stable["module"]) if best_stable is not None else "N/A",
+                )
+                s_m2.metric(
+                    "Rank-1 frequency",
+                    (
+                        f"{float(best_stable['rank_1_frequency']):.1%}"
+                        if best_stable is not None
+                        and pd.notna(best_stable["rank_1_frequency"])
+                        else "N/A"
+                    ),
+                )
+                s_m3.metric(
+                    "Topology Hub rank-1",
+                    (
+                        f"{float(topo_stable['rank_1_frequency']):.1%}"
+                        if topo_stable is not None
+                        and pd.notna(topo_stable["rank_1_frequency"])
+                        else "N/A"
+                    ),
+                )
+                s_m4.metric(
+                    "Repeated splits",
+                    f"{int(stability_result['cv_folds_used']) * int(stability_result['n_repeats']):,}",
+                )
+
+                if expected_hubs and topo_stable is not None:
+                    if float(topo_stable["rank_1_frequency"]) >= 0.5:
+                        st.success(
+                            f"Topology Hub `{expected_hub}` is stable: it ranks first in "
+                            f"{float(topo_stable['rank_1_frequency']):.1%} of repeated CV splits."
+                        )
+                    else:
+                        st.warning(
+                            f"Topology Hub `{expected_hub}` is not consistently rank-1 under "
+                            "the current repeated CV settings."
+                        )
+
+                st.markdown("##### Stability summary")
+                stability_cols = [
+                    "stability_rank",
+                    "module",
+                    "is_topology_hub",
+                    "primary_metric",
+                    "primary_score_mean",
+                    "primary_score_std",
+                    "primary_score_p025",
+                    "primary_score_p975",
+                    "mean_rank",
+                    "rank_1_frequency",
+                    "top_2_frequency",
+                    "top_3_frequency",
+                    "successful_splits",
+                    "total_splits",
+                    "n_features",
+                    "status",
+                ]
+                stability_cols = [
+                    col for col in stability_cols if col in stability_summary.columns
+                ]
+                st.dataframe(
+                    stability_summary[stability_cols],
+                    width="stretch",
+                    height=320,
+                )
+                dl_s1, dl_s2 = st.columns(2)
+                dl_s1.download_button(
+                    label="Download stability summary CSV",
+                    data=stability_summary.to_csv(index=False).encode("utf-8"),
+                    file_name="module_stability_summary.csv",
+                    mime="text/csv",
+                    key="netanal_ml_stability_summary_download",
+                )
+                dl_s2.download_button(
+                    label="Download stability split scores CSV",
+                    data=stability_result["split_scores"].to_csv(index=False).encode("utf-8"),
+                    file_name="module_stability_split_scores.csv",
+                    mime="text/csv",
+                    key="netanal_ml_stability_splits_download",
+                )
+
+            st.markdown("#### Intra-cluster feature validation")
+            if context.get("task") != "one_vs_rest" or not context.get("positive_label"):
+                st.info(
+                    "Intra-cluster validation is available for **One condition vs others** "
+                    "tasks, because feature direction needs one positive condition."
+                )
+            else:
+                feature_summary = dataset_info.get("feature_summary", pd.DataFrame())
+                if feature_summary.empty or "module" not in feature_summary.columns:
+                    module_options = [
+                        str(module)
+                        for module in scores["module"].tolist()
+                        if str(module) != "All"
+                    ]
+                else:
+                    usable_col = (
+                        "usable_features"
+                        if "usable_features" in feature_summary.columns
+                        else "funclu_features"
+                    )
+                    module_options = (
+                        feature_summary[
+                            pd.to_numeric(
+                                feature_summary[usable_col],
+                                errors="coerce",
+                            ).fillna(0)
+                            > 0
+                        ]["module"]
+                        .astype(str)
+                        .tolist()
+                    )
+
+                if not module_options:
+                    st.warning("No usable FunClu modules are available for feature validation.")
+                else:
+                    best_single_module = ""
+                    single_scores = scores[scores["module"].astype(str) != "All"]
+                    if not single_scores.empty:
+                        best_single_module = str(single_scores.iloc[0]["module"])
+                    primary_expected_hub = next(
+                        (hub for hub in expected_hubs if hub in module_options),
+                        "",
+                    )
+                    default_module = (
+                        primary_expected_hub
+                        if primary_expected_hub
+                        else best_single_module
+                        if best_single_module in module_options
+                        else module_options[0]
+                    )
+
+                    with st.form(key="netanal_ml_intra_feature_form"):
+                        col_i1, col_i2, col_i3, col_i4 = st.columns(4)
+                        with col_i1:
+                            intra_module = st.selectbox(
+                                "Module to inspect",
+                                options=module_options,
+                                index=module_options.index(default_module),
+                                key="netanal_ml_intra_module",
+                            )
+                            intra_repeats = st.number_input(
+                                "Permutation repeats",
+                                min_value=1,
+                                max_value=100,
+                                value=20,
+                                step=1,
+                                key="netanal_ml_intra_repeats",
+                            )
+                        with col_i2:
+                            context_classifier = str(
+                                context.get("classifier", "logistic_regression")
+                            )
+                            intra_classifier = st.selectbox(
+                                "Feature model",
+                                options=["logistic_regression", "random_forest"],
+                                index=(
+                                    ["logistic_regression", "random_forest"].index(
+                                        context_classifier
+                                    )
+                                    if context_classifier
+                                    in {"logistic_regression", "random_forest"}
+                                    else 0
+                                ),
+                                format_func=lambda x: {
+                                    "logistic_regression": "Logistic Regression (L2)",
+                                    "random_forest": "Random Forest",
+                                }[x],
+                                key="netanal_ml_intra_classifier",
+                            )
+                            intra_cv_folds = st.number_input(
+                                "Feature CV folds",
+                                min_value=2,
+                                max_value=10,
+                                value=5,
+                                step=1,
+                                key="netanal_ml_intra_cv_folds",
+                            )
+                        with col_i3:
+                            intra_max_missing = st.slider(
+                                "Max missing fraction",
+                                min_value=0.0,
+                                max_value=0.95,
+                                value=0.50,
+                                step=0.05,
+                                key="netanal_ml_intra_max_missing",
+                            )
+                            intra_ml_top_n = st.number_input(
+                                "ML top N for overlap",
+                                min_value=1,
+                                max_value=1000,
+                                value=10,
+                                step=1,
+                                key="netanal_ml_intra_ml_top_n",
+                            )
+                        with col_i4:
+                            intra_topology_metric = st.selectbox(
+                                "Intra topology metric",
+                                options=[
+                                    "out_degree",
+                                    "out_strength",
+                                    "total_degree",
+                                    "total_strength",
+                                ],
+                                index=0,
+                                key="netanal_ml_intra_topology_metric",
+                            )
+                            intra_topology_threshold = st.number_input(
+                                "Min |intra topology edge|",
+                                min_value=0.0,
+                                max_value=1000000.0,
+                                value=0.0,
+                                step=0.01,
+                                format="%.4f",
+                                key="netanal_ml_intra_topology_threshold",
+                            )
+                            intra_topology_top_n = st.number_input(
+                                "Topology top N",
+                                min_value=1,
+                                max_value=1000,
+                                value=3,
+                                step=1,
+                                key="netanal_ml_intra_topology_top_n",
+                            )
+
+                        run_intra = st.form_submit_button(
+                            "Run Intra-cluster Feature Validation",
+                            type="primary",
+                        )
+
+                    if run_intra:
+                        positive_label_for_intra = str(context.get("positive_label", ""))
+                        with st.spinner("Running intra-cluster feature validation ..."):
+                            try:
+                                intra_result = run_intra_module_feature_importance(
+                                    condition_tables,
+                                    funclu_export["labels"],
+                                    module=str(intra_module),
+                                    first_column_as_sample_id=bool(
+                                        st.session_state.get(
+                                            "netanal_ml_condition_first_col_sample_id",
+                                            True,
+                                        )
+                                    ),
+                                    max_missing_fraction=float(intra_max_missing),
+                                    positive_label=positive_label_for_intra,
+                                    classifier=str(intra_classifier),
+                                    cv_folds=int(intra_cv_folds),
+                                    random_state=123,
+                                    n_repeats=int(intra_repeats),
+                                )
+
+                                topology_key = ""
+                                topology_hub_table = pd.DataFrame()
+                                if topology_adjs:
+                                    exact_candidates: list[str] = []
+                                    loose_candidates: list[str] = []
+                                    for key in topology_adjs:
+                                        parts = str(key).split("/")
+                                        if (
+                                            len(parts) == 3
+                                            and parts[0] == "intra_cluster"
+                                            and parts[2] == str(intra_module)
+                                        ):
+                                            loose_candidates.append(str(key))
+                                            if (
+                                                _clean_condition_label(parts[1])
+                                                == _clean_condition_label(
+                                                    positive_label_for_intra
+                                                )
+                                            ):
+                                                exact_candidates.append(str(key))
+                                    if exact_candidates:
+                                        topology_key = exact_candidates[0]
+                                    elif len(loose_candidates) == 1:
+                                        topology_key = loose_candidates[0]
+
+                                if topology_key:
+                                    topology_hub_table = hub_table_from_adjacency(
+                                        topology_adjs[topology_key],
+                                        edge_threshold=float(intra_topology_threshold),
+                                        rank_metric=str(intra_topology_metric),
+                                    )
+                                    topology_feature_table = topology_hub_table.rename(
+                                        columns={
+                                            "variable": "feature",
+                                            "rank": "topology_rank",
+                                            "out_degree": "topology_out_degree",
+                                            "in_degree": "topology_in_degree",
+                                            "out_strength": "topology_out_strength",
+                                            "in_strength": "topology_in_strength",
+                                            "total_degree": "topology_total_degree",
+                                            "total_strength": "topology_total_strength",
+                                        }
+                                    )
+                                    merge_cols = [
+                                        col
+                                        for col in [
+                                            "feature",
+                                            "topology_rank",
+                                            "topology_out_degree",
+                                            "topology_in_degree",
+                                            "topology_out_strength",
+                                            "topology_in_strength",
+                                            "topology_total_degree",
+                                            "topology_total_strength",
+                                        ]
+                                        if col in topology_feature_table.columns
+                                    ]
+                                    intra_result["importance"] = intra_result[
+                                        "importance"
+                                    ].merge(
+                                        topology_feature_table[merge_cols],
+                                        on="feature",
+                                        how="left",
+                                    )
+                                    ml_top_n_value = min(
+                                        int(intra_ml_top_n),
+                                        int(len(intra_result["importance"])),
+                                    )
+                                    topology_top_n_value = min(
+                                        int(intra_topology_top_n),
+                                        int(len(topology_hub_table)),
+                                    )
+                                    intra_result["importance"][
+                                        "is_topology_intra_hub"
+                                    ] = intra_result["importance"][
+                                        "topology_rank"
+                                    ].eq(1)
+                                    intra_result["importance"]["in_ml_top_n"] = (
+                                        intra_result["importance"]["feature_rank"]
+                                        <= ml_top_n_value
+                                    )
+                                    intra_result["importance"]["is_topology_top_n"] = (
+                                        pd.to_numeric(
+                                            intra_result["importance"]["topology_rank"],
+                                            errors="coerce",
+                                        )
+                                        <= topology_top_n_value
+                                    )
+                                    overlap_mask = (
+                                        intra_result["importance"]["in_ml_top_n"]
+                                        & intra_result["importance"]["is_topology_top_n"]
+                                    )
+                                    overlap_features = (
+                                        intra_result["importance"]
+                                        .loc[overlap_mask, "feature"]
+                                        .astype(str)
+                                        .tolist()
+                                    )
+                                    common_rank = intra_result["importance"].dropna(
+                                        subset=["topology_rank"]
+                                    )
+                                    if (
+                                        len(common_rank) >= 2
+                                        and common_rank["feature_rank"].nunique() > 1
+                                        and common_rank["topology_rank"].nunique() > 1
+                                    ):
+                                        rank_corr = common_rank["feature_rank"].corr(
+                                            common_rank["topology_rank"],
+                                            method="spearman",
+                                        )
+                                    else:
+                                        rank_corr = np.nan
+                                    topology_top_feature = str(
+                                        topology_hub_table.iloc[0]["variable"]
+                                    )
+                                    top_feature_match = intra_result[
+                                        "importance"
+                                    ][
+                                        intra_result["importance"]["feature"].astype(str)
+                                        == topology_top_feature
+                                    ]
+                                    topology_top_ml_rank = (
+                                        int(top_feature_match.iloc[0]["feature_rank"])
+                                        if not top_feature_match.empty
+                                        else None
+                                    )
+                                    intra_result["topology_comparison"] = {
+                                        "ml_top_n": int(ml_top_n_value),
+                                        "topology_top_n": int(topology_top_n_value),
+                                        "overlap_count": int(len(overlap_features)),
+                                        "overlap_features": ", ".join(overlap_features),
+                                        "topology_top_feature": topology_top_feature,
+                                        "topology_top_ml_rank": topology_top_ml_rank,
+                                        "spearman_rank_correlation": (
+                                            float(rank_corr)
+                                            if pd.notna(rank_corr)
+                                            else np.nan
+                                        ),
+                                    }
+                                else:
+                                    intra_result["importance"][
+                                        "is_topology_intra_hub"
+                                    ] = False
+                                    intra_result["importance"]["in_ml_top_n"] = (
+                                        intra_result["importance"]["feature_rank"]
+                                        <= int(intra_ml_top_n)
+                                    )
+                                    intra_result["importance"]["is_topology_top_n"] = False
+                                    intra_result["topology_comparison"] = {}
+
+                                intra_result["topology_key"] = topology_key
+                                intra_result["topology_hubs"] = topology_hub_table
+                                intra_result["context"] = {
+                                    "module": str(intra_module),
+                                    "positive_label": positive_label_for_intra,
+                                    "classifier": str(intra_classifier),
+                                    "topology_metric": str(intra_topology_metric),
+                                    "ml_top_n": int(intra_ml_top_n),
+                                    "topology_top_n": int(intra_topology_top_n),
+                                }
+                            except Exception as e:
+                                st.error(f"Intra-cluster feature validation failed: {e}")
+                            else:
+                                st.session_state["netanal_ml_intra_result"] = intra_result
+
+            intra_result = st.session_state.get("netanal_ml_intra_result")
+            if intra_result is not None:
+                importance = intra_result["importance"].copy()
+                module_score = intra_result["module_score"]
+                intra_context = intra_result["context"]
+                topology_key = intra_result.get("topology_key", "")
+                topology_hub_table = intra_result.get("topology_hubs", pd.DataFrame())
+                topology_comparison = intra_result.get("topology_comparison", {})
+
+                top_feature = importance.iloc[0] if not importance.empty else None
+                i_m1, i_m2, i_m3, i_m4 = st.columns(4)
+                i_m1.metric("Feature top hit", str(top_feature["feature"]) if top_feature is not None else "N/A")
+                i_m2.metric(
+                    "Module AUC",
+                    (
+                        f"{float(module_score.get('roc_auc_mean', np.nan)):.3f}"
+                        if pd.notna(module_score.get("roc_auc_mean", np.nan))
+                        else "N/A"
+                    ),
+                )
+                i_m3.metric(
+                    "Features tested",
+                    f"{int(module_score.get('n_features', 0)):,}",
+                )
+                i_m4.metric(
+                    "Topology intra Hub",
+                    (
+                        str(topology_hub_table.iloc[0]["variable"])
+                        if topology_hub_table is not None
+                        and not topology_hub_table.empty
+                        else "N/A"
+                    ),
+                )
+
+                st.caption(
+                    "Selection: "
+                    f"module={intra_context.get('module')} | "
+                    f"positive={intra_context.get('positive_label')} | "
+                    f"classifier={intra_context.get('classifier')} | "
+                    f"topology={topology_key if topology_key else 'not matched'}"
+                )
+
+                if topology_comparison:
+                    c_i1, c_i2, c_i3 = st.columns(3)
+                    c_i1.metric(
+                        "Topology Hub ML rank",
+                        (
+                            str(topology_comparison.get("topology_top_ml_rank"))
+                            if topology_comparison.get("topology_top_ml_rank")
+                            is not None
+                            else "N/A"
+                        ),
+                    )
+                    c_i2.metric(
+                        "Top-N overlap",
+                        (
+                            f"{topology_comparison.get('overlap_count', 0)}/"
+                            f"{topology_comparison.get('topology_top_n', 0)}"
+                        ),
+                        help=(
+                            f"ML top {topology_comparison.get('ml_top_n')} vs "
+                            f"topology top {topology_comparison.get('topology_top_n')}"
+                        ),
+                    )
+                    c_i3.metric(
+                        "Rank Spearman",
+                        (
+                            f"{float(topology_comparison['spearman_rank_correlation']):.3f}"
+                            if pd.notna(
+                                topology_comparison.get(
+                                    "spearman_rank_correlation",
+                                    np.nan,
+                                )
+                            )
+                            else "N/A"
+                        ),
+                    )
+                    if topology_comparison.get("overlap_features"):
+                        st.success(
+                            "Topology top features found in ML top list: "
+                            f"{topology_comparison['overlap_features']}"
+                        )
+
+                if (
+                    topology_hub_table is not None
+                    and not topology_hub_table.empty
+                    and top_feature is not None
+                ):
+                    topology_top_feature = str(topology_hub_table.iloc[0]["variable"])
+                    if str(top_feature["feature"]) == topology_top_feature:
+                        st.success(
+                            f"ML feature ranking supports the intra-cluster topology Hub "
+                            f"`{topology_top_feature}`."
+                        )
+                    else:
+                        st.warning(
+                            "The top ML feature does not match the top intra-cluster "
+                            f"topology Hub `{topology_top_feature}` under the current settings."
+                        )
+
+                plot_count = min(25, len(importance))
+                if plot_count > 0:
+                    plot_df = importance.head(plot_count).copy()
+                    plot_df["plot_importance"] = pd.to_numeric(
+                        plot_df["permutation_importance_mean"],
+                        errors="coerce",
+                    ).fillna(0.0)
+                    plot_df = plot_df.sort_values("plot_importance", ascending=True)
+                    fig_i, ax_i = plt.subplots(figsize=(8, max(3, 0.32 * plot_count)))
+                    ax_i.barh(plot_df["feature"].astype(str), plot_df["plot_importance"])
+                    ax_i.set_xlabel("Permutation importance (AUC drop)")
+                    ax_i.set_ylabel("Feature")
+                    ax_i.set_title("Top intra-cluster ML features")
+                    fig_i.tight_layout()
+                    st.pyplot(fig_i, width="stretch")
+                    plt.close(fig_i)
+
+                st.markdown("##### Intra-cluster feature ranking")
+                intra_cols = [
+                    "feature_rank",
+                    "feature",
+                    "in_ml_top_n",
+                    "is_topology_intra_hub",
+                    "is_topology_top_n",
+                    "topology_rank",
+                    "permutation_importance_mean",
+                    "permutation_importance_std",
+                    "coefficient",
+                    "abs_coefficient",
+                    "embedded_importance",
+                    "mean_positive",
+                    "mean_other",
+                    "mean_difference",
+                    "direction",
+                    "missing_fraction",
+                ]
+                intra_cols = [col for col in intra_cols if col in importance.columns]
+                st.dataframe(importance[intra_cols], width="stretch", height=360)
+
+                if topology_hub_table is not None and not topology_hub_table.empty:
+                    st.markdown("##### Topology intra-cluster Hub ranking")
+                    st.dataframe(topology_hub_table.head(100), width="stretch", height=260)
+
+                dli1, dli2 = st.columns(2)
+                dli1.download_button(
+                    label="Download intra feature ranking CSV",
+                    data=importance.to_csv(index=False).encode("utf-8"),
+                    file_name="intra_cluster_feature_importance.csv",
+                    mime="text/csv",
+                    key="netanal_ml_intra_importance_download",
+                )
+                if topology_hub_table is not None and not topology_hub_table.empty:
+                    dli2.download_button(
+                        label="Download intra topology Hub CSV",
+                        data=topology_hub_table.to_csv(index=False).encode("utf-8"),
+                        file_name="intra_cluster_topology_hubs.csv",
+                        mime="text/csv",
+                        key="netanal_ml_intra_topology_download",
+                    )
 
             st.markdown("#### Dataset summary")
             c_sum1, c_sum2 = st.columns(2)
@@ -1494,8 +3007,280 @@ with tab2:
                     key="netanal_ml_classification_topology_download",
                 )
 
-    # ========== Tab 2_4 Network View ==========
+    # ========== Tab 2_4 Sample Prediction ==========
     with tab2_4:
+        funclu_export = st.session_state.get("netanal_ml_funclu_export")
+        condition_tables = st.session_state.get("netanal_ml_condition_tables")
+        classification_result = st.session_state.get("netanal_ml_classification_result")
+
+        if funclu_export is None:
+            st.info("Please upload a FunClu-K ZIP in **Aligned Inputs** first.")
+        elif not condition_tables:
+            st.info(
+                "Please upload two or more condition CSV files in **Aligned Inputs**. "
+                "Those condition CSVs are used as the labelled training data."
+            )
+        else:
+            condition_options = list(condition_tables.keys())
+            if len(condition_options) < 2:
+                st.warning("Sample prediction needs at least two condition CSVs.")
+            else:
+                try:
+                    cluster_map = module_feature_map_from_labels(funclu_export["labels"])
+                except Exception as e:
+                    cluster_map = {}
+                    st.warning(
+                        "FunClu module labels could not be read, so prediction is limited "
+                        f"to all shared features. Details: {e}"
+                    )
+
+                prediction_module_options = ["All"] + list(cluster_map.keys())
+                prediction_default_module = "All"
+                prediction_default_classifier = "logistic_regression"
+                prediction_default_positive = condition_options[0]
+
+                if classification_result is not None:
+                    classification_context = classification_result.get("context", {})
+                    context_classifier = str(
+                        classification_context.get(
+                            "classifier",
+                            prediction_default_classifier,
+                        )
+                    )
+                    if context_classifier in {"logistic_regression", "random_forest"}:
+                        prediction_default_classifier = context_classifier
+
+                    context_positive = str(
+                        classification_context.get(
+                            "positive_label",
+                            prediction_default_positive,
+                        )
+                    )
+                    if context_positive in condition_options:
+                        prediction_default_positive = context_positive
+
+                    classification_scores = classification_result.get(
+                        "scores",
+                        pd.DataFrame(),
+                    )
+                    if not classification_scores.empty:
+                        single_scores = classification_scores[
+                            classification_scores["module"].astype(str) != "All"
+                        ]
+                        if not single_scores.empty:
+                            best_single_module = str(single_scores.iloc[0]["module"])
+                            if best_single_module in prediction_module_options:
+                                prediction_default_module = best_single_module
+
+                train_sample_count = sum(
+                    int(table.shape[0]) for table in condition_tables.values()
+                )
+                metric_p1, metric_p2, metric_p3 = st.columns(3)
+                metric_p1.metric("Training conditions", f"{len(condition_options):,}")
+                metric_p2.metric("Training samples", f"{train_sample_count:,}")
+                metric_p3.metric(
+                    "Available feature sets",
+                    f"{len(prediction_module_options):,}",
+                )
+                st.caption(
+                    "This tab trains a classifier from the uploaded condition CSVs and "
+                    "applies it to a new unknown-sample CSV. It does not require running "
+                    "Classification Validation first."
+                )
+
+                unknown_csv = st.file_uploader(
+                    "Upload unknown sample CSV",
+                    type=["csv"],
+                    key="netanal_ml_unknown_prediction_csv",
+                    help=(
+                        "Rows are unknown samples; columns should match the training "
+                        "condition CSV feature names."
+                    ),
+                )
+                if unknown_csv is None:
+                    st.session_state.pop("netanal_ml_unknown_prediction_signature", None)
+                else:
+                    unknown_signature = (unknown_csv.name, unknown_csv.size)
+                    if (
+                        st.session_state.get(
+                            "netanal_ml_unknown_prediction_signature"
+                        )
+                        != unknown_signature
+                    ):
+                        st.session_state.pop("netanal_ml_prediction_result", None)
+                        st.session_state[
+                            "netanal_ml_unknown_prediction_signature"
+                        ] = unknown_signature
+
+                with st.form(key="netanal_ml_prediction_form"):
+                    col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+                    with col_p1:
+                        prediction_task = st.selectbox(
+                            "Prediction task",
+                            options=["multiclass", "one_vs_rest"],
+                            index=0,
+                            format_func=lambda x: {
+                                "multiclass": "Predict condition label",
+                                "one_vs_rest": "Positive condition probability",
+                            }[x],
+                            key="netanal_ml_prediction_task",
+                        )
+                        prediction_positive = st.selectbox(
+                            "Positive condition",
+                            options=condition_options,
+                            index=condition_options.index(prediction_default_positive),
+                            disabled=prediction_task != "one_vs_rest",
+                            key="netanal_ml_prediction_positive",
+                        )
+                    with col_p2:
+                        prediction_module = st.selectbox(
+                            "Prediction feature set",
+                            options=prediction_module_options,
+                            index=prediction_module_options.index(
+                                prediction_default_module
+                            ),
+                            key="netanal_ml_prediction_module",
+                        )
+                        prediction_classifier = st.selectbox(
+                            "Prediction model",
+                            options=["logistic_regression", "random_forest"],
+                            index=["logistic_regression", "random_forest"].index(
+                                prediction_default_classifier
+                            ),
+                            format_func=lambda x: {
+                                "logistic_regression": "Logistic Regression (L2)",
+                                "random_forest": "Random Forest",
+                            }[x],
+                            key="netanal_ml_prediction_classifier",
+                        )
+                    with col_p3:
+                        prediction_max_missing = st.slider(
+                            "Prediction max missing",
+                            min_value=0.0,
+                            max_value=0.95,
+                            value=0.50,
+                            step=0.05,
+                            key="netanal_ml_prediction_max_missing",
+                        )
+                    with col_p4:
+                        prediction_first_col = st.checkbox(
+                            "Unknown first column is sample ID",
+                            value=bool(
+                                st.session_state.get(
+                                    "netanal_ml_condition_first_col_sample_id",
+                                    True,
+                                )
+                            ),
+                            key="netanal_ml_prediction_first_col_sample_id",
+                        )
+
+                    run_prediction = st.form_submit_button(
+                        "Run Unknown Sample Prediction",
+                        type="primary",
+                    )
+
+                if run_prediction:
+                    if unknown_csv is None:
+                        st.warning("Please upload an unknown sample CSV first.")
+                    else:
+                        with st.spinner(
+                            "Training classifier and predicting unknown samples ..."
+                        ):
+                            try:
+                                unknown_table = pd.read_csv(unknown_csv)
+                                prediction_result = predict_unknown_condition_samples(
+                                    condition_tables,
+                                    funclu_export["labels"],
+                                    unknown_table,
+                                    module=str(prediction_module),
+                                    first_column_as_sample_id=bool(
+                                        st.session_state.get(
+                                            "netanal_ml_condition_first_col_sample_id",
+                                            True,
+                                        )
+                                    ),
+                                    unknown_first_column_as_sample_id=bool(
+                                        prediction_first_col
+                                    ),
+                                    max_missing_fraction=float(prediction_max_missing),
+                                    task=str(prediction_task),
+                                    positive_label=(
+                                        str(prediction_positive)
+                                        if prediction_task == "one_vs_rest"
+                                        else None
+                                    ),
+                                    classifier=str(prediction_classifier),
+                                    random_state=123,
+                                )
+                            except Exception as e:
+                                st.error(f"Unknown sample prediction failed: {e}")
+                            else:
+                                st.session_state[
+                                    "netanal_ml_prediction_result"
+                                ] = prediction_result
+
+                prediction_result = st.session_state.get("netanal_ml_prediction_result")
+                if prediction_result is None:
+                    st.info(
+                        "Upload an unknown-sample CSV and click prediction to generate "
+                        "condition labels or positive-condition probabilities."
+                    )
+                else:
+                    prediction_context = prediction_result["context"]
+                    predictions = prediction_result["predictions"].copy()
+                    p_m1, p_m2, p_m3, p_m4 = st.columns(4)
+                    p_m1.metric(
+                        "Predicted samples",
+                        f"{int(prediction_context['n_unknown_samples']):,}",
+                    )
+                    p_m2.metric(
+                        "Feature set",
+                        str(prediction_context["module"]),
+                    )
+                    p_m3.metric(
+                        "Features used",
+                        f"{int(prediction_context['n_features_used']):,}",
+                    )
+                    p_m4.metric(
+                        "Classes",
+                        f"{len(prediction_context.get('classes', [])):,}",
+                    )
+                    missing_unknown_features = prediction_context.get(
+                        "missing_features_in_unknown",
+                        [],
+                    )
+                    extra_unknown_features = prediction_context.get(
+                        "extra_features_ignored",
+                        [],
+                    )
+                    if missing_unknown_features:
+                        st.warning(
+                            f"{len(missing_unknown_features):,} training features are "
+                            "missing from the unknown CSV. They were handled by the "
+                            "model imputer."
+                        )
+                    if extra_unknown_features:
+                        st.info(
+                            f"{len(extra_unknown_features):,} unknown CSV features were "
+                            "not part of the selected training feature set and were ignored."
+                        )
+                    st.caption(
+                        "Prediction context: "
+                        f"task={prediction_context.get('task')} | "
+                        f"classifier={prediction_context.get('classifier')} | "
+                        f"module={prediction_context.get('module')}"
+                    )
+                    st.dataframe(predictions, width="stretch", height=320)
+                    st.download_button(
+                        label="Download unknown sample predictions CSV",
+                        data=predictions.to_csv(index=False).encode("utf-8"),
+                        file_name="unknown_sample_predictions.csv",
+                        mime="text/csv",
+                        key="netanal_ml_prediction_download",
+                    )
+
+    # ========== Tab 2_5 Network View ==========
+    with tab2_5:
         validation_result = st.session_state.get("netanal_ml_validation_result")
 
         if validation_result is None:
