@@ -16,6 +16,7 @@ coefficient is treated as an inhibiting association.
 
 from __future__ import annotations
 
+from itertools import combinations, permutations
 import io
 import zipfile
 from typing import Any
@@ -23,6 +24,7 @@ from typing import Any
 import networkx as nx
 import numpy as np
 import pandas as pd
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.impute import SimpleImputer
@@ -39,8 +41,14 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import StratifiedKFold, cross_validate
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.svm import LinearSVC
 import warnings
+
+try:  # Optional at runtime; required only when classifier="xgboost".
+    from xgboost import XGBClassifier
+except Exception:  # pragma: no cover - depends on optional local environment.
+    XGBClassifier = None  # type: ignore[assignment]
 
 
 def _read_zip_csv(zf: zipfile.ZipFile, name: str, *, index_col: int | None = None) -> pd.DataFrame:
@@ -347,6 +355,224 @@ def prepare_module_classification_dataset(
     }
 
 
+def _transform_edge_node_matrix(
+    x: pd.DataFrame,
+    *,
+    transform: str,
+) -> pd.DataFrame:
+    """Return a numeric node matrix suitable for sample-level edge construction."""
+    filled = x.apply(pd.to_numeric, errors="coerce").copy()
+    medians = filled.median(axis=0, skipna=True).fillna(0.0)
+    filled = filled.fillna(medians).fillna(0.0)
+
+    transform = str(transform)
+    if transform == "raw":
+        return filled
+    if transform == "centered":
+        return filled - filled.mean(axis=0)
+    if transform == "zscore":
+        std = filled.std(axis=0, ddof=0).replace(0.0, 1.0)
+        return (filled - filled.mean(axis=0)) / std
+    raise ValueError("transform must be one of: 'zscore', 'centered', 'raw'.")
+
+
+def _sample_edge_values(
+    source_values: np.ndarray,
+    target_values: np.ndarray,
+    *,
+    method: str,
+) -> np.ndarray:
+    method = str(method)
+    if method == "product":
+        return source_values * target_values
+    if method == "signed_difference":
+        return source_values - target_values
+    if method == "absolute_difference":
+        return np.abs(source_values - target_values)
+    if method == "similarity":
+        return 1.0 / (1.0 + np.abs(source_values - target_values))
+    raise ValueError(
+        "method must be one of: 'product', 'signed_difference', "
+        "'absolute_difference', 'similarity'."
+    )
+
+
+def generate_sample_level_intra_edge_table(
+    condition_tables: dict[str, pd.DataFrame],
+    labels_df: pd.DataFrame,
+    *,
+    modules: list[str] | None = None,
+    first_column_as_sample_id: bool = True,
+    max_missing_fraction: float = 0.5,
+    transform: str = "zscore",
+    method: str = "product",
+    direction: str = "undirected",
+    include_self_edges: bool = False,
+    max_edges_per_module: int | None = 500,
+) -> dict[str, Any]:
+    """Generate sample-level intra-module edge features for Node+Edge ML.
+
+    The generated table is intentionally sample-level and does not reuse
+    condition-level NetRecon edge weights. For each selected module, candidate
+    edges are constructed from module member node values for every sample.
+    """
+    dataset = prepare_module_classification_dataset(
+        condition_tables,
+        labels_df,
+        first_column_as_sample_id=first_column_as_sample_id,
+        max_missing_fraction=max_missing_fraction,
+    )
+    x: pd.DataFrame = dataset["x"]
+    cluster_map: dict[str, list[str]] = dataset["cluster_map"]
+    sample_info = dataset["sample_info"].copy()
+    sample_info["ml_index"] = x.index.astype(str)
+    sample_info["sample_id"] = sample_info["sample_id"].astype(str)
+    sample_info["condition"] = sample_info["condition"].astype(str)
+
+    available_modules = [
+        module for module in sorted(cluster_map, key=_module_sort_key)
+        if len(cluster_map.get(module, [])) > 0
+    ]
+    if modules is None:
+        selected_modules = available_modules
+    else:
+        requested = [str(module) for module in modules]
+        selected_modules = [
+            module for module in requested
+            if module in cluster_map and len(cluster_map.get(module, [])) > 0
+        ]
+    if not selected_modules:
+        raise ValueError("No selected FunClu modules have usable node features.")
+
+    direction = str(direction)
+    if direction not in {"undirected", "directed"}:
+        raise ValueError("direction must be 'undirected' or 'directed'.")
+
+    max_edges = (
+        int(max_edges_per_module)
+        if max_edges_per_module is not None and int(max_edges_per_module) > 0
+        else None
+    )
+    node_x = _transform_edge_node_matrix(x, transform=str(transform))
+    sample_lookup = sample_info.set_index("ml_index").loc[node_x.index]
+
+    edge_rows: list[pd.DataFrame] = []
+    summary_rows: list[dict[str, Any]] = []
+    for module in selected_modules:
+        features = [feature for feature in cluster_map[module] if feature in node_x.columns]
+        if len(features) < 2 and not include_self_edges:
+            summary_rows.append(
+                {
+                    "module": module,
+                    "usable_features": int(len(features)),
+                    "candidate_edges": 0,
+                    "retained_edges": 0,
+                    "rows": 0,
+                    "status": "skipped: less than 2 usable features",
+                }
+            )
+            continue
+
+        if direction == "directed":
+            candidate_pairs = list(permutations(features, 2))
+            if include_self_edges:
+                candidate_pairs.extend((feature, feature) for feature in features)
+        else:
+            candidate_pairs = list(combinations(features, 2))
+            if include_self_edges:
+                candidate_pairs.extend((feature, feature) for feature in features)
+
+        if not candidate_pairs:
+            summary_rows.append(
+                {
+                    "module": module,
+                    "usable_features": int(len(features)),
+                    "candidate_edges": 0,
+                    "retained_edges": 0,
+                    "rows": 0,
+                    "status": "skipped: no candidate edges",
+                }
+            )
+            continue
+
+        if max_edges is not None and len(candidate_pairs) > max_edges:
+            scored_pairs: list[tuple[float, str, str]] = []
+            for source, target in candidate_pairs:
+                values = _sample_edge_values(
+                    node_x[source].to_numpy(dtype=float, copy=False),
+                    node_x[target].to_numpy(dtype=float, copy=False),
+                    method=str(method),
+                )
+                score = float(np.nanvar(values))
+                scored_pairs.append((score, str(source), str(target)))
+            scored_pairs.sort(key=lambda item: item[0], reverse=True)
+            retained_pairs = [(source, target) for _, source, target in scored_pairs[:max_edges]]
+        else:
+            retained_pairs = [(str(source), str(target)) for source, target in candidate_pairs]
+
+        module_frames: list[pd.DataFrame] = []
+        for source, target in retained_pairs:
+            values = _sample_edge_values(
+                node_x[source].to_numpy(dtype=float, copy=False),
+                node_x[target].to_numpy(dtype=float, copy=False),
+                method=str(method),
+            )
+            module_frames.append(
+                pd.DataFrame(
+                    {
+                        "condition": sample_lookup["condition"].to_numpy(),
+                        "sample_id": sample_lookup["sample_id"].to_numpy(),
+                        "module": module,
+                        "from": source,
+                        "to": target,
+                        "weight": values,
+                    }
+                )
+            )
+
+        module_edge_table = pd.concat(module_frames, axis=0, ignore_index=True)
+        edge_rows.append(module_edge_table)
+        summary_rows.append(
+            {
+                "module": module,
+                "usable_features": int(len(features)),
+                "candidate_edges": int(len(candidate_pairs)),
+                "retained_edges": int(len(retained_pairs)),
+                "rows": int(module_edge_table.shape[0]),
+                "status": "ok",
+            }
+        )
+
+    if not edge_rows:
+        raise ValueError("No sample-level edge rows were generated.")
+
+    edge_table = pd.concat(edge_rows, axis=0, ignore_index=True)
+    edge_table["weight"] = pd.to_numeric(edge_table["weight"], errors="coerce").fillna(0.0)
+    summary = pd.DataFrame(summary_rows)
+    return {
+        "edge_table": edge_table,
+        "summary": summary,
+        "dataset": {
+            "sample_summary": dataset["sample_summary"],
+            "feature_summary": dataset["feature_summary"],
+            "diagnostics": dataset["diagnostics"],
+        },
+        "context": {
+            "modules": selected_modules,
+            "transform": str(transform),
+            "method": str(method),
+            "direction": direction,
+            "include_self_edges": bool(include_self_edges),
+            "max_edges_per_module": int(max_edges) if max_edges is not None else 0,
+            "rows": int(edge_table.shape[0]),
+            "edge_features": int(
+                edge_table.loc[:, ["module", "from", "to"]].drop_duplicates().shape[0]
+            ),
+            "samples": int(sample_lookup.shape[0]),
+        },
+    }
+
+
 def _classification_pipeline(classifier: str, *, random_state: int) -> Pipeline:
     classifier = str(classifier)
     if classifier == "random_forest":
@@ -355,6 +581,36 @@ def _classification_pipeline(classifier: str, *, random_state: int) -> Pipeline:
             random_state=int(random_state),
             class_weight="balanced_subsample",
             min_samples_leaf=2,
+            n_jobs=-1,
+        )
+    elif classifier == "linear_svm":
+        svm = LinearSVC(
+            C=1.0,
+            class_weight="balanced",
+            max_iter=10000,
+            random_state=int(random_state),
+        )
+        estimator = CalibratedClassifierCV(
+            estimator=svm,
+            method="sigmoid",
+            cv=2,
+        )
+    elif classifier == "xgboost":
+        if XGBClassifier is None:
+            raise ImportError(
+                "XGBoost is not installed in this Python environment. "
+                "Install it with `pip install xgboost` to use classifier='xgboost'."
+            )
+        estimator = XGBClassifier(
+            n_estimators=300,
+            max_depth=3,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            min_child_weight=3,
+            reg_lambda=1.0,
+            tree_method="hist",
+            random_state=int(random_state),
             n_jobs=-1,
         )
     else:
@@ -375,6 +631,20 @@ def _classification_pipeline(classifier: str, *, random_state: int) -> Pipeline:
     )
 
 
+def _model_y_for_classifier(
+    y: pd.Series,
+    *,
+    classifier: str,
+) -> tuple[pd.Series, LabelEncoder | None]:
+    """Encode labels only for estimators that require numeric class ids."""
+    if str(classifier) != "xgboost":
+        return y, None
+
+    encoder = LabelEncoder()
+    encoded = encoder.fit_transform(y.astype(str).to_numpy())
+    return pd.Series(encoded, index=y.index, name=y.name), encoder
+
+
 def _cross_validate_classifier(
     x: pd.DataFrame,
     y: pd.Series,
@@ -384,7 +654,8 @@ def _cross_validate_classifier(
     random_state: int,
     task: str,
 ) -> dict[str, float]:
-    class_counts = y.value_counts()
+    y_model, _ = _model_y_for_classifier(y, classifier=classifier)
+    class_counts = y_model.value_counts()
     if len(class_counts) < 2:
         raise ValueError("Classification requires at least two classes.")
     n_splits = min(int(cv_folds), int(class_counts.min()))
@@ -411,7 +682,7 @@ def _cross_validate_classifier(
         cv_result = cross_validate(
             model,
             x,
-            y,
+            y_model,
             cv=cv,
             scoring=scoring,
             error_score=np.nan,
@@ -421,7 +692,7 @@ def _cross_validate_classifier(
         cv_result = cross_validate(
             model,
             x,
-            y,
+            y_model,
             cv=cv,
             scoring=scoring,
             error_score=np.nan,
@@ -544,6 +815,7 @@ def run_module_stability_validation(
         y_model = y
         task_label = "multiclass"
 
+    y_model, _ = _model_y_for_classifier(y_model, classifier=classifier)
     class_counts = y_model.value_counts()
     if len(class_counts) < 2:
         raise ValueError("Stability validation requires at least two classes.")
@@ -1245,6 +1517,270 @@ def run_intra_module_feature_importance(
     }
 
 
+def run_intra_node_edge_feature_validation(
+    condition_tables: dict[str, pd.DataFrame],
+    labels_df: pd.DataFrame,
+    edge_table: pd.DataFrame,
+    *,
+    module: str,
+    sample_col: str,
+    source_col: str,
+    target_col: str,
+    weight_col: str,
+    condition_col: str | None = None,
+    first_column_as_sample_id: bool = True,
+    max_missing_fraction: float = 0.5,
+    task: str = "one_vs_rest",
+    positive_label: str | None = None,
+    classifier: str = "logistic_regression",
+    cv_folds: int = 5,
+    random_state: int = 123,
+    max_edges: int | None = 5000,
+) -> dict[str, Any]:
+    """Compare intra-module node features, edge features, and their combination.
+
+    ``edge_table`` must be sample-level or instance-level long data. Required
+    columns are sample id, source, target, and weight. Each edge is pivoted to a
+    column named ``source->target`` and aligned to the condition CSV samples.
+    """
+    dataset = prepare_module_classification_dataset(
+        condition_tables,
+        labels_df,
+        first_column_as_sample_id=first_column_as_sample_id,
+        max_missing_fraction=max_missing_fraction,
+    )
+    x: pd.DataFrame = dataset["x"]
+    y: pd.Series = dataset["y"].astype(str)
+    cluster_map: dict[str, list[str]] = dataset["cluster_map"]
+
+    module = str(module)
+    if module not in cluster_map:
+        raise ValueError(f"Module {module!r} was not found in FunClu labels.")
+    node_features = [feature for feature in cluster_map[module] if feature in x.columns]
+    if not node_features:
+        raise ValueError(f"Module {module!r} has no usable node features.")
+
+    required_cols = [sample_col, source_col, target_col, weight_col]
+    missing_cols = [col for col in required_cols if col not in edge_table.columns]
+    if missing_cols:
+        raise ValueError(f"Edge table is missing required columns: {missing_cols}")
+
+    task = str(task)
+    if task not in {"one_vs_rest", "multiclass"}:
+        raise ValueError("task must be 'one_vs_rest' or 'multiclass'.")
+    if task == "one_vs_rest":
+        if positive_label is None:
+            raise ValueError("positive_label is required for one-vs-rest validation.")
+        positive_label = str(positive_label)
+        if positive_label not in set(y):
+            raise ValueError(f"Positive label {positive_label!r} was not found.")
+        y_model = (y == positive_label).astype(int)
+        task_label = f"{positive_label} vs Other"
+    else:
+        y_model = y
+        task_label = "multiclass"
+
+    sample_info = dataset["sample_info"].copy()
+    if len(sample_info) != len(x):
+        raise ValueError("Sample metadata does not align with the ML matrix.")
+    sample_info["ml_index"] = x.index.astype(str)
+    sample_info["sample_id"] = sample_info["sample_id"].astype(str)
+    sample_info["condition"] = sample_info["condition"].astype(str)
+
+    use_condition_alignment = bool(condition_col) and condition_col in edge_table.columns
+    if use_condition_alignment:
+        sample_info["_edge_align_key"] = (
+            sample_info["condition"] + "\x1f" + sample_info["sample_id"]
+        )
+        if sample_info["_edge_align_key"].duplicated().any():
+            duplicated = sample_info.loc[
+                sample_info["_edge_align_key"].duplicated(),
+                ["condition", "sample_id"],
+            ].head(5).to_dict("records")
+            raise ValueError(
+                "Condition + sample_id must be unique to align sample-level "
+                f"edge features. Duplicated examples: {duplicated}"
+            )
+    elif sample_info["sample_id"].duplicated().any():
+        duplicated = sample_info.loc[
+            sample_info["sample_id"].duplicated(),
+            "sample_id",
+        ].head(5).tolist()
+        raise ValueError(
+            "Sample IDs must be unique to align sample-level edge features. "
+            f"Duplicated examples: {duplicated}. If sample IDs repeat across "
+            "conditions, include a condition column in the edge table and select it."
+        )
+    else:
+        sample_info["_edge_align_key"] = sample_info["sample_id"]
+
+    module_node_set = set(str(feature) for feature in node_features)
+    edges = edge_table.loc[:, required_cols].copy()
+    if use_condition_alignment:
+        edges[condition_col] = edge_table[condition_col].astype(str)
+    edges[sample_col] = edges[sample_col].astype(str)
+    edges[source_col] = edges[source_col].astype(str)
+    edges[target_col] = edges[target_col].astype(str)
+    edges[weight_col] = pd.to_numeric(edges[weight_col], errors="coerce")
+    edges = edges.dropna(subset=[sample_col, source_col, target_col, weight_col])
+    edges = edges[
+        edges[source_col].isin(module_node_set)
+        & edges[target_col].isin(module_node_set)
+    ].copy()
+    if edges.empty:
+        raise ValueError(
+            f"No sample-level edges remained for module {module!r}. Make sure "
+            "source/target names match FunClu feature names."
+        )
+    edges["edge_feature"] = edges[source_col] + "->" + edges[target_col]
+
+    if use_condition_alignment:
+        edges["_edge_align_key"] = (
+            edges[condition_col].astype(str) + "\x1f" + edges[sample_col].astype(str)
+        )
+    else:
+        edges["_edge_align_key"] = edges[sample_col].astype(str)
+
+    valid_sample_keys = set(sample_info["_edge_align_key"])
+    edges = edges[edges["_edge_align_key"].isin(valid_sample_keys)].copy()
+    if edges.empty:
+        raise ValueError(
+            "No edge rows matched the uploaded condition sample IDs. Check the "
+            "sample_id column, and if selected, the condition column in the edge table."
+        )
+
+    edge_wide = edges.pivot_table(
+        index="_edge_align_key",
+        columns="edge_feature",
+        values=weight_col,
+        aggfunc="mean",
+        fill_value=0.0,
+    )
+    edge_wide.columns = [str(col) for col in edge_wide.columns]
+
+    if max_edges is not None and int(max_edges) > 0 and edge_wide.shape[1] > int(max_edges):
+        variances = edge_wide.var(axis=0, ddof=0).sort_values(ascending=False)
+        edge_wide = edge_wide.loc[:, variances.head(int(max_edges)).index].copy()
+
+    sample_order = sample_info.set_index("_edge_align_key").loc[:, "ml_index"]
+    edge_x = edge_wide.reindex(sample_order.index).fillna(0.0)
+    edge_x.index = sample_order.to_numpy()
+    edge_x = edge_x.reindex(index=x.index).fillna(0.0)
+    if edge_x.empty or edge_x.shape[1] == 0:
+        raise ValueError("No usable edge features remained after alignment.")
+
+    node_x = x.loc[:, node_features].copy()
+    combined_x = pd.concat(
+        [
+            node_x.add_prefix("node:"),
+            edge_x.add_prefix("edge:"),
+        ],
+        axis=1,
+    )
+
+    feature_sets = {
+        "Node only": node_x,
+        "Edge only": edge_x,
+        "Node + Edge": combined_x,
+    }
+    rows: list[dict[str, Any]] = []
+    for feature_set, matrix in feature_sets.items():
+        row: dict[str, Any] = {
+            "feature_set": feature_set,
+            "module": module,
+            "task": task_label,
+            "classifier": classifier,
+            "n_features": int(matrix.shape[1]),
+            "n_samples": int(matrix.shape[0]),
+        }
+        try:
+            scores = _cross_validate_classifier(
+                matrix,
+                y_model,
+                classifier=classifier,
+                cv_folds=int(cv_folds),
+                random_state=int(random_state),
+                task=task,
+            )
+        except Exception as exc:
+            scores = {
+                "status": f"failed: {exc}",
+                "primary_metric": "",
+                "primary_score_mean": np.nan,
+                "primary_score_std": np.nan,
+                "accuracy_mean": np.nan,
+                "accuracy_std": np.nan,
+                "balanced_accuracy_mean": np.nan,
+                "balanced_accuracy_std": np.nan,
+                "f1_macro_mean": np.nan,
+                "f1_macro_std": np.nan,
+                "roc_auc_mean": np.nan,
+                "roc_auc_std": np.nan,
+                "cv_folds_used": np.nan,
+            }
+        else:
+            scores["status"] = "ok"
+        row.update(scores)
+        rows.append(row)
+
+    scores_df = pd.DataFrame(rows)
+    scores_df = scores_df.sort_values(
+        ["primary_score_mean", "n_features"],
+        ascending=[False, False],
+        na_position="last",
+    ).reset_index(drop=True)
+    scores_df.insert(0, "validation_rank", np.arange(1, len(scores_df) + 1))
+
+    edge_summary = (
+        edges.groupby("edge_feature", sort=False)
+        .agg(
+            observed_samples=(sample_col, "nunique"),
+            mean_weight=(weight_col, "mean"),
+            std_weight=(weight_col, "std"),
+            nonzero_edges=(weight_col, lambda values: int((values != 0).sum())),
+        )
+        .reset_index()
+    )
+    edge_summary["abs_mean_weight"] = edge_summary["mean_weight"].abs()
+    edge_summary = edge_summary.sort_values(
+        ["observed_samples", "abs_mean_weight"],
+        ascending=[False, False],
+        na_position="last",
+    ).reset_index(drop=True)
+
+    return {
+        "scores": scores_df,
+        "edge_summary": edge_summary,
+        "node_features": node_features,
+        "edge_features": list(edge_x.columns),
+        "dataset": {
+            "sample_summary": dataset["sample_summary"],
+            "feature_summary": dataset["feature_summary"],
+            "diagnostics": dataset["diagnostics"],
+        },
+        "context": {
+            "module": module,
+            "task": task,
+            "task_label": task_label,
+            "positive_label": positive_label if positive_label is not None else "",
+            "classifier": classifier,
+            "cv_folds": int(cv_folds),
+            "sample_col": sample_col,
+            "source_col": source_col,
+            "target_col": target_col,
+            "weight_col": weight_col,
+            "condition_col": condition_col if condition_col is not None else "",
+            "matched_edge_rows": int(len(edges)),
+            "matched_edge_features": int(edge_x.shape[1]),
+            "matched_samples": int(edge_x.shape[0]),
+            "max_edges": int(max_edges) if max_edges is not None else 0,
+            "alignment_mode": (
+                "condition + sample_id" if use_condition_alignment else "sample_id"
+            ),
+        },
+    }
+
+
 def predict_unknown_condition_samples(
     condition_tables: dict[str, pd.DataFrame],
     labels_df: pd.DataFrame,
@@ -1308,9 +1844,10 @@ def predict_unknown_condition_samples(
     unknown_x = unknown_numeric.reindex(columns=features)
 
     model = _classification_pipeline(classifier, random_state=int(random_state))
+    y_fit, y_encoder = _model_y_for_classifier(y_model, classifier=classifier)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=ConvergenceWarning)
-        model.fit(x.loc[:, features], y_model)
+        model.fit(x.loc[:, features], y_fit)
 
     pred = model.predict(unknown_x)
     proba = model.predict_proba(unknown_x)
@@ -1340,11 +1877,25 @@ def predict_unknown_condition_samples(
                 "prob_Other": 1.0 - positive_prob if pd.notna(positive_prob) else np.nan,
             }
         else:
+            if y_encoder is not None:
+                decoded_classes = [
+                    str(value)
+                    for value in y_encoder.inverse_transform(
+                        np.asarray(model_classes, dtype=int)
+                    )
+                ]
+                predicted_label = str(
+                    y_encoder.inverse_transform(
+                        np.asarray([int(pred[row_idx])], dtype=int)
+                    )[0]
+                )
+            else:
+                decoded_classes = [str(cls) for cls in model_classes]
+                predicted_label = str(pred[row_idx])
             class_prob = {
-                f"prob_{str(cls)}": float(proba[row_idx, col_idx])
-                for col_idx, cls in enumerate(model_classes)
+                f"prob_{decoded_classes[col_idx]}": float(proba[row_idx, col_idx])
+                for col_idx in range(len(decoded_classes))
             }
-            predicted_label = str(pred[row_idx])
             predicted_prob_key = f"prob_{predicted_label}"
             row = {
                 "sample_id": str(sample_id),

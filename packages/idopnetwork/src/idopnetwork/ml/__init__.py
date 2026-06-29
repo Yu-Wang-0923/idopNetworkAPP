@@ -3,6 +3,7 @@
 from idopnetwork.ml.core import (
     compare_hub_tables,
     funclu_k_export_summary,
+    generate_sample_level_intra_edge_table,
     get_funclu_ml_matrix,
     hub_table_from_adjacency,
     infer_signed_hub_network,
@@ -12,6 +13,7 @@ from idopnetwork.ml.core import (
     module_feature_map_from_labels,
     prepare_variable_sample_matrix,
     predict_unknown_condition_samples,
+    run_intra_node_edge_feature_validation,
     run_intra_module_feature_importance,
     run_module_stability_validation,
     run_module_classification_validation,
@@ -23,6 +25,7 @@ from idopnetwork.ml.core import (
 __all__ = [
     "compare_hub_tables",
     "funclu_k_export_summary",
+    "generate_sample_level_intra_edge_table",
     "get_funclu_ml_matrix",
     "hub_table_from_adjacency",
     "infer_signed_hub_network",
@@ -32,6 +35,7 @@ __all__ = [
     "module_feature_map_from_labels",
     "prepare_variable_sample_matrix",
     "predict_unknown_condition_samples",
+    "run_intra_node_edge_feature_validation",
     "run_intra_module_feature_importance",
     "run_module_stability_validation",
     "run_module_classification_validation",

@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import zipfile
 
 import matplotlib
 matplotlib.use("Agg", force=True)
@@ -33,6 +34,7 @@ from idopnetwork.analysis.plot_analysis import plot_glmy_barcode
 from idopnetwork.ml.core import (
     compare_hub_tables,
     funclu_k_export_summary,
+    generate_sample_level_intra_edge_table,
     get_funclu_ml_matrix,
     hub_table_from_adjacency,
     infer_signed_hub_network,
@@ -42,6 +44,7 @@ from idopnetwork.ml.core import (
     module_feature_map_from_labels,
     predict_unknown_condition_samples,
     run_intra_module_feature_importance,
+    run_intra_node_edge_feature_validation,
     run_module_classification_validation,
     run_module_single_feature_validation,
     run_module_stability_validation,
@@ -63,12 +66,95 @@ from idopnetwork.analysis.glmy_test import (
 
 PAPER_3_2_DEFAULT_MAX_X: float = 5.5
 
+ML_CLASSIFIER_OPTIONS = [
+    "logistic_regression",
+    "random_forest",
+    "xgboost",
+    "linear_svm",
+]
+ML_CLASSIFIER_LABELS = {
+    "logistic_regression": "Logistic Regression (L2)",
+    "random_forest": "Random Forest",
+    "xgboost": "XGBoost",
+    "linear_svm": "Linear SVM",
+}
+
+
+def _classifier_index(value: object, default: str = "logistic_regression") -> int:
+    text = str(value)
+    if text not in ML_CLASSIFIER_OPTIONS:
+        text = default if default in ML_CLASSIFIER_OPTIONS else "logistic_regression"
+    return ML_CLASSIFIER_OPTIONS.index(text)
+
 
 def _clean_condition_label(value: object) -> str:
     """Normalize condition/file labels for loose topology-vs-ML matching."""
     text = os.path.basename(str(value).strip())
     text = os.path.splitext(text)[0]
     return text.casefold()
+
+
+def _safe_condition_filename(value: object, used: set[str]) -> str:
+    """Create a stable CSV-safe file stem for a condition label."""
+    text = str(value).strip()
+    if not text:
+        text = "condition"
+    safe = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in text)
+    safe = safe.strip("._") or "condition"
+    candidate = safe
+    suffix = 2
+    while candidate in used:
+        candidate = f"{safe}_{suffix}"
+        suffix += 1
+    used.add(candidate)
+    return candidate
+
+
+def _split_combined_condition_csv(
+    combined_df: pd.DataFrame,
+    *,
+    condition_column: str,
+    drop_condition_column: bool,
+) -> tuple[dict[str, pd.DataFrame], pd.DataFrame, bytes]:
+    """Split one labelled CSV into condition CSV tables plus a ZIP archive."""
+    if condition_column not in combined_df.columns:
+        raise ValueError(f"Condition column {condition_column!r} was not found.")
+    if combined_df.empty:
+        raise ValueError("Combined CSV is empty.")
+
+    clean_df = combined_df.copy()
+    labels = clean_df[condition_column].fillna("missing_condition").astype(str).str.strip()
+    labels = labels.replace("", "missing_condition")
+    clean_df[condition_column] = labels
+
+    condition_tables: dict[str, pd.DataFrame] = {}
+    summary_rows: list[dict[str, object]] = []
+    used_names: set[str] = set()
+    zip_buffer = io.BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for raw_label, group in clean_df.groupby(condition_column, sort=False):
+            condition_label = _safe_condition_filename(raw_label, used_names)
+            out_df = group.copy()
+            if drop_condition_column:
+                out_df = out_df.drop(columns=[condition_column])
+            condition_tables[condition_label] = out_df
+            csv_name = f"{condition_label}.csv"
+            zf.writestr(csv_name, out_df.to_csv(index=False))
+            summary_rows.append(
+                {
+                    "condition_label": condition_label,
+                    "source_value": str(raw_label),
+                    "samples": int(out_df.shape[0]),
+                    "columns": int(out_df.shape[1]),
+                    "file": csv_name,
+                }
+            )
+
+    summary = pd.DataFrame(summary_rows)
+    if len(condition_tables) < 2:
+        raise ValueError("At least two condition groups are required after splitting.")
+    return condition_tables, summary, zip_buffer.getvalue()
 
 
 def _topology_rows_for_classification(
@@ -1056,6 +1142,105 @@ with tab2:
             value=True,
             key="netanal_ml_condition_first_col_sample_id",
         )
+        combined_condition_csv = st.file_uploader(
+            label="Optional: upload one combined CSV with a condition column",
+            type=["csv"],
+            key="netanal_ml_combined_condition_csv_upload",
+            help=(
+                "Use this when all samples are in one CSV. One column should contain "
+                "group labels such as c1, c2, c3; the app can split it into condition CSVs."
+            ),
+        )
+
+        split_condition_tables: dict[str, pd.DataFrame] = {}
+        split_condition_summary = pd.DataFrame()
+        split_condition_zip = b""
+        use_split_as_conditions = False
+        if combined_condition_csv is not None:
+            st.markdown("#### Split one combined CSV into condition files")
+            try:
+                combined_condition_df = pd.read_csv(combined_condition_csv)
+            except Exception as e:
+                st.error(f"Unable to read combined condition CSV: {e}")
+            else:
+                if combined_condition_df.empty:
+                    st.warning("The combined condition CSV is empty.")
+                else:
+                    condition_column_options = list(combined_condition_df.columns)
+                    default_condition_index = (
+                        condition_column_options.index("condition")
+                        if "condition" in condition_column_options
+                        else 1
+                        if len(condition_column_options) > 1
+                        else 0
+                    )
+                    col_split1, col_split2, col_split3 = st.columns(3)
+                    with col_split1:
+                        split_condition_column = st.selectbox(
+                            "Condition/group column",
+                            options=condition_column_options,
+                            index=default_condition_index,
+                            key="netanal_ml_split_condition_column",
+                        )
+                    with col_split2:
+                        split_drop_condition_column = st.checkbox(
+                            "Drop condition column from exported CSVs",
+                            value=True,
+                            key="netanal_ml_split_drop_condition_column",
+                        )
+                    with col_split3:
+                        use_split_as_conditions = st.checkbox(
+                            "Use split groups as condition inputs",
+                            value=not bool(condition_csvs),
+                            key="netanal_ml_use_split_conditions",
+                            help=(
+                                "If separate condition CSVs are also uploaded, those "
+                                "manual files take priority."
+                            ),
+                        )
+
+                    try:
+                        (
+                            split_condition_tables,
+                            split_condition_summary,
+                            split_condition_zip,
+                        ) = _split_combined_condition_csv(
+                            combined_condition_df,
+                            condition_column=str(split_condition_column),
+                            drop_condition_column=bool(split_drop_condition_column),
+                        )
+                    except Exception as e:
+                        st.error(f"Unable to split combined CSV: {e}")
+                    else:
+                        s1, s2, s3 = st.columns(3)
+                        s1.metric("Detected conditions", f"{len(split_condition_tables):,}")
+                        s2.metric("Total samples", f"{int(combined_condition_df.shape[0]):,}")
+                        s3.metric(
+                            "Exported columns",
+                            (
+                                f"{int(split_condition_summary['columns'].iloc[0]):,}"
+                                if not split_condition_summary.empty
+                                else "0"
+                            ),
+                        )
+                        st.dataframe(
+                            split_condition_summary,
+                            width="stretch",
+                            height=220,
+                        )
+                        st.download_button(
+                            label="Download split condition CSVs ZIP",
+                            data=split_condition_zip,
+                            file_name="split_condition_csvs.zip",
+                            mime="application/zip",
+                            key="netanal_ml_split_conditions_zip_download",
+                        )
+                        if condition_csvs and use_split_as_conditions:
+                            st.info(
+                                "Separate condition CSV uploads are present, so they "
+                                "will be used for ML inputs. Remove them to use the "
+                                "combined-CSV split result instead."
+                            )
 
         if funclu_zip is None:
             st.info("Please upload a FunClu-K export ZIP first.")
@@ -1067,6 +1252,8 @@ with tab2:
                 st.session_state.pop("netanal_ml_intra_result", None)
                 st.session_state.pop("netanal_ml_stability_result", None)
                 st.session_state.pop("netanal_ml_single_feature_result", None)
+                st.session_state.pop("netanal_ml_node_edge_result", None)
+                st.session_state.pop("netanal_ml_generated_node_edge_table", None)
                 st.session_state.pop("netanal_ml_prediction_result", None)
                 st.session_state["netanal_ml_funclu_signature"] = funclu_signature
 
@@ -1140,8 +1327,13 @@ with tab2:
         else:
             st.session_state.pop("netanal_ml_topology_adjs", None)
 
+        condition_tables = {}
+        condition_rows = []
+        condition_source = ""
         if condition_csvs:
-            condition_signature = tuple((f.name, f.size) for f in condition_csvs) + (
+            condition_signature = (
+                "separate_csvs",
+                tuple((f.name, f.size) for f in condition_csvs),
                 bool(first_column_as_sample_id),
             )
             if st.session_state.get("netanal_ml_condition_signature") != condition_signature:
@@ -1149,11 +1341,11 @@ with tab2:
                 st.session_state.pop("netanal_ml_intra_result", None)
                 st.session_state.pop("netanal_ml_stability_result", None)
                 st.session_state.pop("netanal_ml_single_feature_result", None)
+                st.session_state.pop("netanal_ml_node_edge_result", None)
+                st.session_state.pop("netanal_ml_generated_node_edge_table", None)
                 st.session_state.pop("netanal_ml_prediction_result", None)
                 st.session_state["netanal_ml_condition_signature"] = condition_signature
 
-            condition_tables = {}
-            condition_rows = []
             duplicate_counts = {}
             for uploaded_condition in condition_csvs:
                 base_label = os.path.splitext(uploaded_condition.name)[0]
@@ -1183,17 +1375,236 @@ with tab2:
                     }
                 )
 
-            if condition_tables:
-                st.session_state["netanal_ml_condition_tables"] = condition_tables
-                st.markdown("#### Classification condition CSVs")
-                st.dataframe(pd.DataFrame(condition_rows), width="stretch", height=220)
+            condition_source = "separate condition CSV uploads"
+        elif use_split_as_conditions and split_condition_tables:
+            condition_signature = (
+                "combined_csv_split",
+                combined_condition_csv.name if combined_condition_csv is not None else "",
+                combined_condition_csv.size if combined_condition_csv is not None else 0,
+                str(st.session_state.get("netanal_ml_split_condition_column", "")),
+                bool(st.session_state.get("netanal_ml_split_drop_condition_column", True)),
+                bool(first_column_as_sample_id),
+            )
+            if st.session_state.get("netanal_ml_condition_signature") != condition_signature:
+                st.session_state.pop("netanal_ml_classification_result", None)
+                st.session_state.pop("netanal_ml_intra_result", None)
+                st.session_state.pop("netanal_ml_stability_result", None)
+                st.session_state.pop("netanal_ml_single_feature_result", None)
+                st.session_state.pop("netanal_ml_node_edge_result", None)
+                st.session_state.pop("netanal_ml_generated_node_edge_table", None)
+                st.session_state.pop("netanal_ml_prediction_result", None)
+                st.session_state["netanal_ml_condition_signature"] = condition_signature
+
+            condition_tables = split_condition_tables
+            if not split_condition_summary.empty:
+                condition_rows = split_condition_summary.to_dict("records")
+            else:
+                condition_rows = [
+                    {
+                        "condition_label": label,
+                        "samples": int(table.shape[0]),
+                        "feature_columns": (
+                            max(0, int(table.shape[1]) - 1)
+                            if first_column_as_sample_id
+                            else int(table.shape[1])
+                        ),
+                    }
+                    for label, table in condition_tables.items()
+                ]
+            condition_source = "combined CSV split"
+
+        if condition_tables:
+            st.session_state["netanal_ml_condition_tables"] = condition_tables
+            st.markdown(f"#### Classification condition CSVs ({condition_source})")
+            st.dataframe(pd.DataFrame(condition_rows), width="stretch", height=220)
         else:
             st.session_state.pop("netanal_ml_condition_tables", None)
             st.session_state.pop("netanal_ml_classification_result", None)
             st.session_state.pop("netanal_ml_intra_result", None)
             st.session_state.pop("netanal_ml_stability_result", None)
             st.session_state.pop("netanal_ml_single_feature_result", None)
+            st.session_state.pop("netanal_ml_node_edge_result", None)
+            st.session_state.pop("netanal_ml_generated_node_edge_table", None)
             st.session_state.pop("netanal_ml_prediction_result", None)
+
+        aligned_funclu_export = st.session_state.get("netanal_ml_funclu_export")
+        if aligned_funclu_export is not None and condition_tables:
+            st.markdown("#### Generate sample-level intra edge table")
+            st.caption(
+                "This creates the CSV required by **Intra Node + Edge Feature Validation**: "
+                "`condition,sample_id,module,from,to,weight`. Edge weights are derived "
+                "from each sample's node values, so the result is sample-level rather "
+                "than a copied NetRecon condition-level network."
+            )
+            try:
+                aligned_cluster_map = module_feature_map_from_labels(
+                    aligned_funclu_export["labels"]
+                )
+            except Exception as e:
+                st.error(f"Unable to read FunClu module labels for edge generation: {e}")
+                aligned_module_options = []
+            else:
+                aligned_module_options = [
+                    module
+                    for module in sorted(aligned_cluster_map, key=lambda x: (
+                        int(str(x)[1:]) if str(x).startswith("M") and str(x)[1:].isdigit() else 10**9,
+                        str(x),
+                    ))
+                    if aligned_cluster_map.get(module)
+                ]
+
+            if not aligned_module_options:
+                st.warning("No usable FunClu modules are available for edge generation.")
+            else:
+                with st.form(key="netanal_ml_generate_node_edge_form"):
+                    gen_c1, gen_c2, gen_c3 = st.columns(3)
+                    with gen_c1:
+                        default_gen_modules = aligned_module_options[: min(3, len(aligned_module_options))]
+                        edge_gen_modules = st.multiselect(
+                            "Modules to generate",
+                            options=aligned_module_options,
+                            default=default_gen_modules,
+                            key="netanal_ml_generate_node_edge_modules",
+                        )
+                        edge_gen_transform = st.selectbox(
+                            "Node value transform",
+                            options=["zscore", "centered", "raw"],
+                            index=0,
+                            format_func=lambda x: {
+                                "zscore": "Z-score across all samples (recommended)",
+                                "centered": "Mean-centered",
+                                "raw": "Raw values",
+                            }[x],
+                            key="netanal_ml_generate_node_edge_transform",
+                        )
+                    with gen_c2:
+                        edge_gen_method = st.selectbox(
+                            "Edge weight formula",
+                            options=[
+                                "product",
+                                "signed_difference",
+                                "absolute_difference",
+                                "similarity",
+                            ],
+                            index=0,
+                            format_func=lambda x: {
+                                "product": "source * target interaction",
+                                "signed_difference": "source - target contrast",
+                                "absolute_difference": "|source - target| distance",
+                                "similarity": "1 / (1 + |source - target|)",
+                            }[x],
+                            key="netanal_ml_generate_node_edge_method",
+                        )
+                        edge_gen_direction = st.selectbox(
+                            "Edge direction",
+                            options=["undirected", "directed"],
+                            index=0,
+                            format_func=lambda x: {
+                                "undirected": "One edge per pair (recommended)",
+                                "directed": "Both source -> target directions",
+                            }[x],
+                            key="netanal_ml_generate_node_edge_direction",
+                        )
+                    with gen_c3:
+                        edge_gen_max_edges = st.number_input(
+                            "Max edges per module",
+                            min_value=0,
+                            max_value=100000,
+                            value=500,
+                            step=100,
+                            key="netanal_ml_generate_node_edge_max_edges",
+                            help=(
+                                "0 keeps every candidate edge. If limited, highest-variance "
+                                "edge features are retained within each module."
+                            ),
+                        )
+                        edge_gen_include_self = st.checkbox(
+                            "Include self edges",
+                            value=False,
+                            key="netanal_ml_generate_node_edge_self",
+                        )
+                        edge_gen_missing_fraction = st.slider(
+                            "Max missing fraction per node",
+                            min_value=0.0,
+                            max_value=1.0,
+                            value=0.5,
+                            step=0.05,
+                            key="netanal_ml_generate_node_edge_missing",
+                        )
+                    run_edge_generation = st.form_submit_button(
+                        "Generate sample-level edge table",
+                        type="primary",
+                    )
+
+                if run_edge_generation:
+                    if not edge_gen_modules:
+                        st.warning("Select at least one module before generating edge features.")
+                    else:
+                        with st.spinner("Generating sample-level intra edge table ..."):
+                            try:
+                                generated_edge_result = (
+                                    generate_sample_level_intra_edge_table(
+                                        condition_tables,
+                                        aligned_funclu_export["labels"],
+                                        modules=[str(module) for module in edge_gen_modules],
+                                        first_column_as_sample_id=bool(
+                                            st.session_state.get(
+                                                "netanal_ml_condition_first_col_sample_id",
+                                                True,
+                                            )
+                                        ),
+                                        max_missing_fraction=float(edge_gen_missing_fraction),
+                                        transform=str(edge_gen_transform),
+                                        method=str(edge_gen_method),
+                                        direction=str(edge_gen_direction),
+                                        include_self_edges=bool(edge_gen_include_self),
+                                        max_edges_per_module=(
+                                            int(edge_gen_max_edges)
+                                            if int(edge_gen_max_edges) > 0
+                                            else None
+                                        ),
+                                    )
+                                )
+                            except Exception as e:
+                                st.error(f"Sample-level edge generation failed: {e}")
+                            else:
+                                st.session_state[
+                                    "netanal_ml_generated_node_edge_table"
+                                ] = generated_edge_result
+                                st.session_state.pop("netanal_ml_node_edge_result", None)
+
+                generated_edge_result = st.session_state.get(
+                    "netanal_ml_generated_node_edge_table"
+                )
+                if generated_edge_result is not None:
+                    generated_edge_table = generated_edge_result["edge_table"]
+                    generated_edge_summary = generated_edge_result["summary"]
+                    generated_edge_context = generated_edge_result["context"]
+                    eg_m1, eg_m2, eg_m3, eg_m4 = st.columns(4)
+                    eg_m1.metric("Generated rows", f"{int(generated_edge_context['rows']):,}")
+                    eg_m2.metric(
+                        "Edge features",
+                        f"{int(generated_edge_context['edge_features']):,}",
+                    )
+                    eg_m3.metric("Samples", f"{int(generated_edge_context['samples']):,}")
+                    eg_m4.metric(
+                        "Modules",
+                        f"{len(generated_edge_context.get('modules', [])):,}",
+                    )
+                    st.dataframe(generated_edge_summary, width="stretch", height=220)
+                    with st.expander("Generated edge table preview"):
+                        st.dataframe(
+                            generated_edge_table.head(500),
+                            width="stretch",
+                            height=260,
+                        )
+                    st.download_button(
+                        label="Download generated sample-level edge table CSV",
+                        data=generated_edge_table.to_csv(index=False).encode("utf-8"),
+                        file_name="sample_level_intra_edge_table.csv",
+                        mime="text/csv",
+                        key="netanal_ml_generated_node_edge_download",
+                    )
 
     # ========== Tab 2_2 Validation ==========
     with tab2_2:
@@ -1678,11 +2089,8 @@ with tab2:
                     with col_c2:
                         classifier = st.selectbox(
                             "Classifier",
-                            options=["logistic_regression", "random_forest"],
-                            format_func=lambda x: {
-                                "logistic_regression": "Logistic Regression (L2)",
-                                "random_forest": "Random Forest",
-                            }[x],
+                            options=ML_CLASSIFIER_OPTIONS,
+                            format_func=lambda x: ML_CLASSIFIER_LABELS[x],
                             key="netanal_ml_classification_classifier",
                         )
                         cv_folds = st.number_input(
@@ -1778,6 +2186,7 @@ with tab2:
                             st.session_state.pop("netanal_ml_intra_result", None)
                             st.session_state.pop("netanal_ml_stability_result", None)
                             st.session_state.pop("netanal_ml_single_feature_result", None)
+                            st.session_state.pop("netanal_ml_node_edge_result", None)
 
         classification_result = st.session_state.get("netanal_ml_classification_result")
         if classification_result is None:
@@ -1987,19 +2396,11 @@ with tab2:
                         )
                         single_feature_classifier = st.selectbox(
                             "Single-feature model",
-                            options=["logistic_regression", "random_forest"],
-                            index=(
-                                ["logistic_regression", "random_forest"].index(
-                                    str(context.get("classifier", "logistic_regression"))
-                                )
-                                if str(context.get("classifier", "logistic_regression"))
-                                in {"logistic_regression", "random_forest"}
-                                else 0
+                            options=ML_CLASSIFIER_OPTIONS,
+                            index=_classifier_index(
+                                context.get("classifier", "logistic_regression")
                             ),
-                            format_func=lambda x: {
-                                "logistic_regression": "Logistic Regression (L2)",
-                                "random_forest": "Random Forest",
-                            }[x],
+                            format_func=lambda x: ML_CLASSIFIER_LABELS[x],
                             key="netanal_ml_single_feature_classifier",
                         )
                     with sf_c2:
@@ -2305,19 +2706,11 @@ with tab2:
                         )
                         stability_classifier = st.selectbox(
                             "Stability model",
-                            options=["logistic_regression", "random_forest"],
-                            index=(
-                                ["logistic_regression", "random_forest"].index(
-                                    str(context.get("classifier", "logistic_regression"))
-                                )
-                                if str(context.get("classifier", "logistic_regression"))
-                                in {"logistic_regression", "random_forest"}
-                                else 0
+                            options=ML_CLASSIFIER_OPTIONS,
+                            index=_classifier_index(
+                                context.get("classifier", "logistic_regression")
                             ),
-                            format_func=lambda x: {
-                                "logistic_regression": "Logistic Regression (L2)",
-                                "random_forest": "Random Forest",
-                            }[x],
+                            format_func=lambda x: ML_CLASSIFIER_LABELS[x],
                             key="netanal_ml_stability_classifier",
                         )
                     with col_s3:
@@ -2548,19 +2941,9 @@ with tab2:
                             )
                             intra_classifier = st.selectbox(
                                 "Feature model",
-                                options=["logistic_regression", "random_forest"],
-                                index=(
-                                    ["logistic_regression", "random_forest"].index(
-                                        context_classifier
-                                    )
-                                    if context_classifier
-                                    in {"logistic_regression", "random_forest"}
-                                    else 0
-                                ),
-                                format_func=lambda x: {
-                                    "logistic_regression": "Logistic Regression (L2)",
-                                    "random_forest": "Random Forest",
-                                }[x],
+                                options=ML_CLASSIFIER_OPTIONS,
+                                index=_classifier_index(context_classifier),
+                                format_func=lambda x: ML_CLASSIFIER_LABELS[x],
                                 key="netanal_ml_intra_classifier",
                             )
                             intra_cv_folds = st.number_input(
@@ -2970,6 +3353,333 @@ with tab2:
                         key="netanal_ml_intra_topology_download",
                     )
 
+            st.markdown("#### Intra Node + Edge Feature Validation")
+            st.caption(
+                "This validation needs a sample-level intra edge table. Required long-table "
+                "columns are sample_id, from, to, and weight. NetRecon condition-level "
+                "networks alone are not enough for strict ML classification."
+            )
+            if context.get("task") != "one_vs_rest" or not context.get("positive_label"):
+                st.info(
+                    "Node + Edge validation is currently available for **One condition vs others** "
+                    "tasks so the edge contribution is interpreted against one positive condition."
+                )
+            elif not module_options:
+                st.warning("No usable FunClu modules are available for Node + Edge validation.")
+            else:
+                edge_table = None
+                edge_columns: list[str] = []
+                generated_edge_payload = st.session_state.get(
+                    "netanal_ml_generated_node_edge_table"
+                )
+                edge_source_options = ["upload"]
+                if generated_edge_payload is not None:
+                    edge_source_options.insert(0, "generated")
+                edge_source = st.radio(
+                    "Sample-level edge table source",
+                    options=edge_source_options,
+                    horizontal=True,
+                    format_func=lambda x: {
+                        "generated": "Use generated edge table",
+                        "upload": "Upload CSV",
+                    }[x],
+                    key="netanal_ml_node_edge_source",
+                )
+
+                if edge_source == "generated" and generated_edge_payload is not None:
+                    edge_table = generated_edge_payload["edge_table"].copy()
+                    edge_columns = list(edge_table.columns)
+                    generated_context = generated_edge_payload.get("context", {})
+                    edge_signature = (
+                        "generated",
+                        int(generated_context.get("rows", edge_table.shape[0])),
+                        int(generated_context.get("edge_features", 0)),
+                        str(generated_context.get("method", "")),
+                        str(generated_context.get("transform", "")),
+                        str(generated_context.get("direction", "")),
+                    )
+                    if (
+                        st.session_state.get("netanal_ml_node_edge_edge_signature")
+                        != edge_signature
+                    ):
+                        st.session_state.pop("netanal_ml_node_edge_result", None)
+                        st.session_state[
+                            "netanal_ml_node_edge_edge_signature"
+                        ] = edge_signature
+                    st.caption(
+                        f"Using generated edge table: {edge_table.shape[0]:,} rows x "
+                        f"{edge_table.shape[1]:,} columns."
+                    )
+                else:
+                    edge_csv = st.file_uploader(
+                        "Upload sample-level intra edge table CSV",
+                        type=["csv"],
+                        key="netanal_ml_intra_node_edge_csv",
+                        help=(
+                            "Expected long format: sample_id, condition optional, from, to, weight. "
+                            "Each row is one directed edge for one sample/network instance."
+                        )
+                    )
+                    if edge_csv is None:
+                        st.session_state.pop("netanal_ml_node_edge_edge_signature", None)
+                        st.session_state.pop("netanal_ml_node_edge_result", None)
+                    else:
+                        edge_signature = ("upload", edge_csv.name, edge_csv.size)
+                        if (
+                            st.session_state.get("netanal_ml_node_edge_edge_signature")
+                            != edge_signature
+                        ):
+                            st.session_state.pop("netanal_ml_node_edge_result", None)
+                            st.session_state[
+                                "netanal_ml_node_edge_edge_signature"
+                            ] = edge_signature
+                        try:
+                            edge_table = pd.read_csv(edge_csv)
+                        except Exception as e:
+                            st.error(f"Unable to read intra edge table CSV: {e}")
+                        else:
+                            edge_columns = list(edge_table.columns)
+                            st.caption(
+                                f"Loaded edge table: {edge_table.shape[0]:,} rows x "
+                                f"{edge_table.shape[1]:,} columns"
+                            )
+
+                if edge_table is not None and edge_columns:
+                    lower_cols = {str(col).casefold(): col for col in edge_columns}
+
+                    def _default_col(*names: str) -> str:
+                        for name in names:
+                            if name.casefold() in lower_cols:
+                                return str(lower_cols[name.casefold()])
+                        return str(edge_columns[0])
+
+                    default_condition_col = ""
+                    for condition_name in ["condition", "group", "label"]:
+                        if condition_name.casefold() in lower_cols:
+                            default_condition_col = str(
+                                lower_cols[condition_name.casefold()]
+                            )
+                            break
+
+                    default_edge_module = (
+                        primary_expected_hub
+                        if primary_expected_hub in module_options
+                        else default_module
+                    )
+                    with st.form(key="netanal_ml_intra_node_edge_form"):
+                        ne_c1, ne_c2, ne_c3, ne_c4 = st.columns(4)
+                        with ne_c1:
+                            node_edge_module = st.selectbox(
+                                "Module for node+edge ML",
+                                options=module_options,
+                                index=module_options.index(default_edge_module),
+                                key="netanal_ml_node_edge_module",
+                            )
+                            node_edge_classifier = st.selectbox(
+                                "Node+Edge model",
+                                options=ML_CLASSIFIER_OPTIONS,
+                                index=_classifier_index(
+                                    context.get("classifier", "logistic_regression")
+                                ),
+                                format_func=lambda x: ML_CLASSIFIER_LABELS[x],
+                                key="netanal_ml_node_edge_classifier",
+                            )
+                        with ne_c2:
+                            node_edge_sample_col = st.selectbox(
+                                "Sample ID column",
+                                options=edge_columns,
+                                index=edge_columns.index(
+                                    _default_col("sample_id", "sample", "id")
+                                ),
+                                key="netanal_ml_node_edge_sample_col",
+                            )
+                            node_edge_condition_col = st.selectbox(
+                                "Condition column (optional)",
+                                options=[""] + edge_columns,
+                                index=(
+                                    ([""] + edge_columns).index(
+                                        default_condition_col
+                                    )
+                                    if default_condition_col in edge_columns
+                                    else 0
+                                ),
+                                key="netanal_ml_node_edge_condition_col",
+                            )
+                        with ne_c3:
+                            node_edge_source_col = st.selectbox(
+                                "From/source column",
+                                options=edge_columns,
+                                index=edge_columns.index(
+                                    _default_col("from", "source", "from_node")
+                                ),
+                                key="netanal_ml_node_edge_source_col",
+                            )
+                            node_edge_target_col = st.selectbox(
+                                "To/target column",
+                                options=edge_columns,
+                                index=edge_columns.index(
+                                    _default_col("to", "target", "to_node")
+                                ),
+                                key="netanal_ml_node_edge_target_col",
+                            )
+                        with ne_c4:
+                            node_edge_weight_col = st.selectbox(
+                                "Edge weight column",
+                                options=edge_columns,
+                                index=edge_columns.index(
+                                    _default_col("weight", "edge_weight", "value")
+                                ),
+                                key="netanal_ml_node_edge_weight_col",
+                            )
+                            node_edge_cv_folds = st.number_input(
+                                "Node+Edge CV folds",
+                                min_value=2,
+                                max_value=10,
+                                value=int(context.get("cv_folds", 5)),
+                                step=1,
+                                key="netanal_ml_node_edge_cv_folds",
+                            )
+                            node_edge_max_edges = st.number_input(
+                                "Max edge features",
+                                min_value=0,
+                                max_value=100000,
+                                value=5000,
+                                step=100,
+                                key="netanal_ml_node_edge_max_edges",
+                                help="0 keeps all matched edges; otherwise highest-variance edges are retained.",
+                            )
+
+                        run_node_edge = st.form_submit_button(
+                            "Run Intra Node + Edge Validation",
+                            type="primary",
+                        )
+
+                    if run_node_edge:
+                        with st.spinner("Running intra node + edge validation ..."):
+                            try:
+                                node_edge_result = run_intra_node_edge_feature_validation(
+                                    condition_tables,
+                                    funclu_export["labels"],
+                                    edge_table,
+                                    module=str(node_edge_module),
+                                    sample_col=str(node_edge_sample_col),
+                                    source_col=str(node_edge_source_col),
+                                    target_col=str(node_edge_target_col),
+                                    weight_col=str(node_edge_weight_col),
+                                    condition_col=(
+                                        str(node_edge_condition_col)
+                                        if node_edge_condition_col
+                                        else None
+                                    ),
+                                    first_column_as_sample_id=bool(
+                                        st.session_state.get(
+                                            "netanal_ml_condition_first_col_sample_id",
+                                            True,
+                                        )
+                                    ),
+                                    max_missing_fraction=float(
+                                        context.get("max_missing_fraction", 0.5)
+                                    ),
+                                    task=str(context.get("task", "one_vs_rest")),
+                                    positive_label=str(context.get("positive_label", "")),
+                                    classifier=str(node_edge_classifier),
+                                    cv_folds=int(node_edge_cv_folds),
+                                    random_state=123,
+                                    max_edges=(
+                                        int(node_edge_max_edges)
+                                        if int(node_edge_max_edges) > 0
+                                        else None
+                                    ),
+                                )
+                            except Exception as e:
+                                st.error(f"Intra Node + Edge validation failed: {e}")
+                            else:
+                                st.session_state[
+                                    "netanal_ml_node_edge_result"
+                                ] = node_edge_result
+
+                node_edge_result = st.session_state.get("netanal_ml_node_edge_result")
+                if node_edge_result is not None:
+                    ne_scores = node_edge_result["scores"].copy()
+                    ne_context = node_edge_result["context"]
+                    best_ne = ne_scores.iloc[0] if not ne_scores.empty else None
+                    ne_m1, ne_m2, ne_m3, ne_m4 = st.columns(4)
+                    ne_m1.metric(
+                        "Best feature set",
+                        str(best_ne["feature_set"]) if best_ne is not None else "N/A",
+                    )
+                    ne_m2.metric(
+                        "Best score",
+                        (
+                            f"{float(best_ne['primary_score_mean']):.3f}"
+                            if best_ne is not None
+                            and pd.notna(best_ne["primary_score_mean"])
+                            else "N/A"
+                        ),
+                    )
+                    ne_m3.metric(
+                        "Matched edge features",
+                        f"{int(ne_context.get('matched_edge_features', 0)):,}",
+                    )
+                    ne_m4.metric(
+                        "Matched samples",
+                        f"{int(ne_context.get('matched_samples', 0)):,}",
+                    )
+                    st.caption(
+                        "Interpretation: if **Node + Edge** exceeds **Node only**, "
+                        "sample-level intra edge weights add information beyond node values. "
+                        "If **Edge only** performs well, relationship structure alone carries "
+                        "condition signal. "
+                        f"Alignment mode: {ne_context.get('alignment_mode', 'sample_id')}."
+                    )
+                    ne_cols = [
+                        "validation_rank",
+                        "feature_set",
+                        "module",
+                        "primary_metric",
+                        "primary_score_mean",
+                        "primary_score_std",
+                        "roc_auc_mean",
+                        "balanced_accuracy_mean",
+                        "accuracy_mean",
+                        "f1_macro_mean",
+                        "n_features",
+                        "n_samples",
+                        "cv_folds_used",
+                        "status",
+                    ]
+                    ne_cols = [col for col in ne_cols if col in ne_scores.columns]
+                    st.dataframe(ne_scores[ne_cols], width="stretch", height=220)
+
+                    ne_edge_summary = node_edge_result.get(
+                        "edge_summary",
+                        pd.DataFrame(),
+                    )
+                    if not ne_edge_summary.empty:
+                        st.markdown("##### Matched intra edge feature summary")
+                        st.dataframe(
+                            ne_edge_summary.head(100),
+                            width="stretch",
+                            height=260,
+                        )
+
+                    ne_dl1, ne_dl2 = st.columns(2)
+                    ne_dl1.download_button(
+                        label="Download node+edge validation scores CSV",
+                        data=ne_scores.to_csv(index=False).encode("utf-8"),
+                        file_name="intra_node_edge_validation_scores.csv",
+                        mime="text/csv",
+                        key="netanal_ml_node_edge_scores_download",
+                    )
+                    if not ne_edge_summary.empty:
+                        ne_dl2.download_button(
+                            label="Download matched edge summary CSV",
+                            data=ne_edge_summary.to_csv(index=False).encode("utf-8"),
+                            file_name="intra_node_edge_summary.csv",
+                            mime="text/csv",
+                            key="netanal_ml_node_edge_summary_download",
+                        )
+
             st.markdown("#### Dataset summary")
             c_sum1, c_sum2 = st.columns(2)
             with c_sum1:
@@ -3047,7 +3757,7 @@ with tab2:
                             prediction_default_classifier,
                         )
                     )
-                    if context_classifier in {"logistic_regression", "random_forest"}:
+                    if context_classifier in ML_CLASSIFIER_OPTIONS:
                         prediction_default_classifier = context_classifier
 
                     context_positive = str(
@@ -3143,14 +3853,9 @@ with tab2:
                         )
                         prediction_classifier = st.selectbox(
                             "Prediction model",
-                            options=["logistic_regression", "random_forest"],
-                            index=["logistic_regression", "random_forest"].index(
-                                prediction_default_classifier
-                            ),
-                            format_func=lambda x: {
-                                "logistic_regression": "Logistic Regression (L2)",
-                                "random_forest": "Random Forest",
-                            }[x],
+                            options=ML_CLASSIFIER_OPTIONS,
+                            index=_classifier_index(prediction_default_classifier),
+                            format_func=lambda x: ML_CLASSIFIER_LABELS[x],
                             key="netanal_ml_prediction_classifier",
                         )
                     with col_p3:
