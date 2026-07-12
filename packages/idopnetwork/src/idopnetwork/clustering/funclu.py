@@ -22,6 +22,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans, MiniBatchKMeans
+from sklearn.metrics import silhouette_score
 
 try:
     import torch
@@ -918,6 +919,101 @@ class FunClu:
         )
 
 
+def _standardized_curve_matrix(X_list: List[torch.Tensor]) -> np.ndarray:
+    """Return a standardized feature-by-time matrix for distance-based scores."""
+    if not X_list:
+        return np.empty((0, 0), dtype=np.float64)
+
+    X_concat = torch.cat(X_list, dim=1).detach().cpu().numpy().astype(np.float64)
+    mean = np.nanmean(X_concat, axis=0)
+    mean = np.where(np.isfinite(mean), mean, 0.0)
+    X_concat = np.where(np.isfinite(X_concat), X_concat, mean)
+
+    scale = np.nanstd(X_concat, axis=0)
+    scale = np.where(np.isfinite(scale) & (scale > 1e-12), scale, 1.0)
+    return (X_concat - mean) / scale
+
+
+def _compute_silhouette_index(
+    X_list: List[torch.Tensor],
+    labels: Optional[torch.Tensor],
+) -> float:
+    """Compute Silhouette Index (SI) from final hard cluster labels."""
+    if labels is None:
+        return float("nan")
+
+    y = labels.detach().cpu().numpy().astype(int)
+    n_samples = int(y.size)
+    n_labels = int(np.unique(y).size)
+    if n_samples < 3 or n_labels < 2 or n_labels >= n_samples:
+        return float("nan")
+
+    try:
+        return float(silhouette_score(_standardized_curve_matrix(X_list), y))
+    except Exception:
+        return float("nan")
+
+
+def _cluster_size_stats(
+    labels: Optional[torch.Tensor],
+    n_components: int,
+    min_cluster_size: int,
+) -> Dict[str, Any]:
+    """Summarize hard-label cluster sizes for K-selection diagnostics."""
+    if labels is None:
+        return {
+            "min_cluster_size": float("nan"),
+            "max_cluster_size": float("nan"),
+            "small_cluster_count": 0,
+            "empty_cluster_count": 0,
+            "passes_min_cluster_size": False,
+        }
+
+    y = labels.detach().cpu().numpy().astype(int)
+    counts = np.bincount(y, minlength=int(n_components))
+    return {
+        "min_cluster_size": int(counts.min()) if counts.size else 0,
+        "max_cluster_size": int(counts.max()) if counts.size else 0,
+        "small_cluster_count": int((counts < int(min_cluster_size)).sum()),
+        "empty_cluster_count": int((counts == 0).sum()),
+        "passes_min_cluster_size": bool(np.all(counts >= int(min_cluster_size))),
+    }
+
+
+def _finite_values(values: List[Any]) -> np.ndarray:
+    arr = np.asarray(values, dtype=np.float64)
+    return arr[np.isfinite(arr)]
+
+
+def _aggregate_values(values: List[Any], method: str) -> float:
+    arr = _finite_values(values)
+    if arr.size == 0:
+        return float("nan")
+    if method == "mean":
+        return float(np.mean(arr))
+    return float(np.median(arr))
+
+
+def _mean_values(values: List[Any]) -> float:
+    arr = _finite_values(values)
+    return float(np.mean(arr)) if arr.size else float("nan")
+
+
+def _median_values(values: List[Any]) -> float:
+    arr = _finite_values(values)
+    return float(np.median(arr)) if arr.size else float("nan")
+
+
+def _median_int_values(values: List[Any]) -> int:
+    arr = _finite_values(values)
+    return int(np.median(arr)) if arr.size else 0
+
+
+def _std_values(values: List[Any]) -> float:
+    arr = _finite_values(values)
+    return float(np.std(arr, ddof=0)) if arr.size else float("nan")
+
+
 def compute_bic_scores(
     data: List[pd.DataFrame],
     k_min: int = 2,
@@ -927,6 +1023,9 @@ def compute_bic_scores(
     max_iter: int = 50,
     tol: float = 1e-4,
     random_state: int = 42,
+    n_random_starts: int = 1,
+    aggregation: str = "median",
+    min_cluster_size: int = 1,
     verbose: bool = False,
     progress_callback: Optional[Callable[[int, int], None]] = None,
 ) -> pd.DataFrame:
@@ -944,14 +1043,17 @@ def compute_bic_scores(
         step: Stride between consecutive K values.
         max_iter: Passed to :class:`FunClu`.
         tol: Passed to :class:`FunClu`.
-        random_state: Passed to :class:`FunClu`.
+        random_state: Base seed. When ``n_random_starts > 1``, seeds are
+            ``random_state, random_state + 1, ...``.
+        n_random_starts: Number of seeds to run for each K.
+        aggregation: ``"median"`` or ``"mean"`` for the primary ``BIC`` / ``SI``.
+        min_cluster_size: Minimum hard-label members required per cluster.
         verbose: Passed to :meth:`FunClu.fit`.
         progress_callback: Called after each K as ``callback(idx_1based, total)``.
 
     Returns:
-        DataFrame with columns ``K``, ``BIC``, ``log_likelihood``, ``NLL``,
-        ``n_params``, ``converged``, ``n_iter_run``, ``n_features``,
-        ``n_conditions``.
+        DataFrame with columns ``K``, ``BIC``, ``SI``, ``log_likelihood``, ``NLL``,
+        aggregate diagnostics, seed counts, and cluster-size constraint flags.
     """
     if k_min < 2:
         raise ValueError(f"k_min must be >= 2, got {k_min}")
@@ -959,6 +1061,12 @@ def compute_bic_scores(
         raise ValueError(f"k_max ({k_max}) must be >= k_min ({k_min})")
     if step < 1:
         raise ValueError(f"step must be >= 1, got {step}")
+    if n_random_starts < 1:
+        raise ValueError(f"n_random_starts must be >= 1, got {n_random_starts}")
+    if aggregation not in {"median", "mean"}:
+        raise ValueError("aggregation must be 'median' or 'mean'")
+    if min_cluster_size < 1:
+        raise ValueError(f"min_cluster_size must be >= 1, got {min_cluster_size}")
 
     n_features = min((d.shape[1] for d in data), default=0)
     if n_features < 2:
@@ -974,31 +1082,120 @@ def compute_bic_scores(
 
     rows: List[Dict[str, Any]] = []
     total = len(ks)
+    seeds = [int(random_state) + offset for offset in range(int(n_random_starts))]
 
     for idx, k in enumerate(ks):
+        seed_rows: List[Dict[str, Any]] = []
+        for seed in seeds:
+            seed_row: Dict[str, Any] = {
+                "seed": seed,
+                "BIC": float("nan"),
+                "SI": float("nan"),
+                "log_likelihood": float("nan"),
+                "NLL": float("nan"),
+                "n_params": 0,
+                "converged": False,
+                "n_iter_run": 0,
+                "n_features": 0,
+                "n_conditions": 0,
+                "min_cluster_size": float("nan"),
+                "max_cluster_size": float("nan"),
+                "small_cluster_count": 0,
+                "empty_cluster_count": 0,
+                "passes_min_cluster_size": False,
+                "fit_success": False,
+            }
+            try:
+                model = FunClu(
+                    n_components=k, max_iter=max_iter, tol=tol,
+                    random_state=seed,
+                )
+                model.fit(data, verbose=verbose)
+                X_list, _ = model._prepare_data(data)
+                size_stats = _cluster_size_stats(
+                    model.labels,
+                    n_components=k,
+                    min_cluster_size=min_cluster_size,
+                )
+                seed_row.update({
+                    "BIC": model.bic,
+                    "SI": _compute_silhouette_index(X_list, model.labels),
+                    "log_likelihood": model.log_likelihood,
+                    "NLL": model.neg_log_likelihood,
+                    "n_params": model.n_params,
+                    "converged": model.converged,
+                    "n_iter_run": model.n_iter_run,
+                    "n_features": model.n_features,
+                    "n_conditions": model.n_conditions,
+                    "fit_success": bool(np.isfinite(model.bic)),
+                    **size_stats,
+                })
+            except Exception:
+                pass
+            seed_rows.append(seed_row)
+
+        fit_successes = int(sum(bool(r["fit_success"]) for r in seed_rows))
         row: Dict[str, Any] = {
-            "K": k, "BIC": float("nan"), "log_likelihood": float("nan"),
-            "NLL": float("nan"), "n_params": 0, "converged": False,
-            "n_iter_run": 0, "n_features": 0, "n_conditions": 0,
+            "K": k,
+            "BIC": _aggregate_values([r["BIC"] for r in seed_rows], aggregation),
+            "BIC_mean": _mean_values([r["BIC"] for r in seed_rows]),
+            "BIC_median": _median_values([r["BIC"] for r in seed_rows]),
+            "BIC_sd": _std_values([r["BIC"] for r in seed_rows]),
+            "SI": _aggregate_values([r["SI"] for r in seed_rows], aggregation),
+            "SI_mean": _mean_values([r["SI"] for r in seed_rows]),
+            "SI_median": _median_values([r["SI"] for r in seed_rows]),
+            "log_likelihood": _aggregate_values(
+                [r["log_likelihood"] for r in seed_rows], aggregation
+            ),
+            "NLL": _aggregate_values([r["NLL"] for r in seed_rows], aggregation),
+            "n_params": _median_int_values([r["n_params"] for r in seed_rows]),
+            "converged": bool(
+                _mean_values([float(r["converged"]) for r in seed_rows]) >= 0.5
+            ),
+            "converged_rate": _mean_values(
+                [float(r["converged"]) for r in seed_rows]
+            ),
+            "n_iter_run": _aggregate_values(
+                [r["n_iter_run"] for r in seed_rows], aggregation
+            ),
+            "n_features": _median_int_values([r["n_features"] for r in seed_rows]),
+            "n_conditions": _median_int_values([r["n_conditions"] for r in seed_rows]),
+            "min_cluster_size": _aggregate_values(
+                [r["min_cluster_size"] for r in seed_rows], aggregation
+            ),
+            "min_cluster_size_min": (
+                float(np.min(_finite_values([r["min_cluster_size"] for r in seed_rows])))
+                if _finite_values([r["min_cluster_size"] for r in seed_rows]).size
+                else float("nan")
+            ),
+            "max_cluster_size": _aggregate_values(
+                [r["max_cluster_size"] for r in seed_rows], aggregation
+            ),
+            "small_cluster_count": _aggregate_values(
+                [r["small_cluster_count"] for r in seed_rows], aggregation
+            ),
+            "small_cluster_count_max": (
+                float(np.max(_finite_values([r["small_cluster_count"] for r in seed_rows])))
+                if _finite_values([r["small_cluster_count"] for r in seed_rows]).size
+                else float("nan")
+            ),
+            "empty_cluster_count": _aggregate_values(
+                [r["empty_cluster_count"] for r in seed_rows], aggregation
+            ),
+            "size_ok_rate": _mean_values(
+                [float(r["passes_min_cluster_size"]) for r in seed_rows]
+            ),
+            "passes_min_cluster_size": bool(
+                _mean_values([float(r["passes_min_cluster_size"]) for r in seed_rows])
+                >= 0.5
+            ),
+            "fit_successes": fit_successes,
+            "random_starts": int(n_random_starts),
+            "aggregation": aggregation,
+            "seed_start": int(random_state),
+            "seed_end": int(random_state) + int(n_random_starts) - 1,
+            "min_cluster_size_threshold": int(min_cluster_size),
         }
-        try:
-            model = FunClu(
-                n_components=k, max_iter=max_iter, tol=tol,
-                random_state=random_state,
-            )
-            model.fit(data, verbose=verbose)
-            row.update({
-                "BIC": model.bic,
-                "log_likelihood": model.log_likelihood,
-                "NLL": model.neg_log_likelihood,
-                "n_params": model.n_params,
-                "converged": model.converged,
-                "n_iter_run": model.n_iter_run,
-                "n_features": model.n_features,
-                "n_conditions": model.n_conditions,
-            })
-        except Exception:
-            pass
         rows.append(row)
 
         if progress_callback is not None:

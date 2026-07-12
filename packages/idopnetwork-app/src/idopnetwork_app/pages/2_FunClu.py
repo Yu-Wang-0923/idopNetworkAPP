@@ -547,6 +547,10 @@ with tab3:
             data_list = [curve_sample_dict[n] for n in cond_names]
             n_features = min((d.shape[1] for d in data_list), default=2)
             k_upper = max(2, n_features)
+            min_cluster_default = min(
+                max(1, n_features),
+                max(1, int(np.ceil(0.03 * max(n_features, 1)))),
+            )
 
             with st.expander("BIC Scan Settings", expanded=True):
                 col1, col2, col3 = st.columns(3)
@@ -581,6 +585,45 @@ with tab3:
                         bic_rs = st.number_input(
                             "random_state", 0, 9999, 42, key="bic_rs",
                         )
+                    col_b1, col_b2, col_b3 = st.columns(3)
+                    with col_b1:
+                        bic_random_starts = st.slider(
+                            "random_starts",
+                            min_value=1,
+                            max_value=10,
+                            value=1,
+                            step=1,
+                            key="bic_random_starts",
+                            help=(
+                                "Run each K with multiple consecutive random seeds "
+                                "and aggregate BIC/SI to reduce local-optimum noise."
+                            ),
+                        )
+                    with col_b2:
+                        bic_aggregation = st.selectbox(
+                            "seed_aggregation",
+                            options=["median", "mean"],
+                            index=0,
+                            key="bic_seed_aggregation",
+                            help=(
+                                "Median is more robust to occasional failed or poor "
+                                "local optima; mean is more sensitive to all runs."
+                            ),
+                        )
+                    with col_b3:
+                        bic_min_cluster_size = st.number_input(
+                            "min_cluster_size",
+                            min_value=1,
+                            max_value=max(1, n_features),
+                            value=int(min_cluster_default),
+                            step=1,
+                            key="bic_min_cluster_size",
+                            help=(
+                                "K values with clusters smaller than this threshold "
+                                "are kept in the table but excluded from the primary "
+                                "BIC recommendation when possible."
+                            ),
+                        )
 
                 run_bic = st.button("Run BIC Analysis", type="primary", key="run_bic_btn")
 
@@ -596,7 +639,8 @@ with tab3:
                         def _update_progress(idx: int, total: int) -> None:
                             progress_bar.progress(idx / total)
                             status_text.text(
-                                f"Fitting K={ks[idx - 1]} ({idx}/{total})..."
+                                f"Fitting K={ks[idx - 1]} ({idx}/{total}); "
+                                f"{bic_random_starts} seed(s) per K..."
                             )
 
                         bic_df = compute_bic_scores(
@@ -607,12 +651,18 @@ with tab3:
                             max_iter=bic_max_iter,
                             tol=bic_tol,
                             random_state=bic_rs,
+                            n_random_starts=bic_random_starts,
+                            aggregation=bic_aggregation,
+                            min_cluster_size=int(bic_min_cluster_size),
                             progress_callback=_update_progress,
                         )
                         st.session_state["funclu_bic_result"] = bic_df
                         st.session_state["funclu_bic_params"] = dict(
                             k_min=bic_k_min, k_max=bic_k_max, step=bic_step,
                             max_iter=bic_max_iter, tol=bic_tol, random_state=bic_rs,
+                            n_random_starts=bic_random_starts,
+                            aggregation=bic_aggregation,
+                            min_cluster_size=int(bic_min_cluster_size),
                         )
                         progress_bar.progress(1.0)
                         status_text.text("Done!")
@@ -626,22 +676,86 @@ with tab3:
             if bic_result_df is not None:
                 valid = bic_result_df.dropna(subset=["BIC"])
                 if not valid.empty:
-                    best_row = valid.loc[valid["BIC"].idxmin()]
+                    raw_best_row = valid.loc[valid["BIC"].idxmin()]
+                    if "passes_min_cluster_size" in valid.columns:
+                        eligible = valid[
+                            valid["passes_min_cluster_size"].astype(bool)
+                        ].copy()
+                    else:
+                        eligible = valid.copy()
+                    if eligible.empty:
+                        best_row = raw_best_row
+                        st.warning(
+                            "No K satisfies the minimum cluster-size constraint; "
+                            "showing the unconstrained BIC minimum instead."
+                        )
+                    else:
+                        best_row = eligible.loc[eligible["BIC"].idxmin()]
                     best_k_val = int(best_row["K"])
+                    raw_best_k_val = int(raw_best_row["K"])
+                    si_valid = (
+                        eligible.dropna(subset=["SI"])
+                        if "SI" in eligible.columns and not eligible.empty
+                        else valid.dropna(subset=["SI"])
+                        if "SI" in valid.columns
+                        else pd.DataFrame()
+                    )
+                    best_si_row = (
+                        si_valid.loc[si_valid["SI"].idxmax()]
+                        if not si_valid.empty
+                        else None
+                    )
+                    best_si_label = (
+                        f"K = {int(best_si_row['K'])}"
+                        if best_si_row is not None
+                        else "N/A"
+                    )
+                    best_si_value = (
+                        f"SI={best_si_row['SI']:.4g}"
+                        if best_si_row is not None
+                        else "N/A"
+                    )
+                    si_at_bic = best_row.get("SI", np.nan)
+                    si_at_bic_label = (
+                        f"{si_at_bic:.4g}"
+                        if np.isfinite(si_at_bic)
+                        else "N/A"
+                    )
+                    min_size_label = (
+                        f"{best_row['min_cluster_size']:.0f}"
+                        if "min_cluster_size" in best_row
+                        and np.isfinite(best_row["min_cluster_size"])
+                        else "N/A"
+                    )
+                    size_ok_label = (
+                        f"{best_row['size_ok_rate']:.0%}"
+                        if "size_ok_rate" in best_row
+                        and np.isfinite(best_row["size_ok_rate"])
+                        else "N/A"
+                    )
+                    converged_label = (
+                        f"{best_row['converged_rate']:.0%}"
+                        if "converged_rate" in best_row
+                        and np.isfinite(best_row["converged_rate"])
+                        else str(best_row["converged"])
+                    )
 
                     st.markdown("### Best K Recommendation")
-                    col_c1, col_c2, col_c3, col_c4 = st.columns(4)
+                    col_c1, col_c2, col_c3, col_c4, col_c5, col_c6 = st.columns(6)
                     with col_c1:
-                        st.metric("Best K", f"K = {best_k_val}")
+                        st.metric("Recommended K", f"K = {best_k_val}")
                     with col_c2:
                         st.metric("BIC", f"{best_row['BIC']:.4g}")
                     with col_c3:
-                        st.metric(
-                            "Log-Likelihood",
-                            f"{best_row['log_likelihood']:.4g}",
-                        )
+                        st.metric("Raw BIC K", f"K = {raw_best_k_val}")
                     with col_c4:
-                        st.metric("Converged", str(best_row["converged"]))
+                        st.metric("SI @ Rec K", si_at_bic_label)
+                    with col_c5:
+                        st.metric("Min Size", min_size_label, size_ok_label)
+                    with col_c6:
+                        st.metric("Converged", converged_label)
+
+                    st.caption(f"Best K by SI among eligible rows: {best_si_label} ({best_si_value})")
 
                     st.markdown("### BIC Elbow Plot")
                     plot_bic_elbow(
@@ -656,6 +770,25 @@ with tab3:
                         "n_iter_run": "Iters",
                         "n_features": "Features",
                         "n_conditions": "Conds",
+                        "BIC_mean": "BIC Mean",
+                        "BIC_median": "BIC Median",
+                        "BIC_sd": "BIC SD",
+                        "SI_mean": "SI Mean",
+                        "SI_median": "SI Median",
+                        "converged_rate": "Converged Rate",
+                        "min_cluster_size": "Min Cluster Size",
+                        "min_cluster_size_min": "Min Size Across Seeds",
+                        "max_cluster_size": "Max Cluster Size",
+                        "small_cluster_count": "Small Cluster Count",
+                        "small_cluster_count_max": "Max Small Clusters",
+                        "empty_cluster_count": "Empty Cluster Count",
+                        "size_ok_rate": "Size OK Rate",
+                        "passes_min_cluster_size": "Passes Min Size",
+                        "fit_successes": "Fit Successes",
+                        "random_starts": "Random Starts",
+                        "seed_start": "Seed Start",
+                        "seed_end": "Seed End",
+                        "min_cluster_size_threshold": "Min Size Threshold",
                     })
                     st.dataframe(
                         display_df, use_container_width=True, hide_index=True,
