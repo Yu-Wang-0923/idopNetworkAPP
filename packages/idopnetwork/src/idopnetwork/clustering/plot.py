@@ -739,6 +739,8 @@ def plot_bic_elbow(
     *,
     bic_results,  # pd.DataFrame
     best_K: Optional[int] = None,
+    candidate_Ks: Optional[Sequence[int]] = None,
+    auto_select_best: bool = True,
     figsize: Tuple[float, float] = (8.0, 5.0),
     dpi: int = 200,
     show_in_streamlit: bool = False,
@@ -759,6 +761,9 @@ def plot_bic_elbow(
             :func:`~idopnetwork.clustering.funclu.compute_bic_scores`).
         best_K: K value to highlight.  If *None*, auto-selected from
             the minimum BIC among converged rows.
+        candidate_Ks: Optional K values to mark as checkmark-like candidates.
+        auto_select_best: If False, do not auto-highlight a best K when
+            ``best_K`` is None.
         figsize: Figure size in inches.
         dpi: Figure resolution.
         show_in_streamlit: If *True*, render via ``st.pyplot`` and also
@@ -787,7 +792,7 @@ def plot_bic_elbow(
     ks = df_valid["K"].values.astype(int)
     bics = df_valid["BIC"].values
 
-    if best_K is None:
+    if best_K is None and auto_select_best:
         converged = df_valid[df_valid["converged"] == True]
         if not converged.empty:
             best_K = int(converged.loc[converged["BIC"].idxmin(), "K"])
@@ -799,14 +804,29 @@ def plot_bic_elbow(
     ax.plot(ks, bics, "-o", color=line_color, markerfacecolor=marker_color,
             markersize=8, linewidth=2, zorder=2, label="BIC")
 
-    if best_K in ks:
-        best_bic = bics[ks.tolist().index(best_K)]
-        ax.plot([best_K], [best_bic], "o", color=best_k_color,
-                markersize=14, zorder=3)
+    candidate_set = {int(k) for k in (candidate_Ks or [])}
+    candidate_x = [int(k) for k in ks if int(k) in candidate_set]
+    candidate_y = [bics[ks.tolist().index(k)] for k in candidate_x]
+    if candidate_x:
+        ax.plot(
+            candidate_x,
+            candidate_y,
+            "o",
+            color=best_k_color,
+            markersize=11,
+            zorder=3,
+            label="Checkmark candidates",
+        )
+
+    if best_K is not None and int(best_K) in ks.tolist():
+        best_k_int = int(best_K)
+        best_bic = bics[ks.tolist().index(best_k_int)]
+        ax.plot([best_k_int], [best_bic], "o", color=best_k_color,
+                markersize=14, zorder=4)
         ax.annotate(
-            f"Best K={best_K}",
-            xy=(best_K, best_bic),
-            xytext=(best_K + 1.2, best_bic),
+            f"Best K={best_k_int}",
+            xy=(best_k_int, best_bic),
+            xytext=(best_k_int + 1.2, best_bic),
             fontsize=11,
             fontweight="bold",
             color=best_k_color,

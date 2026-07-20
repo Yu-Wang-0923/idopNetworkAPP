@@ -1,6 +1,7 @@
 
 
 import io
+import hashlib
 import zipfile
 
 import streamlit as st
@@ -46,6 +47,8 @@ st.title("Curve Fitting", text_alignment="center")
 
 if "df_original" not in st.session_state:
     st.session_state.df_original = {}
+if "uploaded_file_signatures" not in st.session_state:
+    st.session_state.uploaded_file_signatures = {}
 if "df_transform" not in st.session_state:
     st.session_state.df_transform = {}
 if "df_quasi_dynamic" not in st.session_state:
@@ -76,6 +79,77 @@ if "allometric_show_curve_params" not in st.session_state:
     st.session_state.allometric_show_curve_params = {}
 if "allometric_compare_params" not in st.session_state:
     st.session_state.allometric_compare_params = None
+if "static_data_view" not in st.session_state:
+    st.session_state.static_data_view = "Quasi Dynamic"
+
+
+_PER_FILE_STATE_KEYS = [
+    "df_original",
+    "df_transform",
+    "df_quasi_dynamic",
+    "df_curve_sample",
+    "df_curve_params",
+    "original_plot_params",
+    "transform_plot_params",
+    "transform_data_expanded",
+    "show_original_data",
+    "show_transform_data",
+    "quasi_show_data",
+    "quasi_plot_params",
+    "allometric_show_data",
+    "allometric_plot_params",
+    "allometric_show_curve_params",
+]
+
+_DOWNSTREAM_STATE_KEYS = [
+    "df_transform",
+    "df_quasi_dynamic",
+    "df_curve_sample",
+    "df_curve_params",
+    "transform_plot_params",
+    "transform_data_expanded",
+    "show_transform_data",
+    "quasi_show_data",
+    "quasi_plot_params",
+    "allometric_show_data",
+    "allometric_plot_params",
+    "allometric_show_curve_params",
+]
+
+
+def _drop_file_state(file_name: str, state_keys: list[str]) -> None:
+    for state_key in state_keys:
+        state_value = st.session_state.get(state_key)
+        if isinstance(state_value, dict):
+            state_value.pop(file_name, None)
+
+
+def _sync_uploaded_file_state(uploaded_files) -> None:
+    current_file_names = {file.name for file in uploaded_files} if uploaded_files else set()
+    previous_file_names = set(st.session_state.uploaded_file_signatures)
+    removed_file_names = previous_file_names - current_file_names
+    for file_name in removed_file_names:
+        _drop_file_state(file_name, _PER_FILE_STATE_KEYS)
+        st.session_state.uploaded_file_signatures.pop(file_name, None)
+        st.session_state.static_data_view = "Quasi Dynamic"
+
+    if not uploaded_files:
+        return
+
+    for file in uploaded_files:
+        file_bytes = file.getvalue()
+        file_signature = hashlib.sha256(file_bytes).hexdigest()
+        if st.session_state.uploaded_file_signatures.get(file.name) != file_signature:
+            _drop_file_state(file.name, _PER_FILE_STATE_KEYS)
+            st.session_state.static_data_view = "Quasi Dynamic"
+            try:
+                file.seek(0)
+                st.session_state.df_original[file.name] = load_csv(file=file)
+                st.session_state.uploaded_file_signatures[file.name] = file_signature
+            except Exception as exc:
+                st.error(f"加载文件 {file.name} 失败：{exc}")
+            finally:
+                file.seek(0)
 
 
 #with st.sidebar:
@@ -87,14 +161,15 @@ tab1, tab2, tab3 = st.tabs(["Uploaded Data", "Static Data", "Dynamic Data"])
 # 上传数据
 with tab1:
     uploaded_files = st.file_uploader(label="Please upload your files",type=["csv"],accept_multiple_files=True)
-    
+    _sync_uploaded_file_state(uploaded_files)
+
     tab1_1, tab1_2, tab1_3 = st.tabs(["Data Overview", "Data Transformation", "To Be Updated"])
-    
+
     # 数据概览
     with tab1_1:
         if uploaded_files:
             for file in uploaded_files:
-                
+
                 # 加载并缓存原始数据 df_original
                 try:
                     df_original = load_csv(file=file)
@@ -102,7 +177,7 @@ with tab1:
                 except Exception as exc:
                     st.error(f"加载文件 {file.name} 失败：{exc}")
                     continue
-                
+
                 with st.expander(f"Original Data: {file.name}", expanded=False):
                     tab1_1_1, tab1_1_2, tab1_1_3 = st.tabs(["View Data", "Scatter Plot", "To Be Updated..."])
 
@@ -114,7 +189,7 @@ with tab1:
                                 st.session_state.show_original_data[file.name] = True
                         if st.session_state.show_original_data.get(file.name):
                             st.dataframe(df_original, use_container_width=True)
-                    
+
                     # 绘制原始数据散点图
                     with tab1_1_2:
                         # 原始数据散点图绘图参数
@@ -132,7 +207,7 @@ with tab1:
                                     with col3:
                                         scatter_size = st.number_input("Scatter Size", value=10, min_value=1, max_value=1000, step=1)
                                         scatter_linewidth = st.number_input("Line Size", value=1, min_value=1, max_value=10, step=1)
-                                   
+
                                     nsubfig = nrow * ncol
                                 # 颜色
                                 with tab_color:
@@ -142,7 +217,7 @@ with tab1:
                                         # color_curve = st.color_picker("Curve Color", value="#A06EA5")
                                     with col2:
                                         subfig_background_color = st.color_picker("Subfig Background Color", value="#FFFFFF")
-  
+
                             submit_original_data_plot = st.form_submit_button("Run Original Data Plot")
                             # 原始数据绘图区
                             if submit_original_data_plot:
@@ -168,7 +243,7 @@ with tab1:
                             st.pyplot(fig)
         else:
             st.info("Please upload CSV file(s)")
- 
+
     # 数据变换
     with tab1_2:
         if uploaded_files:
@@ -271,20 +346,22 @@ with tab1:
         else:
             st.info("Please upload CSV file(s)")
 
-    
+
     with tab1_3:
         st.write("To Be Updated...")
 
 
 # 静态数据
 with tab2:
-    subtab2_1, subtab2_2, subtab2_3 = st.tabs([
-        "Quasi Dynamic", 
-        "Allometric Scaling Law", 
-        "Export",
-    ])
+    static_data_view = st.radio(
+        "Static Data View",
+        ["Quasi Dynamic", "Allometric Scaling Law", "Export"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="static_data_view",
+    )
 
-    with subtab2_1:
+    if static_data_view == "Quasi Dynamic":
         if uploaded_files:
             with st.form(key="quasi_dynamic_form"):
                 quasi_log_index = st.checkbox(
@@ -369,8 +446,8 @@ with tab2:
         else:
             st.info("Please upload CSV file(s)")
 
-    # Allometric Scaling Law 
-    with subtab2_2:
+    # Allometric Scaling Law
+    elif static_data_view == "Allometric Scaling Law":
         if uploaded_files:
             with st.form(key="allometric_scaling_law_form"):
                 submit_fit = st.form_submit_button("Run Allometric Scaling Law")
@@ -387,87 +464,90 @@ with tab2:
                             st.error(f"{file.name} 异速生长拟合失败：{exc}")
                             continue
                 st.success("异速生长拟合完成")
-            if st.session_state.df_curve_sample:
-                for file in uploaded_files:
-                    if file.name in st.session_state.df_curve_sample:
-                        df_quasi = st.session_state.df_quasi_dynamic[file.name]
-                        df_curve = st.session_state.df_curve_sample[file.name]
-                        with st.expander(f"Allometric Scaling Law: {file.name}", expanded=False):
-                            tab_al_data, tab_al_plot, tab_al_params = st.tabs([
-                                "Data Overview", "Curve Fitting Plot","Curve Parameters"
-                            ])
-                            with tab_al_data:
-                                if st.button("View Data", key=f"allometric_view_{file.name}"):
-                                    st.session_state.allometric_show_data[file.name] = True
-                                if st.session_state.allometric_show_data.get(file.name):
-                                    st.dataframe(df_quasi, use_container_width=True)
-                            with tab_al_plot:
-                                with st.form(key=f"allometric_plot_{file.name}"):
-                                    with st.expander("⚙️ Curve Fitting Plot Settings", expanded=False):
-                                        tab_layout, tab_color = st.tabs(["Layout", "Color"])
-                                        with tab_layout:
-                                            col1, col2, col3 = st.columns(3)
-                                            with col1:
-                                                nrow = st.number_input("Rows", value=2, min_value=1, max_value=10, step=1, key=f"allometric_nrow_{file.name}")
-                                                ncol = st.number_input("Cols", value=3, min_value=1, max_value=10, step=1, key=f"allometric_ncol_{file.name}")
-                                            with col2:
-                                                plot_scatter_type = st.selectbox("Plot Type", ["scatter", "line"], key=f"allometric_scatter_type_{file.name}")
-                                            with col3:
-                                                scatter_size = st.number_input("Scatter Size", value=100, min_value=1, max_value=1000, step=1, key=f"allometric_scatter_size_{file.name}")
-                                                scatter_linewidth = st.number_input("Line Size", value=1, min_value=1, max_value=10, step=1, key=f"allometric_scatter_lw_{file.name}")
-                                        # 幂函数拟合图配色
-                                        with tab_color:
-                                            col1, col2 = st.columns(2)
-                                            with col1:
-                                                color_scatter = st.color_picker("Data Color", value="#1F77B4", key=f"allometric_color_{file.name}")
-                                                color_curve = st.color_picker("Curve Color", value="#D62728", key=f"allometric_color_curve_{file.name}")
-                                            with col2:
-                                                subfig_bg = st.color_picker("Subfig Background Color", value="#FFFFFF", key=f"allometric_bg_{file.name}")
-                                    submit_allometric_plot = st.form_submit_button("Run Curve Fitting Plot")
-                                    if submit_allometric_plot:
-                                        st.session_state.allometric_plot_params[file.name] = dict(
-                                            plot_scatter_type=plot_scatter_type,
-                                            show_curve=True,
-                                            nrow=nrow,
-                                            ncol=ncol,
-                                            nsubfig=nrow * ncol,
-                                            scatter_size=scatter_size,
-                                            scatter_linewidth=scatter_linewidth,
-                                            scatter_x = "index",
-                                            color_scatter=color_scatter,
-                                            color_curve=color_curve,
-                                            subfig_background_color=subfig_bg,
-                                        )
-                                if st.session_state.allometric_plot_params.get(file.name):
-                                    fig = plot_curve_fitting(
-                                        df_scatter=df_quasi,
-                                        df_curve=df_curve,
-                                        **st.session_state.allometric_plot_params[file.name],
+            ready_allometric_files = [
+                file
+                for file in uploaded_files
+                if file.name in st.session_state.df_quasi_dynamic
+                and file.name in st.session_state.df_curve_sample
+                and file.name in st.session_state.df_curve_params
+            ]
+            if ready_allometric_files:
+                for file in ready_allometric_files:
+                    df_quasi = st.session_state.df_quasi_dynamic[file.name]
+                    df_curve = st.session_state.df_curve_sample[file.name]
+                    with st.expander(f"Allometric Scaling Law: {file.name}", expanded=False):
+                        tab_al_data, tab_al_plot, tab_al_params = st.tabs([
+                            "Data Overview", "Curve Fitting Plot","Curve Parameters"
+                        ])
+                        with tab_al_data:
+                            if st.button("View Data", key=f"allometric_view_{file.name}"):
+                                st.session_state.allometric_show_data[file.name] = True
+                            if st.session_state.allometric_show_data.get(file.name):
+                                st.dataframe(df_quasi, use_container_width=True)
+                        with tab_al_plot:
+                            with st.form(key=f"allometric_plot_{file.name}"):
+                                with st.expander("⚙️ Curve Fitting Plot Settings", expanded=False):
+                                    tab_layout, tab_color = st.tabs(["Layout", "Color"])
+                                    with tab_layout:
+                                        col1, col2, col3 = st.columns(3)
+                                        with col1:
+                                            nrow = st.number_input("Rows", value=2, min_value=1, max_value=10, step=1, key=f"allometric_nrow_{file.name}")
+                                            ncol = st.number_input("Cols", value=3, min_value=1, max_value=10, step=1, key=f"allometric_ncol_{file.name}")
+                                        with col2:
+                                            plot_scatter_type = st.selectbox("Plot Type", ["scatter", "line"], key=f"allometric_scatter_type_{file.name}")
+                                        with col3:
+                                            scatter_size = st.number_input("Scatter Size", value=100, min_value=1, max_value=1000, step=1, key=f"allometric_scatter_size_{file.name}")
+                                            scatter_linewidth = st.number_input("Line Size", value=1, min_value=1, max_value=10, step=1, key=f"allometric_scatter_lw_{file.name}")
+                                    # 幂函数拟合图配色
+                                    with tab_color:
+                                        col1, col2 = st.columns(2)
+                                        with col1:
+                                            color_scatter = st.color_picker("Data Color", value="#1F77B4", key=f"allometric_color_{file.name}")
+                                            color_curve = st.color_picker("Curve Color", value="#D62728", key=f"allometric_color_curve_{file.name}")
+                                        with col2:
+                                            subfig_bg = st.color_picker("Subfig Background Color", value="#FFFFFF", key=f"allometric_bg_{file.name}")
+                                submit_allometric_plot = st.form_submit_button("Run Curve Fitting Plot")
+                                if submit_allometric_plot:
+                                    st.session_state.allometric_plot_params[file.name] = dict(
+                                        plot_scatter_type=plot_scatter_type,
+                                        show_curve=True,
+                                        nrow=nrow,
+                                        ncol=ncol,
+                                        nsubfig=nrow * ncol,
+                                        scatter_size=scatter_size,
+                                        scatter_linewidth=scatter_linewidth,
+                                        scatter_x = "index",
+                                        color_scatter=color_scatter,
+                                        color_curve=color_curve,
+                                        subfig_background_color=subfig_bg,
                                     )
-                                    st.pyplot(fig)
-                            # 曲线参数
-                            with tab_al_params:
-                                if st.button("View Curve Parameters", key=f"allometric_params_view_{file.name}"):
-                                    st.session_state.allometric_show_curve_params[file.name] = (
-                                        not st.session_state.allometric_show_curve_params.get(file.name, False)
-                                    )
-                                if st.session_state.allometric_show_curve_params.get(file.name):
-                                    st.dataframe(st.session_state.df_curve_params[file.name], use_container_width=True)
+                            if st.session_state.allometric_plot_params.get(file.name):
+                                fig = plot_curve_fitting(
+                                    df_scatter=df_quasi,
+                                    df_curve=df_curve,
+                                    **st.session_state.allometric_plot_params[file.name],
+                                )
+                                st.pyplot(fig)
+                        # 曲线参数
+                        with tab_al_params:
+                            if st.button("View Curve Parameters", key=f"allometric_params_view_{file.name}"):
+                                st.session_state.allometric_show_curve_params[file.name] = (
+                                    not st.session_state.allometric_show_curve_params.get(file.name, False)
+                                )
+                            if st.session_state.allometric_show_curve_params.get(file.name):
+                                st.dataframe(st.session_state.df_curve_params[file.name], use_container_width=True)
                 with st.expander("Allometric Scaling Law Compare", expanded=False):
                     scatter_list_compare = [
                         st.session_state.df_quasi_dynamic[f.name]
-                        for f in uploaded_files
-                        if f.name in st.session_state.df_quasi_dynamic
+                        for f in ready_allometric_files
                     ]
                     curve_list_compare = [
                         st.session_state.df_curve_sample[f.name]
-                        for f in uploaded_files
-                        if f.name in st.session_state.df_quasi_dynamic
+                        for f in ready_allometric_files
                     ]
                     name_list_compare = [
                         f.name
-                        for f in uploaded_files
-                        if f.name in st.session_state.df_quasi_dynamic
+                        for f in ready_allometric_files
                     ]
                     if scatter_list_compare:
                         with st.form(key="allometric_compare_plot"):
@@ -495,7 +575,7 @@ with tab2:
         else:
             st.info("Please upload CSV file(s)")
 
-    with subtab2_3:
+    else:
         st.write("Export Result")
         if not st.session_state.df_original:
             st.info("Please upload CSV file(s) first.")
@@ -552,8 +632,8 @@ with tab2:
 with tab3:
     st.write("To Be Updated")
     subtab3_1, subtab3_2, subtab3_3, subtab3_4, subtab3_5 = st.tabs([
-        "Polynomial Fitting", 
-        "Logistic Growth Fitting", 
+        "Polynomial Fitting",
+        "Logistic Growth Fitting",
         "Fourier Series Fitting",
         "Wavelet Fitting",
         "To Be Updated...",
@@ -561,7 +641,7 @@ with tab3:
 
     with subtab3_1:
         st.write("To Be Updated...")
-    
+
     with subtab3_2:
         st.write("To Be Updated...")
 
@@ -573,8 +653,6 @@ with tab3:
 
     with subtab3_5:
         st.write("To Be Updated...")
-
-
 
 
 

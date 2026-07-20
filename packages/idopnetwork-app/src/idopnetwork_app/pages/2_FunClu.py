@@ -47,8 +47,63 @@ if "funclu_bic_result" not in st.session_state:
     st.session_state.funclu_bic_result = None
 if "funclu_bic_params" not in st.session_state:
     st.session_state.funclu_bic_params = {}
+if "funclu_bic_checkmark_ks" not in st.session_state:
+    st.session_state.funclu_bic_checkmark_ks = []
+if "funclu_bic_default_best_k" not in st.session_state:
+    st.session_state.funclu_bic_default_best_k = None
+if "funclu_bic_default_mode" not in st.session_state:
+    st.session_state.funclu_bic_default_mode = False
 
 # ========== Helper Functions ==========
+def _detect_bic_checkmark_candidates(
+    bic_df: pd.DataFrame,
+    *,
+    max_short_arm: int = 3,
+) -> list[int]:
+    """Find checkmark-like local BIC minima on the plotted K path."""
+    if bic_df is None or "K" not in bic_df.columns or "BIC" not in bic_df.columns:
+        return []
+
+    df = bic_df.dropna(subset=["K", "BIC"]).sort_values("K")
+    if len(df) < 3:
+        return []
+
+    ks = df["K"].to_numpy(dtype=int)
+    bics = df["BIC"].to_numpy(dtype=float)
+    scale = float(np.nanmax(np.abs(bics))) if bics.size else 1.0
+    eps = max(1e-9, scale * 1e-12)
+
+    candidates: list[int] = []
+    for idx in range(1, len(bics) - 1):
+        if not (bics[idx] + eps < bics[idx - 1] and bics[idx] + eps < bics[idx + 1]):
+            continue
+
+        left_len = 0
+        last = bics[idx]
+        for j in range(idx - 1, -1, -1):
+            if bics[j] > last + eps:
+                left_len += 1
+                last = bics[j]
+            else:
+                break
+
+        right_len = 0
+        last = bics[idx]
+        for j in range(idx + 1, len(bics)):
+            if bics[j] > last + eps:
+                right_len += 1
+                last = bics[j]
+            else:
+                break
+
+        short_arm = min(left_len, right_len)
+        long_arm = max(left_len, right_len)
+        if left_len >= 1 and right_len >= 1 and short_arm <= max_short_arm and long_arm > short_arm:
+            candidates.append(int(ks[idx]))
+
+    return candidates
+
+
 def _load_netrecon_inputs_from_zip(
     zip_bytes: bytes,
 ) -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame]]:
@@ -547,9 +602,10 @@ with tab3:
             data_list = [curve_sample_dict[n] for n in cond_names]
             n_features = min((d.shape[1] for d in data_list), default=2)
             k_upper = max(2, n_features)
+            min_cluster_lower = 2 if n_features >= 2 else 1
             min_cluster_default = min(
                 max(1, n_features),
-                max(1, int(np.ceil(0.03 * max(n_features, 1)))),
+                max(min_cluster_lower, int(np.ceil(0.03 * max(n_features, 1)))),
             )
 
             with st.expander("BIC Scan Settings", expanded=True):
@@ -560,9 +616,13 @@ with tab3:
                         value=2, step=1, key="bic_k_min",
                     )
                 with col2:
+                    k_max_default = min(
+                        k_upper,
+                        max(bic_k_min + 1, int(np.sqrt(max(n_features, 1)))),
+                    )
                     bic_k_max = st.slider(
                         "k_max", min_value=bic_k_min + 1, max_value=k_upper,
-                        value=min(10, k_upper), step=1, key="bic_k_max",
+                        value=k_max_default, step=1, key="bic_k_max",
                     )
                 with col3:
                     bic_step = st.slider(
@@ -570,7 +630,7 @@ with tab3:
                         value=1, step=1, key="bic_step",
                     )
 
-                with st.expander("Advanced Settings", expanded=False):
+                with st.expander("Advanced Settings", expanded=True):
                     col_a1, col_a2, col_a3 = st.columns(3)
                     with col_a1:
                         bic_max_iter = st.slider(
@@ -583,7 +643,7 @@ with tab3:
                         )
                     with col_a3:
                         bic_rs = st.number_input(
-                            "random_state", 0, 9999, 42, key="bic_rs",
+                            "random_state(seeds)", 0, 9999, 42, key="bic_rs",
                         )
                     col_b1, col_b2, col_b3 = st.columns(3)
                     with col_b1:
@@ -613,7 +673,7 @@ with tab3:
                     with col_b3:
                         bic_min_cluster_size = st.number_input(
                             "min_cluster_size",
-                            min_value=1,
+                            min_value=min_cluster_lower,
                             max_value=max(1, n_features),
                             value=int(min_cluster_default),
                             step=1,
@@ -625,12 +685,36 @@ with tab3:
                             ),
                         )
 
-                run_bic = st.button("Run BIC Analysis", type="primary", key="run_bic_btn")
+                button_col1, button_col2 = st.columns([1, 1])
+                with button_col1:
+                    try_default_best_k = st.button(
+                        "Try Default Best K",
+                        type="primary",
+                        key="try_default_best_k_btn",
+                        help=(
+                            "Scan K from 2 to int(sqrt(n)), find checkmark-like "
+                            "local BIC minima, and select the leftmost candidate as Best K."
+                        ),
+                    )
+                with button_col2:
+                    run_bic = st.button("Run BIC Analysis", type="primary", key="run_bic_btn")
 
-            if run_bic:
-                ks = list(range(bic_k_min, bic_k_max + 1, bic_step))
+            if run_bic or try_default_best_k:
+                if try_default_best_k:
+                    scan_k_min = 2
+                    scan_k_max = min(
+                        n_features,
+                        max(2, int(np.sqrt(max(n_features, 1)))),
+                    )
+                    scan_step = 1
+                else:
+                    scan_k_min = bic_k_min
+                    scan_k_max = bic_k_max
+                    scan_step = bic_step
+
+                ks = list(range(scan_k_min, scan_k_max + 1, scan_step))
                 with st.status(
-                    f"Scanning K from {bic_k_min} to {bic_k_max} ({len(ks)} fits)..."
+                    f"Scanning K from {scan_k_min} to {scan_k_max} ({len(ks)} fits)..."
                 ) as status:
                     try:
                         progress_bar = st.progress(0.0)
@@ -645,9 +729,9 @@ with tab3:
 
                         bic_df = compute_bic_scores(
                             data=data_list,
-                            k_min=bic_k_min,
-                            k_max=bic_k_max,
-                            step=bic_step,
+                            k_min=scan_k_min,
+                            k_max=scan_k_max,
+                            step=scan_step,
                             max_iter=bic_max_iter,
                             tol=bic_tol,
                             random_state=bic_rs,
@@ -656,20 +740,47 @@ with tab3:
                             min_cluster_size=int(bic_min_cluster_size),
                             progress_callback=_update_progress,
                         )
+                        checkmark_ks = (
+                            _detect_bic_checkmark_candidates(bic_df)
+                            if try_default_best_k
+                            else []
+                        )
+                        default_best_k = min(checkmark_ks) if checkmark_ks else None
+
                         st.session_state["funclu_bic_result"] = bic_df
                         st.session_state["funclu_bic_params"] = dict(
-                            k_min=bic_k_min, k_max=bic_k_max, step=bic_step,
+                            k_min=scan_k_min, k_max=scan_k_max, step=scan_step,
                             max_iter=bic_max_iter, tol=bic_tol, random_state=bic_rs,
                             n_random_starts=bic_random_starts,
                             aggregation=bic_aggregation,
                             min_cluster_size=int(bic_min_cluster_size),
+                            mode="try_default_best_k" if try_default_best_k else "manual",
                         )
+                        st.session_state["funclu_bic_checkmark_ks"] = checkmark_ks
+                        st.session_state["funclu_bic_default_best_k"] = default_best_k
+                        st.session_state["funclu_bic_default_mode"] = bool(try_default_best_k)
                         progress_bar.progress(1.0)
                         status_text.text("Done!")
                         status.update(label="BIC scan complete!", state="complete")
+                        if try_default_best_k:
+                            if checkmark_ks:
+                                st.success(
+                                    "Checkmark-like BIC candidates found: "
+                                    + ", ".join(f"K={k}" for k in checkmark_ks)
+                                    + f". Leftmost candidate K={default_best_k} is selected."
+                                )
+                            else:
+                                st.warning(
+                                    "No elbow-like local BIC minimum was found; "
+                                    "no Try Default best K will be marked. "
+                                    "Try Run BIC Analysis Function"
+                                )
                     except Exception as e:
                         st.error(f"BIC scan failed: {e}")
                         st.session_state["funclu_bic_result"] = None
+                        st.session_state["funclu_bic_checkmark_ks"] = []
+                        st.session_state["funclu_bic_default_best_k"] = None
+                        st.session_state["funclu_bic_default_mode"] = False
 
             # Display results
             bic_result_df = st.session_state.get("funclu_bic_result")
@@ -677,13 +788,27 @@ with tab3:
                 valid = bic_result_df.dropna(subset=["BIC"])
                 if not valid.empty:
                     raw_best_row = valid.loc[valid["BIC"].idxmin()]
+                    checkmark_ks = [
+                        int(k) for k in st.session_state.get("funclu_bic_checkmark_ks", [])
+                    ]
+                    default_best_k = st.session_state.get("funclu_bic_default_best_k")
+                    default_mode = st.session_state.get("funclu_bic_default_mode", False)
+                    use_default_best = (
+                        default_mode
+                        and default_best_k is not None
+                        and int(default_best_k) in set(valid["K"].astype(int))
+                    )
                     if "passes_min_cluster_size" in valid.columns:
                         eligible = valid[
                             valid["passes_min_cluster_size"].astype(bool)
                         ].copy()
                     else:
                         eligible = valid.copy()
-                    if eligible.empty:
+                    if use_default_best:
+                        best_row = valid[valid["K"].astype(int) == int(default_best_k)].iloc[0]
+                    elif default_mode:
+                        best_row = None
+                    elif eligible.empty:
                         best_row = raw_best_row
                         st.warning(
                             "No K satisfies the minimum cluster-size constraint; "
@@ -691,7 +816,7 @@ with tab3:
                         )
                     else:
                         best_row = eligible.loc[eligible["BIC"].idxmin()]
-                    best_k_val = int(best_row["K"])
+                    best_k_val = int(best_row["K"]) if best_row is not None else None
                     raw_best_k_val = int(raw_best_row["K"])
                     si_valid = (
                         eligible.dropna(subset=["SI"])
@@ -715,7 +840,7 @@ with tab3:
                         if best_si_row is not None
                         else "N/A"
                     )
-                    si_at_bic = best_row.get("SI", np.nan)
+                    si_at_bic = best_row.get("SI", np.nan) if best_row is not None else np.nan
                     si_at_bic_label = (
                         f"{si_at_bic:.4g}"
                         if np.isfinite(si_at_bic)
@@ -723,29 +848,38 @@ with tab3:
                     )
                     min_size_label = (
                         f"{best_row['min_cluster_size']:.0f}"
-                        if "min_cluster_size" in best_row
+                        if best_row is not None
+                        and "min_cluster_size" in best_row
                         and np.isfinite(best_row["min_cluster_size"])
                         else "N/A"
                     )
                     size_ok_label = (
                         f"{best_row['size_ok_rate']:.0%}"
-                        if "size_ok_rate" in best_row
+                        if best_row is not None
+                        and "size_ok_rate" in best_row
                         and np.isfinite(best_row["size_ok_rate"])
                         else "N/A"
                     )
                     converged_label = (
                         f"{best_row['converged_rate']:.0%}"
-                        if "converged_rate" in best_row
+                        if best_row is not None
+                        and "converged_rate" in best_row
                         and np.isfinite(best_row["converged_rate"])
-                        else str(best_row["converged"])
+                        else str(best_row["converged"]) if best_row is not None else "N/A"
                     )
 
                     st.markdown("### Best K Recommendation")
                     col_c1, col_c2, col_c3, col_c4, col_c5, col_c6 = st.columns(6)
                     with col_c1:
-                        st.metric("Recommended K", f"K = {best_k_val}")
+                        st.metric(
+                            "Recommended K",
+                            f"K = {best_k_val}" if best_k_val is not None else "N/A",
+                        )
                     with col_c2:
-                        st.metric("BIC", f"{best_row['BIC']:.4g}")
+                        st.metric(
+                            "BIC",
+                            f"{best_row['BIC']:.4g}" if best_row is not None else "N/A",
+                        )
                     with col_c3:
                         st.metric("Raw BIC K", f"K = {raw_best_k_val}")
                     with col_c4:
@@ -755,14 +889,29 @@ with tab3:
                     with col_c6:
                         st.metric("Converged", converged_label)
 
+                    if use_default_best and checkmark_ks:
+                        st.caption(
+                            "Try Default Best K candidates: "
+                            + ", ".join(f"K = {k}" for k in checkmark_ks)
+                            + f"; selected leftmost candidate K = {best_k_val}."
+                        )
+                    elif default_mode:
+                        st.caption(
+                            "No elbow-like local BIC minimum was found; "
+                            "no Try Default best K will be marked. "
+                            "Try Run BIC Analysis Function"
+                        )
                     st.caption(f"Best K by SI among eligible rows: {best_si_label} ({best_si_value})")
 
                     st.markdown("### BIC Elbow Plot")
                     plot_bic_elbow(
                         bic_results=bic_result_df,
                         best_K=best_k_val,
+                        candidate_Ks=checkmark_ks if default_mode else None,
+                        auto_select_best=not default_mode,
                         show_in_streamlit=True,
                     )
+                    st.caption("此生成的结果和seed有关，不同的seed可能会导致不同的结果")
 
                     st.markdown("### Results Table")
                     display_df = bic_result_df.rename(columns={
