@@ -1,7 +1,6 @@
 
 
 import io
-import hashlib
 import zipfile
 
 import streamlit as st
@@ -124,6 +123,23 @@ def _drop_file_state(file_name: str, state_keys: list[str]) -> None:
             state_value.pop(file_name, None)
 
 
+def _uploaded_file_signature(file) -> tuple:
+    file_id = getattr(file, "file_id", None)
+    file_size = getattr(file, "size", None)
+    if file_size is None:
+        current_pos = file.tell()
+        file.seek(0, 2)
+        file_size = file.tell()
+        file.seek(current_pos)
+    return (file_id, file_size)
+
+
+def _mark_uploaded_file_changed() -> None:
+    st.session_state.static_data_view = "Quasi Dynamic"
+    st.session_state.allometric_compare_params = None
+    st.session_state.pop("curve_fitting_export_zip", None)
+
+
 def _sync_uploaded_file_state(uploaded_files) -> None:
     current_file_names = {file.name for file in uploaded_files} if uploaded_files else set()
     previous_file_names = set(st.session_state.uploaded_file_signatures)
@@ -131,17 +147,16 @@ def _sync_uploaded_file_state(uploaded_files) -> None:
     for file_name in removed_file_names:
         _drop_file_state(file_name, _PER_FILE_STATE_KEYS)
         st.session_state.uploaded_file_signatures.pop(file_name, None)
-        st.session_state.static_data_view = "Quasi Dynamic"
+        _mark_uploaded_file_changed()
 
     if not uploaded_files:
         return
 
     for file in uploaded_files:
-        file_bytes = file.getvalue()
-        file_signature = hashlib.sha256(file_bytes).hexdigest()
+        file_signature = _uploaded_file_signature(file)
         if st.session_state.uploaded_file_signatures.get(file.name) != file_signature:
             _drop_file_state(file.name, _PER_FILE_STATE_KEYS)
-            st.session_state.static_data_view = "Quasi Dynamic"
+            _mark_uploaded_file_changed()
             try:
                 file.seek(0)
                 st.session_state.df_original[file.name] = load_csv(file=file)
@@ -171,11 +186,9 @@ with tab1:
             for file in uploaded_files:
 
                 # 加载并缓存原始数据 df_original
-                try:
-                    df_original = load_csv(file=file)
-                    st.session_state.df_original[file.name] = df_original
-                except Exception as exc:
-                    st.error(f"加载文件 {file.name} 失败：{exc}")
+                df_original = st.session_state.df_original.get(file.name)
+                if df_original is None:
+                    st.warning(f"{file.name} has not been loaded successfully.")
                     continue
 
                 with st.expander(f"Original Data: {file.name}", expanded=False):
@@ -577,7 +590,8 @@ with tab2:
 
     else:
         st.write("Export Result")
-        if not st.session_state.df_original:
+        current_uploaded_names = [file.name for file in uploaded_files] if uploaded_files else []
+        if not current_uploaded_names:
             st.info("Please upload CSV file(s) first.")
         else:
             dq = st.session_state.df_quasi_dynamic
@@ -585,13 +599,13 @@ with tab2:
             dp = st.session_state.df_curve_params
             all_ready = all(
                 fname in dq and fname in ds and fname in dp
-                for fname in st.session_state.df_original
+                for fname in current_uploaded_names
             )
             if not all_ready:
                 st.session_state.pop("curve_fitting_export_zip", None)
                 missing = [
                     fname
-                    for fname in st.session_state.df_original
+                    for fname in current_uploaded_names
                     if fname not in dq or fname not in ds or fname not in dp
                 ]
                 st.info(
@@ -603,7 +617,7 @@ with tab2:
                 if st.button("Export ZIP", key="curve_fitting_build_export_zip"):
                     buf = io.BytesIO()
                     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-                        for fname in st.session_state.df_original:
+                        for fname in current_uploaded_names:
                             sub = _safe_zip_subdir(fname)
                             prefix = f"{sub}/"
                             zf.writestr(
@@ -653,7 +667,3 @@ with tab3:
 
     with subtab3_5:
         st.write("To Be Updated...")
-
-
-
-
