@@ -4,7 +4,6 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 from scipy import stats
-from sklearn.preprocessing import MinMaxScaler
 
 
 # 数据加载
@@ -25,51 +24,24 @@ def _numeric_frame_for_transform(data: pd.DataFrame) -> pd.DataFrame:
         ) from e
 
 
-# 数据变换
-def data_transformation(
-    data: pd.DataFrame,
-    scaler_type: str,
-) -> pd.DataFrame:
-    """Transform uploaded data before quasi-dynamic conversion."""
-    if scaler_type == "none":
-        return data.copy()
-    if scaler_type == "rescale_to_-1_1":
-        num = _numeric_frame_for_transform(data)
-        scaled = MinMaxScaler(feature_range=(-1, 1)).fit_transform(num)
-    elif scaler_type == "rescale_to_0_1":
-        num = _numeric_frame_for_transform(data)
-        scaled = MinMaxScaler(feature_range=(0, 1)).fit_transform(num)
-    elif scaler_type == "log1p":
-        num = _numeric_frame_for_transform(data)
-        if (num < -1).any().any():
-            raise ValueError("log1p 变换要求所有数值列数据均大于等于 -1。")
-        scaled = num.apply(np.log1p, axis=0)
-        return pd.DataFrame(scaled, columns=data.columns, index=data.index)
-    elif scaler_type == "zscore_shift_positive":
-        num = _numeric_frame_for_transform(data)
-        std = num.std(axis=0, ddof=0).replace(0.0, 1.0)
-        standardized = (num - num.mean(axis=0)) / std
-        finite_values = standardized.to_numpy(dtype=float)
-        finite_values = finite_values[np.isfinite(finite_values)]
-        if finite_values.size == 0:
-            scaled = standardized
-        else:
-            scaled = standardized + abs(float(finite_values.min()))
-        return pd.DataFrame(scaled, columns=data.columns, index=data.index)
-    elif scaler_type == "zscore_shift_positive_by_row":
-        num = _numeric_frame_for_transform(data)
-        row_mean = num.mean(axis=1)
-        row_std = num.std(axis=1, ddof=0).replace(0.0, 1.0)
-        standardized = num.sub(row_mean, axis=0).div(row_std, axis=0)
-        row_min = standardized.min(axis=1, skipna=True).fillna(0.0)
-        scaled = standardized.sub(row_min, axis=0)
-        epsilon = 0.5  # 极小偏移量，也可以改成 0.001 / 0.01
-        scaled = scaled + epsilon
-        return pd.DataFrame(scaled, columns=data.columns, index=data.index)
-    else:
-        raise ValueError(f"不支持的数据变换类型: {scaler_type}")
-    return pd.DataFrame(scaled, columns=data.columns, index=data.index)
+# 数据变换（funclu_v4）
+def preprocess(df: pd.DataFrame, method: str) -> pd.DataFrame:
+    """Apply the supplied v4 column-wise transform; nonnumeric cells become NaN."""
+    df = df.apply(pd.to_numeric, errors="coerce")
+    transforms = {
+        "None": lambda x: x,
+        "Log10_1p": lambda x: np.log10(1 + x),
+        "Minmax_0_1": lambda x: (x - x.min()) / (x.max() - x.min()).replace(0, 1),
+        "Z_min_add1": lambda x: x - x.min() + 1,
+    }
+    if method not in transforms:
+        raise ValueError(f"不支持的数据变换类型: {method}")
+    return transforms[method](df)
 
+
+def data_transformation(data: pd.DataFrame, scaler_type: str) -> pd.DataFrame:
+    """Application entry point for the v4 preprocessing kernel."""
+    return preprocess(data, scaler_type)
 
 
 # 从 Static DataFrame 变换到 quasi-dynamic DataFrame.

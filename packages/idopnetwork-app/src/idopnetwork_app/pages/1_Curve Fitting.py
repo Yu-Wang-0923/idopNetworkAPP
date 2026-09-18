@@ -265,14 +265,15 @@ with tab1:
                 scaler_type = st.selectbox(
                     "Transform Type",
                     [
-                        "none",
-                        "rescale_to_0_1",
-                        "rescale_to_-1_1",
-                        "log1p",
-                        "zscore_shift_positive",
-                        "zscore_shift_positive_by_row",
+                        "None",
+                        "Log10_1p",
+                        "Minmax_0_1",
+                        "Z_min_add1",
                     ],
-                    key="transform_data",
+                    key="transform_data_v4",
+                    help=("Log10_1p: log10(1 + x). Minmax_0_1: column-wise scaling. "
+                          "Z_min_add1: subtract each column's minimum, then add 1. "
+                          "Nonnumeric cells become missing values."),
                 )
                 submit_transform = st.form_submit_button("Run Transform")
             # 执行数据变换
