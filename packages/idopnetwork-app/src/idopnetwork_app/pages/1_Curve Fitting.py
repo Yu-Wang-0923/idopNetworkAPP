@@ -1,670 +1,137 @@
-
-
-import io
-import zipfile
-
-import streamlit as st
+"""Upload static CSV data and immediately return FunClu v4 fitting results."""
 from importlib.resources import files
 
-_ICON = str(files("idopnetwork_app.static.images") / "TSA.png")
-
-# 🌟 修改 1：换上统一的小图标，保持侧边栏默认展开 222
-st.set_page_config(page_title="Curve Fitting", page_icon=_ICON, layout="wide", initial_sidebar_state="expanded")
-
+import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
+import streamlit as st
 
-from idopnetwork.curve_fitting.fitting import (
-    load_csv,
-    data_transformation,
-    get_quasi_dynamic_df,
-    get_power_function_sample,
-    power_fitting,
-    get_power_function_params,
-)
 from idopnetwork.curve_fitting.plot import plot_curve_fitting, plot_curve_fitting_compare
-
-# 🌟 修改 2：把 setup_sidebar 导进来
+from idopnetwork_app.curve_fitting_workflow import fit_uploaded_csv, build_fitting_export
 from idopnetwork_app.utils import load_css, setup_sidebar
 
-# 🌟 修改 3：一键加载全局样式和统一侧边栏！
+_ICON = str(files("idopnetwork_app.static.images") / "TSA.png")
+st.set_page_config(page_title="Curve Fitting", page_icon=_ICON, layout="wide",
+                   initial_sidebar_state="expanded")
 load_css()
 setup_sidebar()
-
-# ========== 登录门禁 ==========
 if not st.session_state.get("logged_in", False):
     st.warning("请先返回首页登录后使用。")
     st.stop()
 
 
-def _safe_zip_subdir(fname: str) -> str:
-    base = fname.replace("\\", "_").replace("/", "_").strip()
-    return base or "export"
+@st.cache_data(show_spinner=False, max_entries=32)
+def _fit(content: bytes):
+    return fit_uploaded_csv(content)
 
 
 st.title("Curve Fitting", text_alignment="center")
-
-
-if "df_original" not in st.session_state:
-    st.session_state.df_original = {}
-if "uploaded_file_signatures" not in st.session_state:
-    st.session_state.uploaded_file_signatures = {}
-if "df_transform" not in st.session_state:
-    st.session_state.df_transform = {}
-if "df_quasi_dynamic" not in st.session_state:
-    st.session_state.df_quasi_dynamic = {}
-if "df_curve_sample" not in st.session_state:
-    st.session_state.df_curve_sample = {}
-if "df_curve_params" not in st.session_state:
-    st.session_state.df_curve_params = {}
-if "original_plot_params" not in st.session_state:
-    st.session_state.original_plot_params = {}
-if "transform_plot_params" not in st.session_state:
-    st.session_state.transform_plot_params = {}
-if "transform_data_expanded" not in st.session_state:
-    st.session_state.transform_data_expanded = {}
-if "show_original_data" not in st.session_state:
-    st.session_state.show_original_data = {}
-if "show_transform_data" not in st.session_state:
-    st.session_state.show_transform_data = {}
-if "quasi_show_data" not in st.session_state:
-    st.session_state.quasi_show_data = {}
-if "quasi_plot_params" not in st.session_state:
-    st.session_state.quasi_plot_params = {}
-if "allometric_show_data" not in st.session_state:
-    st.session_state.allometric_show_data = {}
-if "allometric_plot_params" not in st.session_state:
-    st.session_state.allometric_plot_params = {}
-if "allometric_show_curve_params" not in st.session_state:
-    st.session_state.allometric_show_curve_params = {}
-if "allometric_compare_params" not in st.session_state:
-    st.session_state.allometric_compare_params = None
-if "static_data_view" not in st.session_state:
-    st.session_state.static_data_view = "Quasi Dynamic"
-
-
-_PER_FILE_STATE_KEYS = [
-    "df_original",
-    "df_transform",
-    "df_quasi_dynamic",
-    "df_curve_sample",
-    "df_curve_params",
-    "original_plot_params",
-    "transform_plot_params",
-    "transform_data_expanded",
-    "show_original_data",
-    "show_transform_data",
-    "quasi_show_data",
-    "quasi_plot_params",
-    "allometric_show_data",
-    "allometric_plot_params",
-    "allometric_show_curve_params",
-]
-
-_DOWNSTREAM_STATE_KEYS = [
-    "df_transform",
-    "df_quasi_dynamic",
-    "df_curve_sample",
-    "df_curve_params",
-    "transform_plot_params",
-    "transform_data_expanded",
-    "show_transform_data",
-    "quasi_show_data",
-    "quasi_plot_params",
-    "allometric_show_data",
-    "allometric_plot_params",
-    "allometric_show_curve_params",
-]
-
-
-def _drop_file_state(file_name: str, state_keys: list[str]) -> None:
-    for state_key in state_keys:
-        state_value = st.session_state.get(state_key)
-        if isinstance(state_value, dict):
-            state_value.pop(file_name, None)
-
-
-def _uploaded_file_signature(file) -> tuple:
-    file_id = getattr(file, "file_id", None)
-    file_size = getattr(file, "size", None)
-    if file_size is None:
-        current_pos = file.tell()
-        file.seek(0, 2)
-        file_size = file.tell()
-        file.seek(current_pos)
-    return (file_id, file_size)
-
-
-def _mark_uploaded_file_changed() -> None:
-    st.session_state.static_data_view = "Quasi Dynamic"
-    st.session_state.allometric_compare_params = None
-    st.session_state.pop("curve_fitting_export_zip", None)
-
-
-def _sync_uploaded_file_state(uploaded_files) -> None:
-    current_file_names = {file.name for file in uploaded_files} if uploaded_files else set()
-    previous_file_names = set(st.session_state.uploaded_file_signatures)
-    removed_file_names = previous_file_names - current_file_names
-    for file_name in removed_file_names:
-        _drop_file_state(file_name, _PER_FILE_STATE_KEYS)
-        st.session_state.uploaded_file_signatures.pop(file_name, None)
-        _mark_uploaded_file_changed()
-
-    if not uploaded_files:
-        return
-
-    for file in uploaded_files:
-        file_signature = _uploaded_file_signature(file)
-        if st.session_state.uploaded_file_signatures.get(file.name) != file_signature:
-            _drop_file_state(file.name, _PER_FILE_STATE_KEYS)
-            _mark_uploaded_file_changed()
-            try:
-                file.seek(0)
-                st.session_state.df_original[file.name] = load_csv(file=file)
-                st.session_state.uploaded_file_signatures[file.name] = file_signature
-            except Exception as exc:
-                st.error(f"加载文件 {file.name} 失败：{exc}")
-            finally:
-                file.seek(0)
-
-
-#with st.sidebar:
-    #st.write("To Be Updated...")
-    # st.divider()
-
-tab1, tab2, tab3 = st.tabs(["Uploaded Data", "Static Data", "Dynamic Data"])
-
-# 上传数据
-with tab1:
-    uploaded_files = st.file_uploader(label="Please upload your files",type=["csv"],accept_multiple_files=True)
-    _sync_uploaded_file_state(uploaded_files)
-
-    tab1_1, tab1_2, tab1_3 = st.tabs(["Data Overview", "Data Transformation", "To Be Updated"])
-
-    # 数据概览
-    with tab1_1:
-        if uploaded_files:
-            for file in uploaded_files:
-
-                # 加载并缓存原始数据 df_original
-                df_original = st.session_state.df_original.get(file.name)
-                if df_original is None:
-                    st.warning(f"{file.name} has not been loaded successfully.")
-                    continue
-
-                with st.expander(f"Original Data: {file.name}", expanded=False):
-                    tab1_1_1, tab1_1_2, tab1_1_3 = st.tabs(["View Data", "Scatter Plot", "To Be Updated..."])
-
-                    # 查看数据
-                    with tab1_1_1:
-                        with st.form(key=f"original_data_view_{file.name}"):
-                            submit_original_data_view = st.form_submit_button("View Data", help="May lag for very large datasets")
-                            if submit_original_data_view:
-                                st.session_state.show_original_data[file.name] = True
-                        if st.session_state.show_original_data.get(file.name):
-                            st.dataframe(df_original, use_container_width=True)
-
-                    # 绘制原始数据散点图
-                    with tab1_1_2:
-                        # 原始数据散点图绘图参数
-                        with st.form(key=f"original_data_plot_{file.name}"):
-                            with st.expander("⚙️ Original Data Plot Settings", expanded=False):
-                                tab_layout, tab_color = st.tabs(["Layout", "Color"])
-                                # 布局
-                                with tab_layout:
-                                    col1, col2, col3 = st.columns(3)
-                                    with col1:
-                                        nrow = st.number_input("Rows", value=4, min_value=1, max_value=10, step=1)
-                                        ncol = st.number_input("Cols", value=3, min_value=1, max_value=10, step=1)
-                                    with col2:
-                                        plot_scatter_type = st.selectbox("Plot Type", ["line","scatter"], key=f"plot_scatter_type_{file.name}")
-                                    with col3:
-                                        scatter_size = st.number_input("Scatter Size", value=10, min_value=1, max_value=1000, step=1)
-                                        scatter_linewidth = st.number_input("Line Size", value=1, min_value=1, max_value=10, step=1)
-
-                                    nsubfig = nrow * ncol
-                                # 颜色
-                                with tab_color:
-                                    col1, col2 = st.columns(2)
-                                    with col1:
-                                        color_scatter = st.color_picker("Data Color", value="#1F77B4")
-                                        # color_curve = st.color_picker("Curve Color", value="#A06EA5")
-                                    with col2:
-                                        subfig_background_color = st.color_picker("Subfig Background Color", value="#FFFFFF")
-
-                            submit_original_data_plot = st.form_submit_button("Run Original Data Plot")
-                            # 原始数据绘图区
-                            if submit_original_data_plot:
-                                st.session_state.original_plot_params[file.name] = dict(
-                                    plot_scatter_type=plot_scatter_type,
-                                    show_curve=False,
-                                    nrow=nrow,
-                                    ncol=ncol,
-                                    nsubfig=nsubfig,
-                                    scatter_size=scatter_size,
-                                    scatter_x="sequence",
-                                    scatter_linewidth=scatter_linewidth,
-                                    color_scatter=color_scatter,
-                                    subfig_background_color=subfig_background_color,
-                                )
-
-                        if file.name in st.session_state.original_plot_params:
-                            fig = plot_curve_fitting(
-                                df_scatter=df_original,
-                                df_curve=None,
-                                **st.session_state.original_plot_params[file.name],
-                            )
-                            st.pyplot(fig)
-        else:
-            st.info("Please upload CSV file(s)")
-
-    # 数据变换
-    with tab1_2:
-        if uploaded_files:
-            with st.form(key="transform_form"):
-                scaler_type = st.selectbox(
-                    "Transform Type",
-                    [
-                        "None",
-                        "Log10_1p",
-                        "Minmax_0_1",
-                        "Z_min_add1",
-                    ],
-                    key="transform_data_v4",
-                    help=("Log10_1p: log10(1 + x). Minmax_0_1: column-wise scaling. "
-                          "Z_min_add1: subtract each column's minimum, then add 1. "
-                          "Nonnumeric cells become missing values."),
-                )
-                submit_transform = st.form_submit_button("Run Transform")
-            # 执行数据变换
-            if submit_transform:
-                for file in uploaded_files:
-                    try:
-                        df_original = st.session_state.df_original[file.name]
-                        df_transform = data_transformation(df_original, scaler_type)
-                        st.session_state.df_transform[file.name] = df_transform
-                        st.session_state.transform_data_expanded[file.name] = True
-                    except Exception as exc:
-                        st.error(f"{file.name} 数据变换失败：{exc}")
-                        continue
-                st.success("变换完成")
-
-            if uploaded_files:
-                for file in uploaded_files:
-                    if file.name in st.session_state.df_transform:
-                        df_transform = st.session_state.df_transform[file.name]
-                        with st.expander(
-                            f"Transform Data: {file.name}",
-                            expanded=st.session_state.transform_data_expanded.get(file.name, False),
-                        ):
-                            transform_data_view = st.radio(
-                                "Transform Data View",
-                                ["Data Overview", "Scatter Plot", "To Be Updated..."],
-                                horizontal=True,
-                                label_visibility="collapsed",
-                                key=f"transform_data_view_{file.name}",
-                            )
-                            # 查看数据
-                            if transform_data_view == "Data Overview":
-                                if st.button("View Data", key=f"view_transformed_data_{file.name}"):
-                                    st.session_state.show_transform_data[file.name] = True
-                                if st.session_state.show_transform_data.get(file.name):
-                                    st.dataframe(df_transform, use_container_width=True)
-                            # 绘制数据散点图
-                            elif transform_data_view == "Scatter Plot":
-                                with st.form(key=f"transform_data_plot_{file.name}"):
-                                    with st.expander("⚙️ Transform Data Plot Settings", expanded=False):
-                                        tab_layout, tab_color = st.tabs(["Layout", "Color"])
-                                        # 布局
-                                        with tab_layout:
-                                            col1, col2, col3 = st.columns(3)
-                                            with col1:
-                                                nrow = st.number_input("Rows", value=4, min_value=1, max_value=10, step=1)
-                                                ncol = st.number_input("Cols", value=3, min_value=1, max_value=10, step=1)
-                                            with col2:
-                                                plot_scatter_type = st.selectbox("Plot Type", ["line","scatter"], key=f"plot_transform_scatter_type_{file.name}")
-                                            with col3:
-                                                scatter_size = st.number_input("Scatter Size", value=100, min_value=1, max_value=1000, step=1)
-                                                scatter_linewidth = st.number_input("Line Size", value=1, min_value=1, max_value=10, step=1)
-                                        with tab_color:
-                                            col1, col2 = st.columns(2)
-                                            with col1:
-                                                color_scatter = st.color_picker("Data Color", value="#1F77B4")
-                                                # color_curve = st.color_picker("Curve Color", value="#A06EA5")
-                                            with col2:
-                                                subfig_background_color = st.color_picker("Subfig Background Color", value="#FFFFFF")
-                                    submit_transform_data_plot = st.form_submit_button("Run Transform Data Plot")
-                                    if submit_transform_data_plot:
-                                        nsubfig = nrow * ncol
-                                        st.session_state.transform_plot_params[file.name] = dict(
-                                            plot_scatter_type=plot_scatter_type,
-                                            show_curve=False,
-                                            nrow=nrow,
-                                            ncol=ncol,
-                                            nsubfig=nsubfig,
-                                            scatter_size=scatter_size,
-                                            scatter_linewidth=scatter_linewidth,
-                                            color_scatter=color_scatter,
-                                            subfig_background_color=subfig_background_color,
-                                        )
-                                        st.session_state.transform_data_expanded[file.name] = True
-
-                                if file.name in st.session_state.transform_plot_params:
-                                    fig = plot_curve_fitting(
-                                        df_scatter=df_transform,
-                                        df_curve=None,
-                                        **st.session_state.transform_plot_params[file.name],
-                                    )
-                                    st.pyplot(fig)
-                            else:
-                                st.write("To Be Updated...")
-        else:
-            st.info("Please upload CSV file(s)")
-
-
-    with tab1_3:
-        st.write("To Be Updated...")
-
-
-# 静态数据
-with tab2:
-    static_data_view = st.radio(
-        "Static Data View",
-        ["Quasi Dynamic", "Allometric Scaling Law", "Export"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="static_data_view",
+st.caption("Upload static CSV files to automatically fit curves. The first column is the row index; remaining columns are features.")
+uploaded = st.file_uploader("Upload CSV files", type=["csv"], accept_multiple_files=True,
+                            key="curve_fitting_upload_v4")
+with st.expander("Processing details", expanded=False):
+    st.markdown(
+        "Each column is shifted by its minimum + 1, then transformed with log10(1 + x). "
+        "Rows are sorted by log1p of their sums; nonpositive indices and the first 1% "
+        "of remaining rows are removed. Power curves are fitted at 30 equally spaced points."
     )
 
-    if static_data_view == "Quasi Dynamic":
-        if uploaded_files:
-            with st.form(key="quasi_dynamic_form"):
-                quasi_log_index = st.checkbox(
-                    "Use natural log of quasi-dynamic index",
-                    value=False,
-                    help=(
-                        "If enabled, rows with non-positive or non-finite "
-                        "row-sum index values are skipped before applying log."
-                    ),
-                )
-                submit_quasi = st.form_submit_button("Run Quasi Dynamic")
-            if submit_quasi:
-                for file in uploaded_files:
-                    if file.name in st.session_state.df_transform:
-                        try:
-                            df_transform = st.session_state.df_transform[file.name]
-                            df_quasi_dynamic = get_quasi_dynamic_df(
-                                df_transform,
-                                log_index=bool(quasi_log_index),
-                            )
-                            st.session_state.df_quasi_dynamic[file.name] = df_quasi_dynamic
-                        except Exception as exc:
-                            st.error(f"{file.name} 拟动态变换失败：{exc}")
-                            continue
-                st.success("拟动态变换完成")
-            if st.session_state.df_quasi_dynamic:
-                for file in uploaded_files:
-                    if file.name in st.session_state.df_quasi_dynamic:
-                        # 加载并缓存 quasi-dynamic DataFrame df_quasi
-                        df_quasi = st.session_state.df_quasi_dynamic[file.name]
-                        with st.expander(f"Quasi Dynamic: {file.name}", expanded=False):
-                            tab_qd_data, tab_qd_plot = st.tabs([
-                                "Data Overview", "Scatter Plot"
-                            ])
-                            with tab_qd_data:
-                                if st.button("View Data", key=f"quasi_view_{file.name}"):
-                                    st.session_state.quasi_show_data[file.name] = True
-                                if st.session_state.quasi_show_data.get(file.name):
-                                    st.dataframe(df_quasi, use_container_width=True)
-                            # 绘制 quasi-dynamic 散点图
-                            with tab_qd_plot:
-                                with st.form(key=f"quasi_plot_{file.name}"):
-                                    with st.expander("⚙️ Scatter Plot Settings", expanded=False):
-                                        tab_layout, tab_color = st.tabs(["Layout", "Color"])
-                                        with tab_layout:
-                                            col1, col2, col3 = st.columns(3)
-                                            with col1:
-                                                nrow = st.number_input("Rows", value=2, min_value=1, max_value=10, step=1, key=f"quasi_nrow_{file.name}")
-                                                ncol = st.number_input("Cols", value=3, min_value=1, max_value=10, step=1, key=f"quasi_ncol_{file.name}")
-                                            with col2:
-                                                plot_scatter_type = st.selectbox("Plot Type", ["scatter", "line"], key=f"quasi_scatter_type_{file.name}")
-                                            with col3:
-                                                scatter_size = st.number_input("Scatter Size", value=100, min_value=1, max_value=1000, step=1, key=f"quasi_scatter_size_{file.name}")
-                                                scatter_linewidth = st.number_input("Line Size", value=1, min_value=1, max_value=10, step=1, key=f"quasi_scatter_lw_{file.name}")
-                                        with tab_color:
-                                            col1, col2 = st.columns(2)
-                                            with col1:
-                                                color_scatter = st.color_picker("Data Color", value="#1F77B4", key=f"quasi_color_{file.name}")
-                                            with col2:
-                                                subfig_bg = st.color_picker("Subfig Background Color", value="#FFFFFF", key=f"quasi_bg_{file.name}")
-                                    submit_quasi_plot = st.form_submit_button("Run Scatter Plot")
-                                    if submit_quasi_plot:
-                                        st.session_state.quasi_plot_params[file.name] = dict(
-                                            plot_scatter_type=plot_scatter_type,
-                                            scatter_x = "index",
-                                            show_curve=False,
-                                            nrow=nrow,
-                                            ncol=ncol,
-                                            nsubfig=nrow * ncol,
-                                            scatter_size=scatter_size,
-                                            scatter_linewidth=scatter_linewidth,
-                                            color_scatter=color_scatter,
-                                            subfig_background_color=subfig_bg,
-                                        )
-                                if st.session_state.quasi_plot_params.get(file.name):
-                                    fig = plot_curve_fitting(
-                                        df_scatter=df_quasi,
-                                        df_curve=None,
-                                        **st.session_state.quasi_plot_params[file.name],
-                                    )
-                                    st.pyplot(fig)
-        else:
-            st.info("Please upload CSV file(s)")
+if not uploaded:
+    st.info("Upload CSV files to see fitted curves, parameters and downloadable results.")
+    st.stop()
 
-    # Allometric Scaling Law
-    elif static_data_view == "Allometric Scaling Law":
-        if uploaded_files:
-            with st.form(key="allometric_scaling_law_form"):
-                submit_fit = st.form_submit_button("Run Allometric Scaling Law")
-            if submit_fit:
-                for file in uploaded_files:
-                    if file.name in st.session_state.df_quasi_dynamic:
-                        try:
-                            df_quasi_dynamic = st.session_state.df_quasi_dynamic[file.name]
-                            df_curve_params, df_curve_sample = power_fitting(df_quasi_dynamic)
-                            st.session_state.df_curve_sample[file.name] = df_curve_sample
-                            st.session_state.df_curve_params[file.name] = df_curve_params
-                        except Exception as exc:
-                            st.error(f"{file.name} 异速生长拟合失败：{exc}")
-                            continue
-                st.success("异速生长拟合完成")
-            ready_allometric_files = [
-                file
-                for file in uploaded_files
-                if file.name in st.session_state.df_quasi_dynamic
-                and file.name in st.session_state.df_curve_sample
-                and file.name in st.session_state.df_curve_params
-            ]
-            if ready_allometric_files:
-                for file in ready_allometric_files:
-                    df_quasi = st.session_state.df_quasi_dynamic[file.name]
-                    df_curve = st.session_state.df_curve_sample[file.name]
-                    with st.expander(f"Allometric Scaling Law: {file.name}", expanded=False):
-                        tab_al_data, tab_al_plot, tab_al_params = st.tabs([
-                            "Data Overview", "Curve Fitting Plot","Curve Parameters"
-                        ])
-                        with tab_al_data:
-                            if st.button("View Data", key=f"allometric_view_{file.name}"):
-                                st.session_state.allometric_show_data[file.name] = True
-                            if st.session_state.allometric_show_data.get(file.name):
-                                st.dataframe(df_quasi, use_container_width=True)
-                        with tab_al_plot:
-                            with st.form(key=f"allometric_plot_{file.name}"):
-                                with st.expander("⚙️ Curve Fitting Plot Settings", expanded=False):
-                                    tab_layout, tab_color = st.tabs(["Layout", "Color"])
-                                    with tab_layout:
-                                        col1, col2, col3 = st.columns(3)
-                                        with col1:
-                                            nrow = st.number_input("Rows", value=2, min_value=1, max_value=10, step=1, key=f"allometric_nrow_{file.name}")
-                                            ncol = st.number_input("Cols", value=3, min_value=1, max_value=10, step=1, key=f"allometric_ncol_{file.name}")
-                                        with col2:
-                                            plot_scatter_type = st.selectbox("Plot Type", ["scatter", "line"], key=f"allometric_scatter_type_{file.name}")
-                                        with col3:
-                                            scatter_size = st.number_input("Scatter Size", value=100, min_value=1, max_value=1000, step=1, key=f"allometric_scatter_size_{file.name}")
-                                            scatter_linewidth = st.number_input("Line Size", value=1, min_value=1, max_value=10, step=1, key=f"allometric_scatter_lw_{file.name}")
-                                    # 幂函数拟合图配色
-                                    with tab_color:
-                                        col1, col2 = st.columns(2)
-                                        with col1:
-                                            color_scatter = st.color_picker("Data Color", value="#1F77B4", key=f"allometric_color_{file.name}")
-                                            color_curve = st.color_picker("Curve Color", value="#D62728", key=f"allometric_color_curve_{file.name}")
-                                        with col2:
-                                            subfig_bg = st.color_picker("Subfig Background Color", value="#FFFFFF", key=f"allometric_bg_{file.name}")
-                                submit_allometric_plot = st.form_submit_button("Run Curve Fitting Plot")
-                                if submit_allometric_plot:
-                                    st.session_state.allometric_plot_params[file.name] = dict(
-                                        plot_scatter_type=plot_scatter_type,
-                                        show_curve=True,
-                                        nrow=nrow,
-                                        ncol=ncol,
-                                        nsubfig=nrow * ncol,
-                                        scatter_size=scatter_size,
-                                        scatter_linewidth=scatter_linewidth,
-                                        scatter_x = "index",
-                                        color_scatter=color_scatter,
-                                        color_curve=color_curve,
-                                        subfig_background_color=subfig_bg,
-                                    )
-                            if st.session_state.allometric_plot_params.get(file.name):
-                                fig = plot_curve_fitting(
-                                    df_scatter=df_quasi,
-                                    df_curve=df_curve,
-                                    **st.session_state.allometric_plot_params[file.name],
-                                )
-                                st.pyplot(fig)
-                        # 曲线参数
-                        with tab_al_params:
-                            if st.button("View Curve Parameters", key=f"allometric_params_view_{file.name}"):
-                                st.session_state.allometric_show_curve_params[file.name] = (
-                                    not st.session_state.allometric_show_curve_params.get(file.name, False)
-                                )
-                            if st.session_state.allometric_show_curve_params.get(file.name):
-                                st.dataframe(st.session_state.df_curve_params[file.name], use_container_width=True)
-                with st.expander("Allometric Scaling Law Compare", expanded=False):
-                    scatter_list_compare = [
-                        st.session_state.df_quasi_dynamic[f.name]
-                        for f in ready_allometric_files
-                    ]
-                    curve_list_compare = [
-                        st.session_state.df_curve_sample[f.name]
-                        for f in ready_allometric_files
-                    ]
-                    name_list_compare = [
-                        f.name
-                        for f in ready_allometric_files
-                    ]
-                    if scatter_list_compare:
-                        with st.form(key="allometric_compare_plot"):
-                            with st.expander("⚙️ Compare Plot Settings", expanded=False):
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    nrow_cmp = st.number_input("Rows", value=2, min_value=1, max_value=10, step=1, key="compare_nrow")
-                                    ncol_cmp = st.number_input("Cols", value=3, min_value=1, max_value=10, step=1, key="compare_ncol")
-                            submit_compare_plot = st.form_submit_button("Run Compare Plot")
-                            if submit_compare_plot:
-                                st.session_state.allometric_compare_params = dict(
-                                    show_curve=True,
-                                    nrow=nrow_cmp,
-                                    ncol=ncol_cmp,
-                                    nsubfig=nrow_cmp * ncol_cmp,
-                                )
-                        if st.session_state.allometric_compare_params:
-                            fig = plot_curve_fitting_compare(
-                                df_scatter_list=scatter_list_compare,
-                                df_curve_list=curve_list_compare,
-                                label_list=name_list_compare,
-                                **st.session_state.allometric_compare_params,
-                            )
-                            st.pyplot(fig)
-        else:
-            st.info("Please upload CSV file(s)")
+names = [file.name for file in uploaded]
+if len(names) != len(set(names)):
+    st.error("上传文件名不能重复，请重命名后重试。")
+    st.stop()
 
-    else:
-        st.write("Export Result")
-        current_uploaded_names = [file.name for file in uploaded_files] if uploaded_files else []
-        if not current_uploaded_names:
-            st.info("Please upload CSV file(s) first.")
-        else:
-            dq = st.session_state.df_quasi_dynamic
-            ds = st.session_state.df_curve_sample
-            dp = st.session_state.df_curve_params
-            all_ready = all(
-                fname in dq and fname in ds and fname in dp
-                for fname in current_uploaded_names
-            )
-            if not all_ready:
-                st.session_state.pop("curve_fitting_export_zip", None)
-                missing = [
-                    fname
-                    for fname in current_uploaded_names
-                    if fname not in dq or fname not in ds or fname not in dp
-                ]
-                st.info(
-                    "ZIP export is available after each uploaded file has quasi-dynamic, "
-                    "curve sample, and curve parameter tables. Not ready for: "
-                    + ", ".join(missing)
-                )
+results = {}
+for file in uploaded:
+    try:
+        with st.spinner(f"Fitting {file.name}..."):
+            results[file.name] = _fit(file.getvalue())
+    except Exception as exc:
+        st.error(f"{file.name} 拟合失败：{exc}")
+
+if not results:
+    st.stop()
+
+if len(results) == len(uploaded):
+    st.success(f"Fitting complete: {len(results)} file(s).")
+else:
+    st.warning(f"{len(results)} / {len(uploaded)} files fitted. Downloads contain successful files only.")
+try:
+    st.download_button("Download fitting results ZIP", data=build_fitting_export(results),
+                       file_name="curve_fitting_export.zip", mime="application/zip")
+except ValueError as exc:
+    st.error(str(exc))
+
+selected = st.selectbox("Results for", list(results))
+result = results[selected]
+quasi, params, samples = (result[k] for k in ("quasi_dynamic", "curve_params", "curve_sample"))
+valid = np.isfinite(samples.to_numpy(float)).all(axis=0)
+cols = st.columns(3)
+cols[0].metric("Features fitted", f"{int(valid.sum())} / {len(valid)}")
+cols[1].metric("Quasi-dynamic rows", len(quasi))
+cols[2].metric("Sample points", len(samples))
+if not valid.all():
+    st.warning("Some features have insufficient positive observations. Their parameters and samples contain NaN and will be excluded from clustering.")
+
+plot_tab, params_tab, samples_tab, quasi_tab = st.tabs(
+    ["Curve Fitting Plot", "Curve Parameters", "Curve Samples", "Quasi-dynamic Data"]
+)
+with plot_tab:
+    with st.expander("Plot settings", expanded=False):
+        c1, c2, c3 = st.columns(3)
+        nrow = c1.number_input("Rows", min_value=1, max_value=10, value=2)
+        ncol = c1.number_input("Cols", min_value=1, max_value=10, value=3)
+        plot_type = c2.selectbox("Plot Type", ["scatter", "line"])
+        scatter_size = c2.number_input("Scatter Size", min_value=1, max_value=1000, value=100)
+        linewidth = c2.number_input("Line Size", min_value=1, max_value=10, value=1)
+        scatter_color = c3.color_picker("Data Color", "#1F77B4")
+        curve_color = c3.color_picker("Curve Color", "#D62728")
+        background = c3.color_picker("Subfig Background Color", "#FFFFFF")
+    per_page = int(nrow * ncol)
+    pages = max(1, (len(quasi.columns) + per_page - 1) // per_page)
+    page = st.selectbox("Feature page", range(1, pages + 1), key=f"fit_page_{selected}_{per_page}")
+    features = quasi.columns[(page - 1) * per_page:page * per_page]
+    fig = plot_curve_fitting(
+        df_scatter=quasi.loc[:, features], df_curve=samples.loc[:, features],
+        plot_scatter_type=plot_type, show_curve=True, scatter_x="index",
+        nrow=int(nrow), ncol=int(ncol), nsubfig=per_page, scatter_size=scatter_size,
+        scatter_linewidth=linewidth, color_scatter=scatter_color, color_curve=curve_color,
+        subfig_background_color=background,
+    )
+    st.pyplot(fig)
+    plt.close(fig)
+
+for tab, table, suffix in (
+    (params_tab, params, "params"),
+    (samples_tab, samples, "samples"),
+    (quasi_tab, quasi, "quasidynamic"),
+):
+    with tab:
+        st.dataframe(table, use_container_width=True)
+        st.download_button(f"Download {suffix}.csv", table.to_csv(index=True),
+                           file_name=f"{selected.rsplit('.', 1)[0]}_{suffix}.csv",
+                           mime="text/csv", key=f"download_{suffix}")
+
+if len(results) > 1:
+    with st.expander("Compare fitted curves", expanded=False):
+        if st.checkbox("Show comparison"):
+            common = list(next(iter(results.values()))["quasi_dynamic"].columns)
+            for tables in results.values():
+                common = [c for c in common if c in tables["quasi_dynamic"].columns]
+            if not common:
+                st.info("The uploaded files have no shared features to compare.")
             else:
-                if st.button("Export ZIP", key="curve_fitting_build_export_zip"):
-                    buf = io.BytesIO()
-                    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-                        for fname in current_uploaded_names:
-                            sub = _safe_zip_subdir(fname)
-                            prefix = f"{sub}/"
-                            zf.writestr(
-                                f"{prefix}quasi_dynamic.csv",
-                                dq[fname].to_csv(index=True).encode("utf-8"),
-                            )
-                            zf.writestr(
-                                f"{prefix}curve_sample.csv",
-                                ds[fname].to_csv(index=True).encode("utf-8"),
-                            )
-                            zf.writestr(
-                                f"{prefix}curve_params.csv",
-                                dp[fname].to_csv(index=True).encode("utf-8"),
-                            )
-                    st.session_state["curve_fitting_export_zip"] = buf.getvalue()
-                if st.session_state.get("curve_fitting_export_zip"):
-                    st.download_button(
-                        label="Download curve_fitting_export.zip",
-                        data=st.session_state["curve_fitting_export_zip"],
-                        file_name="curve_fitting_export.zip",
-                        mime="application/zip",
-                        key="export_curve_fitting_zip",
-                    )
-
-
-with tab3:
-    st.write("To Be Updated")
-    subtab3_1, subtab3_2, subtab3_3, subtab3_4, subtab3_5 = st.tabs([
-        "Polynomial Fitting",
-        "Logistic Growth Fitting",
-        "Fourier Series Fitting",
-        "Wavelet Fitting",
-        "To Be Updated...",
-    ])
-
-    with subtab3_1:
-        st.write("To Be Updated...")
-
-    with subtab3_2:
-        st.write("To Be Updated...")
-
-    with subtab3_3:
-        st.write("To Be Updated...")
-
-    with subtab3_4:
-        st.write("To Be Updated...")
-
-    with subtab3_5:
-        st.write("To Be Updated...")
+                compare_pages = max(1, (len(common) + per_page - 1) // per_page)
+                compare_page = st.selectbox("Comparison page", range(1, compare_pages + 1))
+                subset = common[(compare_page - 1) * per_page:compare_page * per_page]
+                fig = plot_curve_fitting_compare(
+                    df_scatter_list=[t["quasi_dynamic"].loc[:, subset] for t in results.values()],
+                    df_curve_list=[t["curve_sample"].loc[:, subset] for t in results.values()],
+                    label_list=list(results), show_curve=True, nrow=int(nrow),
+                    ncol=int(ncol), nsubfig=per_page,
+                )
+                st.pyplot(fig)
+                plt.close(fig)

@@ -181,7 +181,7 @@ def power_fitting(df_qd: pd.DataFrame, n_samples: int = 30):
 
     params = pd.DataFrame(
         {"c": c, "beta": beta, "a": a, "b": b, "n_positive": n_positive},
-        index=df_qd.columns,
+        index=df_qd.columns.copy(),
     )
     params.index.name = "feature"
 
