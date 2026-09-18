@@ -43,14 +43,13 @@ _DEFAULT_INIT_PALETTE: List[Tuple[str, str, str]] = [
     ("#A3E4D7", "#16A085", "#0E6655"),
 ]
 
-# 簇 profile 配色：(成员散点/细线色, 均值曲线色)
+# 簇 profile 配色：(成员细线色, 均值曲线色) —— 与 funclu_v4 参考实现对齐。
+# 每对为「淡色成员线 + 同色系深色均值线」，三色循环；淡色承载成员云，
+# 深色均值线压在最上层，保证跨簇一眼可比。
 _CLUSTER_PROFILE_DEFAULT_PALETTE: List[Tuple[str, str]] = [
-    ("#FAD7A0", "#D35400"),
-    ("#AED6F1", "#2E86C1"),
-    ("#A9DFBF", "#239B56"),
-    ("#F5B7B1", "#C0392B"),
-    ("#D7BDE2", "#8E44AD"),
-    ("#A3E4D7", "#16A085"),
+    ("#FFB3A6", "#D94E3D"),
+    ("#A8D8EA", "#2B7A9E"),
+    ("#C1E1C1", "#2E8B57"),
 ]
 
 
@@ -289,14 +288,16 @@ def plot_cluster_profiles(
     palette: Optional[Sequence[Tuple[str, str]]] = None,
     title: str = "Cluster profiles",
     panel_title_prefix: str = "M",
-    panel_title_fontsize: float = 11.0,
+    panel_title_fontsize: float = 18.0,
+    tick_labelsize: float = 12.0,
+    show_grid: bool = False,
     xlabel: str = "Index",
     ylabel: Optional[str] = None,
     axis_label_fontsize: float = 12.0,
-    linewidth_mean: float = 3.0,
-    linewidth_member: float = 1.2,
+    linewidth_mean: float = 3.5,
+    linewidth_member: float = 1.5,
     markersize_qd: float = 7.0,
-    alpha_member_lines: float = 0.7,
+    alpha_member_lines: float = 0.85,
     alpha_qd_marker: float = 0.9,
     x_margin: float = 0.1,
     y_margin: float = 0.2,
@@ -305,7 +306,7 @@ def plot_cluster_profiles(
     legend_ncol: Optional[int] = None,
     legend_fontsize: float = 11.0,
     legend_bbox: Tuple[float, float] = (0.5, 0.96),
-    dpi: int = 200,
+    dpi: int = 300,
     show_in_streamlit: bool = False,
 ) -> Figure:
     """按簇绘制 EM 拟合结果的 profile 图。
@@ -418,12 +419,14 @@ def plot_cluster_profiles(
     def _style_axis(ax_: plt.Axes) -> None:
         if use_log_x:
             ax_.set_xscale("log")
-        ax_.grid(True, linestyle=":", linewidth=0.8, alpha=0.35)
-        ax_.spines["top"].set_visible(False)
-        ax_.spines["right"].set_visible(False)
-        ax_.spines["left"].set_linewidth(0.8)
-        ax_.spines["bottom"].set_linewidth(0.8)
-        ax_.tick_params(labelsize=8, width=0.8)
+        # funclu_v4 风格：默认无网格、保留完整边框、刻度字号偏大
+        # 注意：不能写成 grid(show_grid, linestyle=...)，matplotlib 在
+        # 第一参数为 False 且带线型属性时会「反过来」打开网格并告警。
+        if show_grid:
+            ax_.grid(True, linestyle=":", linewidth=0.8, alpha=0.35)
+        else:
+            ax_.grid(False)
+        ax_.tick_params(labelsize=tick_labelsize)
         _set_chinese_axes(ax_)
 
     def _draw_cluster_condition(
@@ -531,7 +534,7 @@ def plot_cluster_profiles(
                 color=line_color,
                 linewidth=linewidth_mean,
                 label=condition_labels[condition_idx] if label_condition else None,
-                zorder=3,
+                zorder=10,
             )
 
     def _draw_panel(
@@ -544,7 +547,7 @@ def plot_cluster_profiles(
     ) -> None:
         n_in_cluster = int((labels_np == cluster_idx).sum())
         if n_in_cluster == 0:
-            empty_title = f"{panel_title_prefix} {cluster_idx + 1}\n(empty)"
+            empty_title = f"{panel_title_prefix}{cluster_idx + 1}\n(empty)"
             if title_suffix:
                 empty_title = f"{empty_title}\n{title_suffix}"
             ax_.text(
@@ -569,13 +572,12 @@ def plot_cluster_profiles(
             )
 
         if show_panel_title:
-            panel_title = f"{panel_title_prefix} {cluster_idx + 1} (n={n_in_cluster})"
+            panel_title = f"{panel_title_prefix}{cluster_idx + 1}({n_in_cluster})"
             if title_suffix:
                 panel_title = f"{panel_title} | {title_suffix}"
             ax_.set_title(
                 panel_title,
                 fontsize=panel_title_fontsize,
-                fontweight="bold",
                 fontproperties=font_prop,
             )
         ax_.margins(x=x_margin, y=y_margin)
@@ -604,13 +606,12 @@ def plot_cluster_profiles(
             axes_arr[0, condition_idx].set_title(
                 str(condition_label),
                 fontsize=panel_title_fontsize,
-                fontweight="bold",
                 fontproperties=font_prop,
             )
         for cluster_idx in range(n_clusters):
             n_in_cluster = int((labels_np == cluster_idx).sum())
             axes_arr[cluster_idx, 0].set_ylabel(
-                f"{panel_title_prefix} {cluster_idx + 1}\n(n={n_in_cluster})",
+                f"{panel_title_prefix}{cluster_idx + 1}\n({n_in_cluster})",
                 fontsize=axis_label_fontsize,
                 fontproperties=font_prop,
             )
@@ -630,9 +631,8 @@ def plot_cluster_profiles(
         for cluster_idx in range(n_clusters):
             n_in_cluster = int((labels_np == cluster_idx).sum())
             axes_arr[0, cluster_idx].set_title(
-                f"{panel_title_prefix} {cluster_idx + 1} (n={n_in_cluster})",
+                f"{panel_title_prefix}{cluster_idx + 1}({n_in_cluster})",
                 fontsize=panel_title_fontsize,
-                fontweight="bold",
                 fontproperties=font_prop,
             )
             axes_arr[-1, cluster_idx].set_xlabel(
