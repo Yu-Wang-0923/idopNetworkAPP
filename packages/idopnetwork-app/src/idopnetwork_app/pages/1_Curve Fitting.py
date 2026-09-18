@@ -19,6 +19,7 @@ from idopnetwork.curve_fitting.fitting import (
     data_transformation,
     get_quasi_dynamic_df,
     get_power_function_sample,
+    power_fitting,
     get_power_function_params,
 )
 from idopnetwork.curve_fitting.plot import plot_curve_fitting, plot_curve_fitting_compare
@@ -469,9 +470,8 @@ with tab2:
                     if file.name in st.session_state.df_quasi_dynamic:
                         try:
                             df_quasi_dynamic = st.session_state.df_quasi_dynamic[file.name]
-                            df_curve_sample = get_power_function_sample(df_quasi_dynamic)
+                            df_curve_params, df_curve_sample = power_fitting(df_quasi_dynamic)
                             st.session_state.df_curve_sample[file.name] = df_curve_sample
-                            df_curve_params = get_power_function_params(df_quasi_dynamic)
                             st.session_state.df_curve_params[file.name] = df_curve_params
                         except Exception as exc:
                             st.error(f"{file.name} 异速生长拟合失败：{exc}")

@@ -164,17 +164,68 @@ def fit_power_loglinear(
     return a, b
 
 
-# 拟合幂函数参数 a_j, b_j（双对数线性回归；与 FunClu 初始化共用底层）
-def get_power_function_params(
-    quasi_dynamic_df: pd.DataFrame,
-) -> pd.DataFrame:
-    results = {}
-    for col in quasi_dynamic_df.columns:
-        x = quasi_dynamic_df.index.values.astype(float)
-        y = quasi_dynamic_df[col].values.astype(float)
-        a_hat, b_hat = fit_power_loglinear(x, y)
-        results[col] = [a_hat, b_hat]
-    return pd.DataFrame(results, index=["a", "b"]).T
+def power_fitting(df_qd: pd.DataFrame, n_samples: int = 30):
+    """Fit v4 power curves in standardized log-time and sample a uniform grid.
+
+    Nonpositive/nonfinite observations are ignored per feature. Features with
+    fewer than two usable observations retain NaN parameters for exclusion by
+    clustering, rather than being replaced with an arbitrary default curve.
+    """
+    if not isinstance(n_samples, int) or n_samples < 2:
+        raise ValueError("n_samples 必须是至少为 2 的整数")
+    t, y = df_qd.index.to_numpy(float), df_qd.to_numpy(float)
+    keep = np.isfinite(t) & (t > 0)
+    t, y = t[keep], y[keep]
+
+    if len(t) < 2 or np.unique(t).size < 2:
+        raise ValueError("幂律拟合至少需要两个不同的正数时间点")
+    u = np.log(t)
+    m, d = u.mean(), u.std(ddof=0)
+    z = (u - m) / d
+
+    positive = (y > 0) & np.isfinite(y)
+    n_positive = positive.sum(axis=0)
+    n_safe = np.maximum(n_positive, 1)
+
+    r = np.zeros_like(y)
+    np.log(y, out=r, where=positive)
+
+    sum_z = positive.T @ z
+    sum_z2 = positive.T @ (z**2)
+    sum_r = r.sum(axis=0)
+    sum_zr = z @ r
+
+    z_bar, r_bar = sum_z / n_safe, sum_r / n_safe
+    S_zz = sum_z2 - sum_z**2 / n_safe
+    S_zr = sum_zr - sum_z * sum_r / n_safe
+
+    valid = (n_positive >= 2) & (S_zz > 1e-12)
+    beta = np.divide(S_zr, S_zz, out=np.full(y.shape[1], np.nan), where=valid)
+    alpha = r_bar - beta * z_bar
+
+    c = np.exp(alpha)
+    b = beta / d
+    a = np.exp(alpha - b * m)
+
+    params = pd.DataFrame(
+        {"c": c, "beta": beta, "a": a, "b": b, "n_positive": n_positive},
+        index=df_qd.columns,
+    )
+    params.index.name = "feature"
+
+    sample_t = np.linspace(t.min(), t.max(), n_samples)
+    sample_z = (np.log(sample_t) - m) / d
+    fitted = np.exp(alpha + sample_z[:, None] * beta)
+
+    samples = pd.DataFrame(
+        fitted, index=pd.Index(sample_t, name="quasi time"), columns=df_qd.columns,
+    )
+
+    return params, samples
+
+
+def get_power_function_params(quasi_dynamic_df: pd.DataFrame) -> pd.DataFrame:
+    return power_fitting(quasi_dynamic_df)[0]
 
 
 # 生成切比雪夫节点
@@ -192,17 +243,9 @@ def chebyshev_nodes(
 
 # 计算幂律拟合曲线采样值
 def get_power_function_sample(
-    quasi_dynamic_df: pd.DataFrame,
+    quasi_dynamic_df: pd.DataFrame, n_samples: int = 30,
 ) -> pd.DataFrame:
-    power_function_params = get_power_function_params(quasi_dynamic_df)
-    params = power_function_params.reindex(quasi_dynamic_df.columns)
-    tau_lo = float(quasi_dynamic_df.index.min())
-    tau_hi = float(quasi_dynamic_df.index.max())
-    allometric_index = chebyshev_nodes(len(quasi_dynamic_df), tau_lo, tau_hi)
-    a = params["a"].to_numpy(dtype=float)
-    b = params["b"].to_numpy(dtype=float)
-    y = power_equation(allometric_index[:, np.newaxis], a, b)
-    return pd.DataFrame(y, index=allometric_index, columns=quasi_dynamic_df.columns)
+    return power_fitting(quasi_dynamic_df, n_samples=n_samples)[1]
 
 
 def show_data_expander(title, df):

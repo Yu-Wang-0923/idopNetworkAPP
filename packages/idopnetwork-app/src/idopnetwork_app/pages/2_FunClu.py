@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from idopnetwork.clustering.funclu import FunClu, compute_bic_scores
+from idopnetwork.curve_fitting import get_power_function_params
 from idopnetwork.clustering.plot import plot_cluster_profiles, plot_bic_elbow
 from idopnetwork_app.utils import load_css, setup_sidebar
 
@@ -382,7 +383,10 @@ with tab2:
                         use_minibatch_kmeans=None,
                         random_state=42,
                     )
-                    em_model.fit(data_list)
+                    em_model.fit(data_list, parameter_data=[
+                        get_power_function_params(st.session_state.funclu_quasi_dynamic[n])
+                        for n in cond_names
+                    ])
                 except Exception as e:
                     st.error(f"EM 拟合失败：{e}")
                     st.session_state.funclu_em_result = None
@@ -634,7 +638,7 @@ with tab3:
                     col_a1, col_a2, col_a3 = st.columns(3)
                     with col_a1:
                         bic_max_iter = st.slider(
-                            "max_iter", 10, 200, 50, 10, key="bic_max_iter",
+                            "max_iter", 10, 2000, 1000, 10, key="bic_max_iter",
                         )
                     with col_a2:
                         bic_tol = st.number_input(
@@ -729,6 +733,8 @@ with tab3:
 
                         bic_df = compute_bic_scores(
                             data=data_list,
+                            parameter_data=[get_power_function_params(
+                                st.session_state.funclu_quasi_dynamic[n]) for n in cond_names],
                             k_min=scan_k_min,
                             k_max=scan_k_max,
                             step=scan_step,
