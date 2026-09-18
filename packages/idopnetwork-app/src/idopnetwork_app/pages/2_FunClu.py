@@ -16,12 +16,17 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
 from idopnetwork.clustering.funclu import FunClu, compute_bic_scores
 from idopnetwork.curve_fitting import get_power_function_params
-from idopnetwork.clustering.plot import plot_cluster_profiles, plot_bic_elbow
+from idopnetwork.clustering.plot import (
+    plot_bic_elbow,
+    plot_cluster_profiles,
+    plot_cluster_profiles_per_cluster,
+)
 from idopnetwork_app.utils import load_css, setup_sidebar
 
 # 🌟 一键加载 CSS 和侧边栏
@@ -464,8 +469,9 @@ with tab2:
                         with layout_col:
                             em_profile_layout = st.selectbox(
                                 "Profile layout",
-                                options=["combined", "k_by_l", "l_by_k"],
+                                options=["per_cluster", "combined", "k_by_l", "l_by_k"],
                                 format_func={
+                                    "per_cluster": "Per cluster: one 4x3 figure each (funclu_v4 style)",
                                     "combined": "Combined: conditions in one panel",
                                     "k_by_l": "K x L: cluster rows",
                                     "l_by_k": "L x K: condition rows",
@@ -525,7 +531,7 @@ with tab2:
                             )
                         st.form_submit_button("Apply plot settings")
 
-                plot_cluster_profiles(
+                _profile_kwargs = dict(
                     data_scatter=[curve_sample_dict[n] for n in em_cond_names],
                     labels=em_labels_np,
                     common_cols=em_model.common_cols,
@@ -537,11 +543,21 @@ with tab2:
                     show_mean_ci=bool(em_show_ci),
                     use_semilogy=bool(em_use_log_y),
                     use_log_x=bool(em_use_log_x),
-                    layout=str(em_profile_layout),
-                    n_cols=int(em_n_cols),
                     show_legend=bool(em_show_legend),
-                    show_in_streamlit=True,
                 )
+                if str(em_profile_layout) == "per_cluster":
+                    # funclu_v4 风格：每簇一张 4x3 图，且跨簇共享 y 范围
+                    for _fig in plot_cluster_profiles_per_cluster(
+                        **_profile_kwargs, show_in_streamlit=True,
+                    ):
+                        plt.close(_fig)
+                else:
+                    plot_cluster_profiles(
+                        **_profile_kwargs,
+                        layout=str(em_profile_layout),
+                        n_cols=int(em_n_cols),
+                        show_in_streamlit=True,
+                    )
 
     # ---------- Export ----------
     with tab2_2:

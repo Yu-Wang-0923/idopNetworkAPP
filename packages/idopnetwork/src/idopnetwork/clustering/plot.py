@@ -13,12 +13,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
+from matplotlib.font_manager import FontProperties
 
 from idopnetwork.curve_fitting import fit_power_loglinear
 
@@ -53,17 +55,41 @@ _CLUSTER_PROFILE_DEFAULT_PALETTE: List[Tuple[str, str]] = [
 ]
 
 
+def _font_at(size: float, weight: Optional[str] = None) -> FontProperties:
+    """返回带指定字号（可选字重）的项目中文字体。
+
+    ``font_prop`` 由 app 层用 ``FontProperties(fname=...)`` 构造，**只带字体
+    文件、字号是默认的 10**。把它直接交给 ``fontproperties=`` 会连同 ``fontsize=``
+    与 ``fontweight=`` 一起被它覆盖回默认值。所以凡是要控制字号/字重的地方，
+    都必须先写进 FontProperties 再传，不能指望 ``fontsize=``/``fontweight=`` 生效。
+    """
+    if font_prop is None:
+        prop = FontProperties(size=size)
+    else:
+        prop = font_prop.copy()
+        prop.set_size(size)
+    if weight is not None:
+        prop.set_weight(weight)
+    return prop
+
+
 def _legend_font(size: float) -> object:
     """返回指定字号的项目中文字体，用于 legend。"""
-    legend_font = font_prop.copy()
-    legend_font.set_size(size)
-    return legend_font
+    return _font_at(size)
 
 
-def _set_chinese_axes(ax: plt.Axes) -> None:
-    """让 tick 与 title 使用项目中文字体（与 plot_curve_fitting 风格一致）。"""
+def _set_chinese_axes(ax: plt.Axes, labelsize: Optional[float] = None) -> None:
+    """让 tick 使用项目中文字体。
+
+    ``labelsize`` 为 ``None`` 时沿用 ``font_prop`` 自带字号（保持既有行为）；
+    显式传入时按该字号渲染——否则 ``font_prop`` 会把 ``tick_params`` 的
+    ``labelsize`` 覆盖回默认的 10。
+    """
+    prop = _font_at(labelsize) if labelsize is not None else font_prop
+    if prop is None:
+        return
     for lab in ax.get_xticklabels() + ax.get_yticklabels():
-        lab.set_fontproperties(font_prop)
+        lab.set_fontproperties(prop)
 
 
 def plot_initialization_grid(
@@ -427,7 +453,7 @@ def plot_cluster_profiles(
         else:
             ax_.grid(False)
         ax_.tick_params(labelsize=tick_labelsize)
-        _set_chinese_axes(ax_)
+        _set_chinese_axes(ax_, tick_labelsize)
 
     def _draw_cluster_condition(
         ax_: plt.Axes,
@@ -557,8 +583,7 @@ def plot_cluster_profiles(
                 transform=ax_.transAxes,
                 ha="center",
                 va="center",
-                fontsize=panel_title_fontsize,
-                fontproperties=font_prop,
+                fontproperties=_font_at(panel_title_fontsize),
             )
             _style_axis(ax_)
             return
@@ -577,8 +602,7 @@ def plot_cluster_profiles(
                 panel_title = f"{panel_title} | {title_suffix}"
             ax_.set_title(
                 panel_title,
-                fontsize=panel_title_fontsize,
-                fontproperties=font_prop,
+                fontproperties=_font_at(panel_title_fontsize),
             )
         ax_.margins(x=x_margin, y=y_margin)
         _style_axis(ax_)
@@ -605,15 +629,13 @@ def plot_cluster_profiles(
         for condition_idx, condition_label in enumerate(condition_labels):
             axes_arr[0, condition_idx].set_title(
                 str(condition_label),
-                fontsize=panel_title_fontsize,
-                fontproperties=font_prop,
+                fontproperties=_font_at(panel_title_fontsize),
             )
         for cluster_idx in range(n_clusters):
             n_in_cluster = int((labels_np == cluster_idx).sum())
             axes_arr[cluster_idx, 0].set_ylabel(
                 f"{panel_title_prefix}{cluster_idx + 1}\n({n_in_cluster})",
-                fontsize=axis_label_fontsize,
-                fontproperties=font_prop,
+                fontproperties=_font_at(axis_label_fontsize),
             )
         for condition_idx in range(n_conditions):
             axes_arr[-1, condition_idx].set_xlabel(
@@ -632,8 +654,7 @@ def plot_cluster_profiles(
             n_in_cluster = int((labels_np == cluster_idx).sum())
             axes_arr[0, cluster_idx].set_title(
                 f"{panel_title_prefix}{cluster_idx + 1}({n_in_cluster})",
-                fontsize=panel_title_fontsize,
-                fontproperties=font_prop,
+                fontproperties=_font_at(panel_title_fontsize),
             )
             axes_arr[-1, cluster_idx].set_xlabel(
                 xlabel, fontproperties=font_prop
@@ -641,16 +662,13 @@ def plot_cluster_profiles(
         for condition_idx, condition_label in enumerate(condition_labels):
             axes_arr[condition_idx, 0].set_ylabel(
                 f"{condition_label}\n{y_label_eff}",
-                fontsize=axis_label_fontsize,
-                fontproperties=font_prop,
+                fontproperties=_font_at(axis_label_fontsize),
             )
 
     if title:
         fig.suptitle(
             title,
-            fontsize=axis_label_fontsize + 2,
-            fontweight="bold",
-            fontproperties=font_prop,
+            fontproperties=_font_at(axis_label_fontsize + 2, "bold"),
             y=0.995,
         )
 
@@ -680,8 +698,7 @@ def plot_cluster_profiles(
             0.01,
             xlabel,
             ha="center",
-            fontsize=axis_label_fontsize,
-            fontproperties=font_prop,
+            fontproperties=_font_at(axis_label_fontsize),
         )
         fig.text(
             0.005,
@@ -689,17 +706,342 @@ def plot_cluster_profiles(
             y_label_eff,
             va="center",
             rotation="vertical",
-            fontsize=axis_label_fontsize,
-            fontproperties=font_prop,
+            fontproperties=_font_at(axis_label_fontsize),
         )
 
-    top = 0.89 if show_legend else 0.93
-    fig.tight_layout(rect=(0.035, 0.045, 0.995, top))
+    # 边距只按「真正会渲染的内容」预留：v4 用的是裸 tight_layout()，不做任何
+    # 固定预留。之前无论有没有图例/总标题都固定留 0.89/0.93，会把面板压扁。
+    if layout == "combined":
+        # combined 用 fig.text 画共用 x/y 标签，需要底部与左侧边距
+        left, bottom = 0.035, 0.045
+    else:
+        # k_by_l / l_by_k 的标签挂在各自 axes 上，无需额外预留
+        left, bottom = 0.015, 0.02
+    if show_legend:
+        top = 0.89
+    elif title:
+        top = 0.93
+    else:
+        top = 0.995
+    fig.tight_layout(rect=(left, bottom, 0.995, top))
 
     if show_in_streamlit:
         import streamlit as st
         st.pyplot(fig, use_container_width=True)
     return fig
+
+
+def plot_cluster_profiles_per_cluster(
+    *,
+    data_scatter: List[pd.DataFrame],
+    data_curve: Optional[List[pd.DataFrame]] = None,
+    labels: np.ndarray,
+    common_cols: Optional[Sequence[str]] = None,
+    n_components: Optional[int] = None,
+    condition_labels: Optional[Sequence[str]] = None,
+    member_source: str = "qd_df",
+    show_members: bool = True,
+    show_mean: bool = True,
+    show_mean_ci: bool = False,
+    ci_alpha: float = 0.25,
+    ci_z: float = 1.96,
+    use_semilogy: bool = False,
+    use_log_x: bool = False,
+    cluster_ids: Optional[Sequence[int]] = None,
+    max_clusters: Optional[int] = None,
+    palette: Optional[Sequence[Tuple[str, str]]] = None,
+    panel_prefix: str = "M",
+    panel_figsize: Tuple[float, float] = (4.0, 3.0),
+    title_fontsize: float = 18.0,
+    tick_labelsize: float = 12.0,
+    show_grid: bool = False,
+    linewidth_mean: float = 3.5,
+    linewidth_member: float = 1.5,
+    markersize_qd: float = 7.0,
+    alpha_member_lines: float = 0.85,
+    alpha_qd_marker: float = 0.9,
+    x_margin: float = 0.1,
+    share_y: bool = True,
+    share_y_pad: float = 0.05,
+    dpi: int = 300,
+    save_dir: Optional[str | Path] = None,
+    show_legend: bool = False,
+    legend_fontsize: float = 11.0,
+    show_in_streamlit: bool = False,
+) -> List[Figure]:
+    """每个 cluster 单独输出一张 ``panel_figsize`` 图，复刻 funclu_v4 的排版。
+
+    与 :func:`plot_cluster_profiles` 的网格版不同，这里是 **一簇一图**：
+
+    - 每张图固定 ``panel_figsize``（默认 ``(4, 3)``，与 v4 的 ``figsize=(4, 3)``
+      一致），因此绘图区比例天然与 v4 对齐；
+    - ``share_y=True`` 时先扫描**全部簇**的成员曲线与均值曲线，取统一 y 范围
+      （``share_y_pad`` 比例留白，默认 5%），使各张图可以直接横向比较——这正是
+      v4 ``plot_cluster(share_y=True)`` 的行为；
+    - 绘制顺序复刻 v4：先画所有 condition 的成员曲线（``zorder=1``），最后统一
+      画均值曲线（``zorder=10``），保证均值始终压在最上层；
+    - 标题为 v4 的紧凑写法 ``M1(23)``，默认无网格、无图例、无轴标签。
+
+    Args:
+        data_scatter, data_curve, labels, common_cols, n_components,
+        condition_labels, member_source, show_members, show_mean,
+        show_mean_ci, ci_alpha, ci_z, use_semilogy, use_log_x:
+            含义与 :func:`plot_cluster_profiles` 完全一致。
+        cluster_ids: 只画这些簇编号（0 基）；为 ``None`` 时画全部。
+        max_clusters: 在 ``cluster_ids`` 之后再做一次截断，只画前 N 个簇。
+        palette: ``(成员线色, 均值线色)`` 序列，默认用 v4 的三组配色。
+        panel_prefix: 簇标签前缀，默认 ``"M"`` → ``M1``、``M2``…
+        panel_figsize: 单张图的英寸尺寸，默认 ``(4, 3)``。
+        title_fontsize, tick_labelsize: 标题与刻度字号，默认 18 / 12（同 v4）。
+        show_grid: 是否显示网格，默认关闭（同 v4）。
+        linewidth_mean, linewidth_member, alpha_member_lines:
+            均值线宽 / 成员线宽 / 成员线透明度，默认 3.5 / 1.5 / 0.85（同 v4）。
+        x_margin: x 方向留白比例。
+        share_y: 是否让所有簇共用同一 y 范围（默认 ``True``）。
+        share_y_pad: 共享 y 范围上下各留白的比例，默认 0.05。
+        dpi: 图片分辨率，默认 300（同 v4）。
+        save_dir: 给定则把每张图存成 ``{panel_prefix}{k}.png``（v4 的落盘行为）。
+        show_legend: 是否在坐标轴内画图例，默认关闭。
+        show_in_streamlit: 为 ``True`` 时逐张 ``st.pyplot``。
+
+    Returns:
+        每簇一个 :class:`~matplotlib.figure.Figure` 的列表，顺序与簇编号一致。
+        调用方负责在渲染后 ``plt.close(fig)``。
+    """
+    if not data_scatter:
+        raise ValueError("data_scatter 不能为空")
+    if member_source not in ("qd_df", "curve"):
+        raise ValueError(
+            f"member_source 必须为 'qd_df' 或 'curve'，当前为：{member_source!r}"
+        )
+    if data_curve is None:
+        data_curve = data_scatter
+    if len(data_curve) != len(data_scatter):
+        raise ValueError(
+            f"data_curve / data_scatter 长度不一致："
+            f"{len(data_curve)} vs {len(data_scatter)}"
+        )
+
+    n_conditions = len(data_scatter)
+    labels_np = (
+        labels.detach().cpu().numpy() if isinstance(labels, torch.Tensor)
+        else np.asarray(labels)
+    ).astype(np.int64)
+    if n_components is None:
+        n_components = int(labels_np.max()) + 1 if labels_np.size > 0 else 1
+    n_clusters = int(n_components)
+
+    if condition_labels is None:
+        condition_labels = [f"Cond {i + 1}" for i in range(n_conditions)]
+    else:
+        condition_labels = list(condition_labels)
+        while len(condition_labels) < n_conditions:
+            condition_labels.append(f"Cond {len(condition_labels) + 1}")
+
+    pal: List[Tuple[str, str]] = (
+        list(palette) if palette is not None else list(_CLUSTER_PROFILE_DEFAULT_PALETTE)
+    )
+    if not pal:
+        pal = list(_CLUSTER_PROFILE_DEFAULT_PALETTE)
+    while len(pal) < n_conditions:
+        pal.extend(_CLUSTER_PROFILE_DEFAULT_PALETTE)
+
+    def _member_frame(condition_idx: int) -> pd.DataFrame:
+        frame = (
+            data_scatter[condition_idx]
+            if member_source == "qd_df"
+            else data_curve[condition_idx]
+        )
+        if common_cols is not None:
+            cols = [c for c in common_cols if c in frame.columns]
+            return frame[cols]
+        return frame.iloc[:, : labels_np.size]
+
+    def _finite(values: np.ndarray) -> np.ndarray:
+        vals = np.asarray(values, dtype=np.float64).ravel()
+        vals = vals[np.isfinite(vals)]
+        if use_semilogy:
+            vals = vals[vals > 0.0]
+        return vals
+
+    # 共享 y 范围：与 v4 一样扫描【全部】簇（而非仅选中的簇），
+    # 这样即使只导出部分图，y 轴口径仍然一致、可跨图比较。
+    global_ylim: Optional[Tuple[float, float]] = None
+    if share_y:
+        vmin, vmax = np.inf, -np.inf
+        for k in range(n_clusters):
+            mask_k = labels_np == k
+            if not mask_k.any():
+                continue
+            for condition_idx in range(n_conditions):
+                sub = _member_frame(condition_idx).iloc[:, mask_k]
+                if sub.shape[1] == 0:
+                    continue
+                members = _finite(sub.to_numpy(float))
+                if members.size:
+                    vmin = min(vmin, float(members.min()))
+                    vmax = max(vmax, float(members.max()))
+                means = _finite(sub.mean(axis=1).to_numpy(float))
+                if means.size:
+                    vmin = min(vmin, float(means.min()))
+                    vmax = max(vmax, float(means.max()))
+        if vmin == np.inf:
+            vmin, vmax = 0.0, 1.0
+        span = vmax - vmin
+        pad = span * share_y_pad if span > 0 else 1.0
+        lo, hi = vmin - pad, vmax + pad
+        if use_semilogy and lo <= 0:
+            lo = vmin / (1.0 + share_y_pad) if vmin > 0 else 1e-12
+        global_ylim = (lo, hi)
+
+    if cluster_ids is not None:
+        wanted = {int(c) for c in cluster_ids}
+        selected = [k for k in range(n_clusters) if k in wanted]
+    else:
+        selected = list(range(n_clusters))
+    if max_clusters is not None:
+        selected = selected[: max(0, int(max_clusters))]
+
+    out_dir = Path(save_dir) if save_dir is not None else None
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+    figures: List[Figure] = []
+    for k in selected:
+        mask = labels_np == k
+        n_members = int(mask.sum())
+        fig, ax = plt.subplots(figsize=panel_figsize, dpi=dpi)
+        if use_log_x:
+            ax.set_xscale("log")
+        if use_semilogy:
+            ax.set_yscale("log")
+
+        if n_members == 0:
+            ax.text(
+                0.5, 0.5,
+                f"{panel_prefix}{k + 1}\n(empty)",
+                transform=ax.transAxes, ha="center", va="center",
+                fontproperties=_font_at(title_fontsize),
+            )
+        else:
+            # 1) 先画所有 condition 的成员曲线（v4：成员在下）
+            if show_members:
+                for condition_idx in range(n_conditions):
+                    member_color = pal[condition_idx % len(pal)][0]
+                    frame = _member_frame(condition_idx)
+                    sub = frame.iloc[:, mask]
+                    if sub.shape[1] == 0:
+                        continue
+                    if member_source == "qd_df":
+                        times = frame.index.to_numpy(float)
+                        x_vals = np.repeat(times, n_members)
+                        y_vals = sub.to_numpy(float).ravel()
+                        valid = np.isfinite(x_vals) & np.isfinite(y_vals)
+                        if use_semilogy:
+                            valid &= y_vals > 0.0
+                        if use_log_x:
+                            valid &= x_vals > 0.0
+                        if valid.any():
+                            ax.plot(
+                                x_vals[valid], y_vals[valid], "o",
+                                markerfacecolor="none",
+                                markeredgecolor=member_color,
+                                markersize=markersize_qd,
+                                alpha=alpha_qd_marker,
+                                linestyle="none",
+                                zorder=1,
+                            )
+                    else:
+                        times = frame.index.to_numpy(float)
+                        for col in sub.columns:
+                            y_vals = sub[col].to_numpy(float)
+                            valid = np.isfinite(times) & np.isfinite(y_vals)
+                            if use_semilogy:
+                                valid &= y_vals > 0.0
+                            if use_log_x:
+                                valid &= times > 0.0
+                            if not valid.any():
+                                continue
+                            ax.plot(
+                                times[valid], y_vals[valid],
+                                color=member_color,
+                                linewidth=linewidth_member,
+                                alpha=alpha_member_lines,
+                                zorder=1,
+                            )
+
+            # 2) 再统一画均值曲线，保证压在成员之上（v4：均值 zorder=10）
+            for condition_idx in range(n_conditions):
+                mean_color = pal[condition_idx % len(pal)][1]
+                frame = _member_frame(condition_idx)
+                sub = frame.iloc[:, mask]
+                if sub.shape[1] == 0:
+                    continue
+                times = frame.index.to_numpy(float)
+                mean_vals = sub.mean(axis=1).to_numpy(float)
+
+                if show_mean_ci:
+                    sem = sub.std(axis=1).to_numpy(float) / np.sqrt(max(n_members, 1))
+                    lo_band, hi_band = mean_vals - ci_z * sem, mean_vals + ci_z * sem
+                    valid = np.isfinite(times) & np.isfinite(lo_band) & np.isfinite(hi_band)
+                    if use_semilogy:
+                        valid &= hi_band > 0.0
+                        lo_band = np.maximum(lo_band, 1e-10)
+                        hi_band = np.maximum(hi_band, 1e-10)
+                    if use_log_x:
+                        valid &= times > 0.0
+                    if valid.any():
+                        ax.fill_between(
+                            times[valid], lo_band[valid], hi_band[valid],
+                            color=mean_color, alpha=ci_alpha, zorder=2, linewidth=0,
+                        )
+
+                if show_mean:
+                    valid = np.isfinite(times) & np.isfinite(mean_vals)
+                    if use_semilogy:
+                        valid &= mean_vals > 0.0
+                    if use_log_x:
+                        valid &= times > 0.0
+                    if valid.any():
+                        ax.plot(
+                            times[valid], mean_vals[valid],
+                            color=mean_color,
+                            linewidth=linewidth_mean,
+                            label=condition_labels[condition_idx],
+                            zorder=10,
+                        )
+
+        if global_ylim is not None:
+            ax.set_ylim(*global_ylim)
+            ax.margins(x=x_margin)
+        else:
+            ax.margins(x=x_margin, y=0.2)
+
+        ax.set_title(
+            f"{panel_prefix}{k + 1}({n_members})",
+            fontproperties=_font_at(title_fontsize),
+        )
+        if show_grid:
+            ax.grid(True, linestyle=":", linewidth=0.8, alpha=0.35)
+        else:
+            ax.grid(False)
+        ax.tick_params(labelsize=tick_labelsize)
+        _set_chinese_axes(ax, tick_labelsize)
+        if show_legend:
+            ax.legend(prop=_legend_font(legend_fontsize), frameon=False)
+
+        fig.tight_layout()
+        if out_dir is not None:
+            fig.savefig(
+                out_dir / f"{panel_prefix}{k + 1}.png",
+                dpi=dpi, bbox_inches="tight",
+            )
+        if show_in_streamlit:
+            import streamlit as st
+            st.pyplot(fig, use_container_width=True)
+        figures.append(fig)
+
+    return figures
 
 
 def _fit_mean_curve_power_sample(
