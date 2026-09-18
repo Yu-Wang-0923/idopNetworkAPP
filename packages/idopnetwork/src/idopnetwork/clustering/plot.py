@@ -310,7 +310,8 @@ def plot_cluster_profiles(
     use_log_x: bool = False,
     layout: str = "combined",
     n_cols: int = 3,
-    subplot_hw: Tuple[float, float] = (4.0, 3.0),
+    subplot_hw: Tuple[float, float] = (4.0, 3.6),
+    panel_box_aspect: Optional[float] = 0.75,
     palette: Optional[Sequence[Tuple[str, str]]] = None,
     title: str = "Cluster profiles",
     panel_title_prefix: str = "M",
@@ -339,6 +340,10 @@ def plot_cluster_profiles(
 
     ``layout="combined"`` 表示每个 cluster 一个子图，多 condition 叠加；
     ``"k_by_l"`` 表示 K 行 × L 列；``"l_by_k"`` 表示 L 行 × K 列。
+
+    每个子图的**绘图区**默认锁成 **4:3**（``panel_box_aspect=0.75``），
+    因此子图比例不受字体、图例、共享轴影响；整张大图的宽高比则随
+    ``subplot_hw`` 与行列数自然变化。
     """
     if not data_scatter:
         raise ValueError("data_scatter 不能为空")
@@ -445,6 +450,10 @@ def plot_cluster_profiles(
     def _style_axis(ax_: plt.Axes) -> None:
         if use_log_x:
             ax_.set_xscale("log")
+        # 绘图区锁定宽高比（默认 3/4 → 4:3）。显式锁定后，子图比例不再受
+        # 字体度量、图例/总标题留白、共享 y 轴等影响，与 funclu_v4 一致。
+        if panel_box_aspect is not None:
+            ax_.set_box_aspect(panel_box_aspect)
         # funclu_v4 风格：默认无网格、保留完整边框、刻度字号偏大
         # 注意：不能写成 grid(show_grid, linestyle=...)，matplotlib 在
         # 第一参数为 False 且带线型属性时会「反过来」打开网格并告警。
@@ -751,7 +760,8 @@ def plot_cluster_profiles_per_cluster(
     max_clusters: Optional[int] = None,
     palette: Optional[Sequence[Tuple[str, str]]] = None,
     panel_prefix: str = "M",
-    panel_figsize: Tuple[float, float] = (4.0, 3.0),
+    panel_figsize: Tuple[float, float] = (4.0, 3.4),
+    panel_box_aspect: Optional[float] = 0.75,
     title_fontsize: float = 18.0,
     tick_labelsize: float = 12.0,
     show_grid: bool = False,
@@ -791,7 +801,10 @@ def plot_cluster_profiles_per_cluster(
         max_clusters: 在 ``cluster_ids`` 之后再做一次截断，只画前 N 个簇。
         palette: ``(成员线色, 均值线色)`` 序列，默认用 v4 的三组配色。
         panel_prefix: 簇标签前缀，默认 ``"M"`` → ``M1``、``M2``…
-        panel_figsize: 单张图的英寸尺寸，默认 ``(4, 3)``。
+        panel_figsize: 单张图的英寸尺寸，默认 ``(4, 3.4)``。
+        panel_box_aspect: 绘图区高宽比（height/width），默认 ``0.75`` 即 **4:3**。
+            显式锁定后子图比例不再受字体度量、图例/总标题留白、共享 y 轴影响；
+            置 ``None`` 则交回 matplotlib 自动排布。
         title_fontsize, tick_labelsize: 标题与刻度字号，默认 18 / 12（同 v4）。
         show_grid: 是否显示网格，默认关闭（同 v4）。
         linewidth_mean, linewidth_member, alpha_member_lines:
@@ -1016,6 +1029,8 @@ def plot_cluster_profiles_per_cluster(
             ax.margins(x=x_margin)
         else:
             ax.margins(x=x_margin, y=0.2)
+        if panel_box_aspect is not None:
+            ax.set_box_aspect(panel_box_aspect)
 
         ax.set_title(
             f"{panel_prefix}{k + 1}({n_members})",
