@@ -26,6 +26,10 @@ class CurveFittingPageTests(unittest.TestCase):
              patch('idopnetwork_app.utils.setup_sidebar'):
             app.run()
             self.assertFalse(app.exception)
+            self.assertEqual(len(app.dataframe), 0)
+            self.assertEqual(len(app.get('download_button')), 0)
+            app.button[0].click().run()
+            self.assertFalse(app.exception)
             self.assertEqual(len(app.dataframe), 3)
             self.assertEqual(app.dataframe[1].value.shape[0], 30)
             self.assertNotIn('Dynamic Data', [tab.label for tab in app.tabs])
@@ -37,7 +41,16 @@ class CurveFittingPageTests(unittest.TestCase):
             files[:] = [upload('A.csv', frame.assign(a=frame.a ** 3))]
             app.run()
             self.assertFalse(app.exception)
+            self.assertEqual(len(app.dataframe), 0)
+            app.button[0].click().run()
+            self.assertFalse(app.exception)
             self.assertFalse(old.equals(app.dataframe[0].value))
+            app.number_input(key='fit_n_samples').set_value(12)
+            app.number_input(key='fit_trim_percent').set_value(0.0)
+            app.button[0].click().run()
+            self.assertFalse(app.exception)
+            self.assertEqual(len(app.dataframe[1].value), 12)
+            self.assertEqual(app.metric[2].value, '12')
             files[:] = []
             app.run()
             self.assertFalse(app.exception)
@@ -52,6 +65,7 @@ class CurveFittingPageTests(unittest.TestCase):
         with patch('streamlit.file_uploader', return_value=files), \
              patch('idopnetwork_app.utils.setup_sidebar'):
             app.run()
+            app.button[0].click().run()
         self.assertFalse(app.exception)
         self.assertEqual(len(app.error), 1)
         self.assertTrue(any('1 / 2' in w.value for w in app.warning))

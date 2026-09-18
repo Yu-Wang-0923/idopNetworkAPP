@@ -31,6 +31,16 @@ class WorkflowTests(unittest.TestCase):
             exported = pd.read_csv(archive.open('input.csv/curve_sample.csv'), index_col=0)
             np.testing.assert_allclose(exported, samples)
 
+    def test_custom_parameters(self):
+        raw = pd.DataFrame({'a': np.arange(1., 101.), 'b': np.arange(1., 101.) ** 2})
+        result = fit_uploaded_csv(raw.to_csv().encode(), first_transform="None",
+                                  second_transform="None", n_samples=12, trim_percent=10)
+        self.assertEqual(len(result['curve_sample']), 12)
+        self.assertEqual(len(result['quasi_dynamic']), 90)
+        np.testing.assert_allclose(result['quasi_dynamic'].to_numpy(), raw.iloc[10:].to_numpy())
+        with self.assertRaises(ValueError):
+            fit_uploaded_csv(raw.to_csv().encode(), trim_percent=100)
+
     def test_invalid_csv_and_name_collisions(self):
         with self.assertRaises(ValueError):
             fit_uploaded_csv(b'id,a\nx,1\ny,1\n')
