@@ -21,12 +21,14 @@ __all__ = [
     "plot_bic_elbow",
     "plot_cluster_profiles",
     "plot_cluster_profiles_per_cluster",
+    "stitch_cluster_figures",
 ]
 
 _LAZY_PLOT_EXPORTS = frozenset({
     "plot_bic_elbow",
     "plot_cluster_profiles",
     "plot_cluster_profiles_per_cluster",
+    "stitch_cluster_figures",
 })
 
 

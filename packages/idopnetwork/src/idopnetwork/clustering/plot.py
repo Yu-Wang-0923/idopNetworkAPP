@@ -19,6 +19,7 @@ from typing import List, Optional, Sequence, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.colors import to_rgb
 from matplotlib.figure import Figure
 from matplotlib.font_manager import FontProperties
 
@@ -1057,6 +1058,68 @@ def plot_cluster_profiles_per_cluster(
         figures.append(fig)
 
     return figures
+
+
+def stitch_cluster_figures(
+    figures: Sequence[Figure],
+    *,
+    n_cols: int = 3,
+    background: str = "white",
+) -> Figure:
+    """把多张等尺寸的图按 ``n_cols`` 列拼成**一张完整的网格图**。
+
+    与 ``layout="combined"`` 的 ``subplots`` 不同：这里每张输入图先按自身 dpi
+    **光栅化**再拼接，所以每个格子在成图里保持它原本的长宽比（配合
+    :func:`plot_cluster_profiles_per_cluster` 的 4:3 就是 4:3），不会被共享
+    坐标轴、图例/总标题留白重新挤压。整张大图的宽高比则由行列数自然决定。
+
+    Args:
+        figures: 待拼接的图，通常来自 :func:`plot_cluster_profiles_per_cluster`。
+        n_cols: 网格列数，默认 3。行数按数量自动推算，末行不足处留白。
+        background: 画布背景色，默认白色。
+
+    Returns:
+        拼好的单张 :class:`~matplotlib.figure.Figure`，调用方负责 ``plt.close``。
+    """
+    figs = [fig for fig in figures if fig is not None]
+    if not figs:
+        raise ValueError("figures 不能为空")
+
+    n_cols = max(1, int(n_cols))
+    n_rows = (len(figs) + n_cols - 1) // n_cols
+
+    tiles = []
+    for fig in figs:
+        # 交互式后端没有 buffer_rgba，就地换成 Agg 画布保证可光栅化
+        if not hasattr(fig.canvas, "buffer_rgba"):
+            from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+            FigureCanvasAgg(fig)
+        fig.canvas.draw()
+        tiles.append(np.asarray(fig.canvas.buffer_rgba()))
+
+    cell_h = max(tile.shape[0] for tile in tiles)
+    cell_w = max(tile.shape[1] for tile in tiles)
+
+    fill = (np.asarray(to_rgb(background)) * 255).astype(np.uint8)
+    canvas = np.empty((cell_h * n_rows, cell_w * n_cols, 3), dtype=np.uint8)
+    canvas[...] = fill
+    for index, tile in enumerate(tiles):
+        row, col = divmod(index, n_cols)
+        height, width = tile.shape[:2]
+        canvas[
+            row * cell_h:row * cell_h + height,
+            col * cell_w:col * cell_w + width,
+        ] = tile[:, :, :3]
+
+    dpi = float(figs[0].dpi)
+    out = plt.figure(
+        figsize=(canvas.shape[1] / dpi, canvas.shape[0] / dpi), dpi=dpi,
+    )
+    axis = out.add_axes((0.0, 0.0, 1.0, 1.0))
+    axis.imshow(canvas, interpolation="none")
+    axis.set_axis_off()
+    return out
 
 
 def _fit_mean_curve_power_sample(

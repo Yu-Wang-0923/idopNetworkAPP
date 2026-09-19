@@ -25,6 +25,7 @@ from idopnetwork.clustering.plot import (
     plot_bic_elbow,
     plot_cluster_profiles,
     plot_cluster_profiles_per_cluster,
+    stitch_cluster_figures,
 )
 from idopnetwork_app.utils import load_css, setup_sidebar
 
@@ -478,12 +479,16 @@ with tab2:
                                 key="funclu_em_profile_layout",
                             )
                             em_n_cols = st.number_input(
-                                "Subplot cols (combined only)",
+                                "Subplot cols",
                                 min_value=1,
                                 max_value=max(em_model.n_components, 1),
                                 value=min(3, em_model.n_components),
                                 step=1,
                                 key="funclu_em_ncols",
+                                help=(
+                                    "combined 布局每行放几个子图；per_cluster 拼图时"
+                                    "作为网格列数，行数按簇数自动推算。"
+                                ),
                             )
                         with member_col:
                             em_member_source = st.selectbox(
@@ -545,16 +550,23 @@ with tab2:
                     show_legend=bool(em_show_legend),
                 )
                 if str(em_profile_layout) == "per_cluster":
-                    # funclu_v4 风格：每簇一张 4x3 图，且跨簇共享 y 范围。
-                    # pyplot 在这里局部导入而非模块级：避免在页面入口新增
-                    # matplotlib 的模块级导入边（并发加载时易与 idopnetwork.*
-                    # 形成相反顺序的导入竞争）。
+                    # funclu_v4 风格：每簇一张 4:3 图，再按 n_cols 拼成完整网格图。
+                    # 先离屏渲染每簇、再光栅化拼接，这样每个格子都保持 4:3，
+                    # 不会被 subplots 的共享轴/图例留白重新挤压。
+                    # pyplot 局部导入而非模块级：避免在页面入口新增 matplotlib
+                    # 的模块级导入边（并发加载时易与 idopnetwork.* 形成导入竞争）。
                     import matplotlib.pyplot as plt
 
-                    for _fig in plot_cluster_profiles_per_cluster(
-                        **_profile_kwargs, show_in_streamlit=True,
-                    ):
+                    _cluster_figs = plot_cluster_profiles_per_cluster(
+                        **_profile_kwargs,
+                    )
+                    _stitched = stitch_cluster_figures(
+                        _cluster_figs, n_cols=int(em_n_cols),
+                    )
+                    for _fig in _cluster_figs:
                         plt.close(_fig)
+                    st.pyplot(_stitched, use_container_width=True)
+                    plt.close(_stitched)
                 else:
                     plot_cluster_profiles(
                         **_profile_kwargs,
