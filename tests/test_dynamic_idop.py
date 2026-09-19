@@ -172,6 +172,33 @@ def test_network_observation_aligns_with_prediction_grid():
     assert list(observed.columns) == LEADS
 
 
+def test_observed_for_plot_helper_is_testable():
+    """页面用的胶水函数必须可测：动态→窗口网格观测，其它→原样返回。
+
+    回归：页面曾把完整时间序列（1000 点）当观测，而预测只有 250 点，
+    导致观测散点铺满横轴、预测只占左侧 1/4。
+    """
+    from idopnetwork.network.dynamic_idop import observed_for_plot
+
+    data = _ecg_like(n_timepoints=1000)
+    model = DynamicIDOPRegressor(
+        n_fourier=5, r_legendre=2, window=250, fs=100.0,
+        lasso_alpha=0.05, lasso_windows=5, lasso_threshold=0.3,
+    )
+    model.fit(data)
+
+    picked = observed_for_plot(model, data)
+    assert len(picked) == model.window == 250
+    assert picked.index.equals(model.predict().index)
+    assert picked.index.equals(model.effect()[0].index)
+
+    # 没有 observed() 的模型（静态路线）原样返回传入的响应
+    class _Plain:
+        pass
+
+    assert observed_for_plot(_Plain(), data) is data
+
+
 def test_observed_is_window_averaged_absolute_signal():
     """观测必须是「各窗口绝对信号的跨窗均值」，与 predict 同尺度。"""
     data = _ecg_like(n_timepoints=1000)

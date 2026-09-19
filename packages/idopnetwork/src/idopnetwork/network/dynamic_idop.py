@@ -30,6 +30,7 @@ from idopnetwork.network.static_idop import select_edges_lasso
 __all__ = [
     "DynamicIDOPRegressor",
     "fit_dynamic_idop_network",
+    "observed_for_plot",
     "solve_dynamic_core",
 ]
 
@@ -545,6 +546,26 @@ class DynamicIDOPRegressor:
                     value = float(np.mean(curve))
                 matrix[leads.index(source), leads.index(target)] = value
         return pd.DataFrame(matrix, index=leads, columns=leads)
+
+
+def observed_for_plot(model: Any, fallback: pd.DataFrame) -> pd.DataFrame:
+    """取**与预测同网格**的观测序列，供绘图使用。
+
+    静态路线的预测落在设计矩阵索引上，与传入的响应可以直接对照，故原样返回
+    ``fallback``。
+
+    动态路线（:class:`DynamicIDOPRegressor`）不同：预测与效应落在**窗口时间网格**
+    （如 250 点 / 0~2.5 s）上，而传入的响应是完整时间序列（如 1000 点 / 0~10 s）。
+    两者横轴范围不同，画在同一张图上会出现「观测铺满横轴、预测只占左侧一小段」。
+    此时返回模型内部的窗口对齐绝对观测。
+
+    之所以做成库函数而不是留在页面里，是为了能被测试覆盖 —— 这层胶水一旦漏掉，
+    图形错位只会以「图看起来不对」的形式暴露。
+    """
+    observed = getattr(model, "observed", None)
+    if callable(observed):
+        return observed()
+    return fallback
 
 
 def fit_dynamic_idop_network(

@@ -304,6 +304,17 @@ def _load_funclu_export_from_zip(
     )
 
 
+def _observed_for_plot(model, fallback: pd.DataFrame) -> pd.DataFrame:
+    """取**与预测同网格**的观测序列（实现见 idopnetwork.network.dynamic_idop）。
+
+    动态路线的预测落在窗口时间网格上，而传入的响应是完整时间序列，两者横轴不同，
+    直接混用会让「Fitting vs Prediction」与「Effect Decomposition」整体错位。
+    """
+    from idopnetwork.network.dynamic_idop import observed_for_plot
+
+    return observed_for_plot(model, fallback)
+
+
 def _fit_idop_network_from_curve_sample(
     curve_sample_df: pd.DataFrame,
     response_df: pd.DataFrame,
@@ -350,10 +361,11 @@ def _fit_idop_network_from_curve_sample(
         aggregation=str(adjacency_aggregation),
     )
     design_X = model._design(curve_sample_df)
-    response_Y = align_response_to_design(response_df, design_X.index)
+    observed_df = _observed_for_plot(model, response_df)
+    response_Y = align_response_to_design(observed_df, design_X.index)
     return {
         "model": model,
-        "quasi_dynamic_df": response_df,
+        "quasi_dynamic_df": observed_df,
         "curve_sample_df": curve_sample_df,
         "design_X": design_X,
         "response_Y": response_Y,
@@ -908,7 +920,8 @@ with tab1:
                         progress_bar.progress(95, text="Finalizing...")
                         log.write("Preparing model diagnostics...")
                         design_X = model._design(curve_sample_df)
-                        response_Y = align_response_to_design(quasi_dynamic_df, design_X.index)
+                        observed_df = _observed_for_plot(model, quasi_dynamic_df)
+                        response_Y = align_response_to_design(observed_df, design_X.index)
                 except Exception as e:
                     st.error(f"IdopNetwork 运行失败：{e}")
                     st.session_state.netrecon_result = None
@@ -916,7 +929,7 @@ with tab1:
                     st.session_state.netrecon_result = {
                         "condition": selected_condition,
                         "model": model,
-                        "quasi_dynamic_df": quasi_dynamic_df,
+                        "quasi_dynamic_df": observed_df,
                         "curve_sample_df": curve_sample_df,
                         "design_X": design_X,
                         "response_Y": response_Y,
