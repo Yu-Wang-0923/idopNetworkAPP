@@ -23,6 +23,56 @@ from idopnetwork.network.construction import (
     align_response_to_design,
     polynomial_basis_expansion,
 )
+from idopnetwork.network.static_idop import StaticIDOPModel
+
+IDOP_ALGORITHM_ASGL = "asgl"
+IDOP_ALGORITHM_STATIC = "static_idop"
+
+IDOP_ALGORITHM_LABELS = {
+    IDOP_ALGORITHM_ASGL: "ASGL + BIC（默认）",
+    IDOP_ALGORITHM_STATIC: "LASSO + ODE（新版静态 idop）",
+}
+
+
+def _make_idop_model(
+    *,
+    algorithm: str,
+    max_order: int,
+    nonneg_self: bool,
+    max_interactions: int,
+    lasso_alpha: float = 0.1,
+    lasso_windows: int = 1,
+    lasso_threshold: float = 0.5,
+):
+    """按所选算法构造建网模型。
+
+    两条路线对外接口一致（``fit`` / ``predict`` / ``effect`` /
+    ``adjacency_matrix`` / ``_design``，以及导出逻辑要读的若干属性），因此下游
+    代码不需要分支。
+
+    - ``asgl``：ASGL + BIC，仓库原有路线；
+    - ``static_idop``：新版静态 idop —— 多窗口 LASSO 按出现频率选边，再用 cvxpy
+      解约束弱形式 ODE；此处把页面的 ``max_order`` 映射为基函数阶数
+      ``basis_order``（每源 ``basis_order + 1`` 个积分 Legendre 基）。
+    """
+    if str(algorithm) == IDOP_ALGORITHM_STATIC:
+        return StaticIDOPModel(
+            basis_order=int(max_order),
+            alpha=float(lasso_alpha),
+            windows=int(lasso_windows),
+            threshold=float(lasso_threshold),
+            mix=0.5,
+            nonneg_self=bool(nonneg_self),
+            max_interactions=int(max_interactions),
+        )
+    return IDOPRegressor(
+        max_order=int(max_order),
+        mix=0.5,
+        fix_mix=False,
+        nonneg_self=bool(nonneg_self),
+        max_interactions=int(max_interactions),
+        adaptive_weights=False,
+    )
 from idopnetwork.curve_fitting.plot import plot_curve_fitting
 from idopnetwork.network.plot import (
     plot_effect,
@@ -236,19 +286,24 @@ def _fit_idop_network_from_curve_sample(
     max_interactions: int,
     adjacency_aggregation: str,
     power_function_params: pd.DataFrame,
+    algorithm: str = IDOP_ALGORITHM_ASGL,
+    lasso_alpha: float = 0.1,
+    lasso_windows: int = 1,
+    lasso_threshold: float = 0.5,
 ) -> dict:
     """复用单层 IdopNetwork 流程：curve_sample 做设计矩阵，response_df 做响应。"""
     if curve_sample_df.shape[1] < 2:
         raise ValueError("至少需要 2 条曲线才能构建交互网络")
     response_df = response_df.loc[:, list(curve_sample_df.columns)]
 
-    model = IDOPRegressor(
+    model = _make_idop_model(
+        algorithm=str(algorithm),
         max_order=int(max_order),
-        mix=0.5,
-        fix_mix=False,
         nonneg_self=bool(nonneg_self),
         max_interactions=int(max_interactions),
-        adaptive_weights=False,
+        lasso_alpha=float(lasso_alpha),
+        lasso_windows=int(lasso_windows),
+        lasso_threshold=float(lasso_threshold),
     )
     model.fit(
         curve_sample_df,
@@ -593,16 +648,33 @@ with tab1:
             curve_sample_df = curve_map[selected_condition]
 
             with st.expander("IdopNetwork parameter settings", expanded=True):
+                idop_algorithm = st.radio(
+                    "建网算法 / Construction algorithm",
+                    options=[IDOP_ALGORITHM_ASGL, IDOP_ALGORITHM_STATIC],
+                    format_func=lambda key: IDOP_ALGORITHM_LABELS.get(key, key),
+                    horizontal=True,
+                    key="netrecon_idop_algorithm",
+                    help=(
+                        "ASGL + BIC：仓库原有路线（Adaptive Sparse Group Lasso + BIC 网格）。"
+                        "LASSO + ODE：新版静态 idopNetwork —— 把样本切成 k 个窗口逐窗口做 "
+                        "LASSO，出现频率超过阈值的 source 才进入支撑集，再用 cvxpy 解约束"
+                        "弱形式 ODE。更慢，但支撑集更稀疏，且显式约束跨源效应同号。"
+                    ),
+                )
                 with st.form(key="netrecon_form_single"):
-                    c1, c2, c3, c4, c5 = st.columns(5)
+                    c1, c2, c3, c4 = st.columns(4)
                     with c1:
                         max_order = st.number_input(
-                            "max_order_upper (BIC)",
+                            "max_order",
                             min_value=1,
                             max_value=100,
                             value=1,
                             step=1,
-                            help="ASGL uses BIC to select max_order from 1..this value.",
+                            help=(
+                                "ASGL：BIC 在 1..该值 之间选 max_order。"
+                                "LASSO + ODE：作为基函数阶数 basis_order（每源 "
+                                "basis_order+1 个积分 Legendre 基）。"
+                            ),
                         )
                     with c2:
                         nonneg_self = st.checkbox("nonneg_self", value=True)
@@ -621,8 +693,45 @@ with tab1:
                             index=0,
                             help="邻接矩阵列聚合方式：mean=离散点均值，integral=按 index 梯形积分。",
                         )
-                    with c5:
-                        submit_run = st.form_submit_button("Run IdopNetwork")
+
+                    if idop_algorithm == IDOP_ALGORITHM_STATIC:
+                        st.markdown("**LASSO + ODE 参数**")
+                        lasso_c1, lasso_c2, lasso_c3 = st.columns(3)
+                        with lasso_c1:
+                            lasso_alpha = st.number_input(
+                                "LASSO alpha",
+                                min_value=1e-6,
+                                value=0.1,
+                                step=0.01,
+                                format="%.4f",
+                                key="netrecon_lasso_alpha",
+                                help="LASSO 正则强度；越大选出的边越少。",
+                            )
+                        with lasso_c2:
+                            lasso_windows = st.number_input(
+                                "LASSO windows (k)",
+                                min_value=1,
+                                max_value=50,
+                                value=1,
+                                step=1,
+                                key="netrecon_lasso_k",
+                                help="把样本切成多少个窗口分别做 LASSO；k=1 即全样本一次。",
+                            )
+                        with lasso_c3:
+                            lasso_threshold = st.number_input(
+                                "Support threshold",
+                                min_value=0.0,
+                                max_value=1.0,
+                                value=0.5,
+                                step=0.05,
+                                format="%.2f",
+                                key="netrecon_lasso_threshold",
+                                help="source 需在超过该比例的窗口中非零，才进入该 target 的支撑集。",
+                            )
+                    else:
+                        lasso_alpha, lasso_windows, lasso_threshold = 0.1, 1, 0.5
+
+                    submit_run = st.form_submit_button("Run IdopNetwork")
 
             if submit_run:
                 try:
@@ -637,15 +746,19 @@ with tab1:
                         log.write("Estimating power-function parameters...")
                         power_function_params = get_power_function_params(quasi_dynamic_df)
 
-                        progress_bar.progress(20, text="Initializing constrained ASGL model...")
-                        log.write("Initializing constrained ASGL model...")
-                        model = IDOPRegressor(
+                        progress_bar.progress(20, text="Initializing network model...")
+                        log.write(
+                            "Initializing model "
+                            f"({IDOP_ALGORITHM_LABELS.get(idop_algorithm, idop_algorithm)})..."
+                        )
+                        model = _make_idop_model(
+                            algorithm=str(idop_algorithm),
                             max_order=int(max_order),
-                            mix=0.5,
-                            fix_mix=False,
                             nonneg_self=bool(nonneg_self),
                             max_interactions=int(top_k),
-                            adaptive_weights=False,
+                            lasso_alpha=float(lasso_alpha),
+                            lasso_windows=int(lasso_windows),
+                            lasso_threshold=float(lasso_threshold),
                         )
 
                         progress_bar.progress(35, text="Fitting model and enforcing effect constraints...")
@@ -1068,6 +1181,22 @@ with tab2:
                     "nonneg_self": bool(ml_nonneg_self),
                     "max_interactions": int(ml_top_k),
                     "adjacency_aggregation": str(ml_adjacency_aggregation),
+                    # 多层建网沿用单层表单里选的算法与 LASSO 参数
+                    # （两个 tab 每轮都会渲染，故这些 widget key 一定存在）
+                    "algorithm": str(
+                        st.session_state.get(
+                            "netrecon_idop_algorithm", IDOP_ALGORITHM_ASGL
+                        )
+                    ),
+                    "lasso_alpha": float(
+                        st.session_state.get("netrecon_lasso_alpha", 0.1)
+                    ),
+                    "lasso_windows": int(
+                        st.session_state.get("netrecon_lasso_k", 1)
+                    ),
+                    "lasso_threshold": float(
+                        st.session_state.get("netrecon_lasso_threshold", 0.5)
+                    ),
                 }
                 inter_cluster: dict[str, dict] = {}
                 intra_cluster: dict[str, dict[str, dict]] = {}
