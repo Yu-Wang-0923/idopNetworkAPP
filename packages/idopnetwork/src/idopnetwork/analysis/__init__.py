@@ -9,6 +9,7 @@ from idopnetwork.analysis.network_analysis import (
 )
 from idopnetwork.analysis.plot_analysis import (
     plot_glmy_barcode,
+    plot_glmy_barcode_combined,
     plot_glmy_barcode_split,
 )
 from idopnetwork.analysis.glmy_test import (

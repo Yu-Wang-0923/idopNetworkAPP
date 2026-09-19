@@ -260,3 +260,131 @@ def plot_glmy_barcode_split(
             )
 
     return figure
+
+
+def plot_glmy_barcode_combined(
+    homology: dict[str, list[list[Any]]],
+    split_homologies: dict[str, dict[str, list[list[Any]]]],
+    *,
+    max_x: float | None = None,
+    figsize: tuple[float, float] = (13.0, 10.0),
+) -> plt.Figure:
+    """把「总体 / 正权 / 负权」三张 barcode 并排画进**同一张大图**。
+
+    布局为 4 行（β₃…β₀）× 3 列（``overall`` | ``positive`` | ``negative``），
+    共 12 个子图：
+
+    - **overall**：全部带符号权重的 barcode，横轴以 0 为对称中心，与
+      :func:`plot_glmy_barcode` 一致；
+    - **positive** / **negative**：按权重符号拆分后各自计算，横轴自 0 起，与
+      :func:`plot_glmy_barcode_split` 一致。
+
+    同一行（同一维度）的三个面板**共享 y 轴高度**，因此三列可以直接横向比较。
+
+    Parameters
+    ----------
+    homology: 总体（带符号）的 homology。
+    split_homologies: ``{"positive": Homology, "negative": Homology}``。
+    max_x: ``overall`` 列的对称半轴长；``None`` 时由数据端点自动推算。
+    figsize: 整张大图的英寸尺寸。
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        调用方负责 ``st.pyplot(fig)`` 与 ``plt.close(fig)``。
+    """
+    overall_bars = {
+        key: _sorted_bars(homology, key) for key in DIMENSION_KEYS
+    }
+    split_bars = {
+        sign: {
+            key: _sorted_bars(split_homologies.get(sign, {}), key)
+            for key in DIMENSION_KEYS
+        }
+        for sign in ("positive", "negative")
+    }
+
+    # 同一维度的三个面板共享 y 高度，取三者条数最大值
+    row_max_y = {
+        key: max(
+            len(overall_bars[key]),
+            len(split_bars["positive"][key]),
+            len(split_bars["negative"][key]),
+            5,
+        )
+        for key in DIMENSION_KEYS
+    }
+
+    # overall 列：横轴以 0 为对称中心
+    if max_x is not None and float(max_x) > 0:
+        half_span = float(max_x)
+    else:
+        half_span = max(
+            (
+                abs(value)
+                for bars in overall_bars.values()
+                for value in _finite_endpoints(bars)
+            ),
+            default=0.0,
+        )
+        if half_span == 0.0:
+            half_span = 1.0
+    overall_left = -half_span * 1.10
+    overall_right = half_span * 1.10
+    overall_infinite = half_span * 1.07
+
+    figure, axes = plt.subplots(
+        len(DIMENSION_KEYS),
+        3,
+        figsize=figsize,
+        sharex=False,
+        constrained_layout=True,
+    )
+    if len(DIMENSION_KEYS) == 1:
+        axes = [axes]
+
+    for row, key in enumerate(DIMENSION_KEYS):
+        maximum_y = row_max_y[key]
+        y_margin = max(1.0, maximum_y * 0.05)
+
+        for column in range(3):
+            ax = axes[row][column]
+            ax.set_ylim(-y_margin, maximum_y - 1 + y_margin)
+            ax.yaxis.set_major_locator(
+                ticker.MaxNLocator(integer=True, nbins=3)
+            )
+            ax.tick_params(axis="both", which="major", labelsize=20)
+            if column == 0:
+                ax.set_ylabel(
+                    DIMENSION_LABELS[row],
+                    fontsize=24,
+                    labelpad=20,
+                )
+
+        axes[row][0].set_xlim(overall_left, overall_right)
+        _draw_bars(
+            axes[row][0],
+            overall_bars[key],
+            color=DIMENSION_COLORS[row],
+            start_for_infinite=overall_left,
+            infinite_x=overall_infinite,
+        )
+
+        for column, sign in ((1, "positive"), (2, "negative")):
+            bars = split_bars[sign][key]
+            column_max_x = max(_finite_endpoints(bars), default=1.0)
+            if column_max_x == 0.0:
+                column_max_x = 1.0
+            axes[row][column].set_xlim(0.0, column_max_x * 1.10)
+            _draw_bars(
+                axes[row][column],
+                bars,
+                color=DIMENSION_COLORS[row],
+                start_for_infinite=0.0,
+                infinite_x=column_max_x * 1.07,
+            )
+
+    for column, name in enumerate(("overall", "positive", "negative")):
+        axes[0][column].set_title(name, fontsize=28)
+
+    return figure

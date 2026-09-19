@@ -33,7 +33,7 @@ from idopnetwork.analysis.network_analysis import (
 )
 from idopnetwork.analysis.plot_analysis import (
     plot_glmy_barcode,
-    plot_glmy_barcode_split,
+    plot_glmy_barcode_combined,
 )
 from idopnetwork.ml.core import (
     compare_hub_tables,
@@ -670,11 +670,14 @@ with tab1:
                 with st.spinner("Running Python GLMY/path homology ..."):
                     try:
                         glmy_result = run_glmy(from_to_df)
+                        split_result = run_glmy_split(from_to_df)
                     except Exception as e:
                         st.error(f"GLMY 运行失败：{e}")
                         glmy_result = None
+                        split_result = None
                 if glmy_result is not None:
                     st.session_state["netanal_glmy_result"] = glmy_result
+                    st.session_state["netanal_glmy_split_result"] = split_result
                     st.session_state["netanal_glmy_result_max_x"] = float(max_x)
                     st.session_state["netanal_glmy_result_member"] = chosen_member
 
@@ -706,8 +709,32 @@ with tab1:
                     "对应 `from_to.csv` 中的原始 weight/Effect 尺度，**未做任何归一化**。"
                 )
 
-                fig = plot_glmy_barcode(
+                split_result = st.session_state.get("netanal_glmy_split_result")
+                split_homologies = (split_result or {}).get("homologies") or {
+                    "positive": {key: [] for key in ("3", "2", "1", "0")},
+                    "negative": {key: [] for key in ("3", "2", "1", "0")},
+                }
+                split_edge_counts = (split_result or {}).get("edge_counts") or {}
+
+                st.markdown(
+                    "**总体 / 正权 / 负权 三联 barcode**（同一行的三个面板共享 y 轴高度）："
+                    "左列为全部带符号权重（横轴以 0 为对称中心）；中、右列按权重符号拆分后"
+                    "各自独立计算（横轴自 0 起，负权取 |w|）。"
+                )
+                if split_result is None:
+                    st.caption(
+                        "当前结果缺少正负拆分数据（可能是升级前的旧结果）；"
+                        "重新点击 **Run GLMY** 即可补齐。"
+                    )
+                elif split_edge_counts:
+                    st.caption(
+                        f"split edges：positive = `{split_edge_counts.get('positive', 0)}`，"
+                        f"negative = `{split_edge_counts.get('negative', 0)}`"
+                    )
+
+                fig = plot_glmy_barcode_combined(
                     homology,
+                    split_homologies,
                     max_x=float(st.session_state.get("netanal_glmy_result_max_x", default_max_x)),
                 )
                 st.pyplot(fig, width="stretch")
@@ -721,7 +748,7 @@ with tab1:
 
                 base_name = sanitize_name(member_display_label(result_member or "glmy"))
 
-                col_d1, col_d2, col_d3 = st.columns(3)
+                col_d1, col_d2, col_d3, col_d4 = st.columns(4)
                 col_d1.download_button(
                     label="Download barcode PNG",
                     data=png_buf.getvalue(),
@@ -743,72 +770,13 @@ with tab1:
                     mime="application/json",
                     key="netanal_glmy_json_download",
                 )
-
-                # ========== 新版：正 / 负权重拆分 barcode ==========
-                st.divider()
-                st.markdown("#### Positive / Negative Split Barcode")
-                st.caption(
-                    "按权重符号把边拆成正权（positive）与负权（negative，取 |w|）两组，"
-                    "各自独立计算 path homology，4 行 × 2 列并排对比。零权边被丢弃；"
-                    "两侧横轴各自从 0 起（拆分后权重非负，无需再平移）。"
+                col_d4.download_button(
+                    label="Download split homology.json",
+                    data=json.dumps(split_homologies, indent=2, ensure_ascii=False).encode("utf-8"),
+                    file_name=f"{base_name}_homology_split.json",
+                    mime="application/json",
+                    key="netanal_glmy_split_json_download",
                 )
-                if st.button("Run Split Barcode", key="netanal_glmy_split_run"):
-                    with st.spinner("Running split GLMY ..."):
-                        try:
-                            split_result = run_glmy_split(from_to_df)
-                        except Exception as e:
-                            st.error(f"Split GLMY 运行失败：{e}")
-                            split_result = None
-                    if split_result is not None:
-                        st.session_state["netanal_glmy_split_result"] = split_result
-                        st.session_state["netanal_glmy_split_member"] = chosen_member
-
-                split_result = st.session_state.get("netanal_glmy_split_result")
-                split_member = st.session_state.get("netanal_glmy_split_member")
-                if split_result is None:
-                    st.info("点击 **Run Split Barcode** 生成正负拆分 barcode。")
-                elif split_member != chosen_member:
-                    st.warning(
-                        f"拆分结果对应的是 `{split_member}`，与当前选择 "
-                        f"`{chosen_member}` 不一致；请重新运行。"
-                    )
-                else:
-                    split_counts = split_result["edge_counts"]
-                    st.json(
-                        {
-                            "positive edges": split_counts["positive"],
-                            "negative edges": split_counts["negative"],
-                        }
-                    )
-                    split_fig = plot_glmy_barcode_split(split_result["homologies"])
-                    st.pyplot(split_fig, width="stretch")
-
-                    split_png_buf = io.BytesIO()
-                    split_fig.savefig(
-                        split_png_buf, format="png", dpi=200, bbox_inches="tight"
-                    )
-                    split_pdf_buf = io.BytesIO()
-                    split_fig.savefig(split_pdf_buf, format="pdf", bbox_inches="tight")
-                    plt.close(split_fig)
-
-                    split_base = sanitize_name(
-                        member_display_label(split_member or "glmy")
-                    )
-                    split_c1, split_c2 = st.columns(2)
-                    split_c1.download_button(
-                        label="Download split PNG",
-                        data=split_png_buf.getvalue(),
-                        file_name=f"{split_base}_glmy_barcode_split.png",
-                        mime="image/png",
-                        key="netanal_glmy_split_png_download",
-                    )
-                    split_c2.download_button(
-                        label="Download split PDF",
-                        data=split_pdf_buf.getvalue(),
-                        file_name=f"{split_base}_glmy_barcode_split.pdf",
-                        mime="application/pdf",
-                        key="netanal_glmy_split_pdf_download",
-                    )
 
             # ========== Run GLMY on All Sub-networks ==========
             if zip_bytes is not None and len(members) >= 2:

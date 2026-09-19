@@ -28,6 +28,7 @@ from idopnetwork.analysis.glmy import (
 )
 from idopnetwork.analysis.plot_analysis import (
     plot_glmy_barcode,
+    plot_glmy_barcode_combined,
     plot_glmy_barcode_split,
 )
 from idopnetwork.analysis.network_analysis import run_glmy, run_glmy_split
@@ -159,4 +160,50 @@ def test_split_handles_single_sign_without_error():
     assert split["edge_counts"] == {"positive": 2, "negative": 0}
     fig = plot_glmy_barcode_split(split["homologies"])
     assert len(fig.axes) == 2 * len(DIMENSION_KEYS)
+    plt.close(fig)
+
+
+# ── 三联大图（总体 / 正 / 负） ────────────────────────────────────────────────
+
+def test_combined_plot_has_twelve_panels_and_titles():
+    overall = compute_glmy_homology(_edge_table())
+    split = compute_glmy_homology_split(_edge_table())
+    fig = plot_glmy_barcode_combined(overall, split)
+    assert len(fig.axes) == 3 * len(DIMENSION_KEYS)
+    assert [ax.get_title() for ax in fig.axes[:3]] == [
+        "overall",
+        "positive",
+        "negative",
+    ]
+    plt.close(fig)
+
+
+def test_combined_plot_shares_y_limits_within_each_row():
+    overall = compute_glmy_homology(_edge_table())
+    split = compute_glmy_homology_split(_edge_table())
+    fig = plot_glmy_barcode_combined(overall, split)
+    for row in range(len(DIMENSION_KEYS)):
+        limits = {
+            tuple(round(value, 6) for value in fig.axes[row * 3 + column].get_ylim())
+            for column in range(3)
+        }
+        assert len(limits) == 1, f"第 {row} 行三个面板应共享 y 轴高度"
+    plt.close(fig)
+
+
+def test_combined_plot_overall_column_is_symmetric():
+    overall = compute_glmy_homology(_edge_table())
+    split = compute_glmy_homology_split(_edge_table())
+    fig = plot_glmy_barcode_combined(overall, split, max_x=2.5)
+    assert fig.axes[0].get_xlim() == pytest.approx((-2.75, 2.75))
+    plt.close(fig)
+
+
+def test_combined_plot_tolerates_empty_sign():
+    overall = compute_glmy_homology(_edge_table())
+    only_positive = _edge_table()
+    only_positive = only_positive[only_positive["weight"] > 0]
+    split = compute_glmy_homology_split(only_positive)
+    fig = plot_glmy_barcode_combined(overall, split)
+    assert len(fig.axes) == 3 * len(DIMENSION_KEYS)
     plt.close(fig)
