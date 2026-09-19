@@ -1,7 +1,6 @@
 import io
 import zipfile
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -27,7 +26,6 @@ from idopnetwork.network.construction import (
 from idopnetwork.curve_fitting.plot import plot_curve_fitting
 from idopnetwork.network.plot import (
     plot_effect,
-    plot_network,
     plot_adjusted_matrix_heatmap,
 )
 from idopnetwork_app.utils import font_prop, load_css, setup_sidebar
@@ -35,7 +33,35 @@ from idopnetwork_app.utils import font_prop, load_css, setup_sidebar
 import streamlit.components.v1 as components
 
 
-def _interactive_network_panel(
+@st.cache_data(show_spinner="正在生成交互式网络图 …")
+def _build_interactive_network_html(
+    edges: pd.DataFrame,
+    modules: tuple,
+    title: str,
+) -> str:
+    """生成单文件交互式 HTML（Hub 同心环布局）。
+
+    缓存键为 (边表, 模块顺序, 标题)：Streamlit 每次交互都会重跑整页脚本，缓存可
+    避免同一个网络被反复重建。
+    """
+    import tempfile
+    from pathlib import Path
+
+    from idopnetwork.network.interactive import plot_network as plot_network_html
+
+    out_dir = Path(tempfile.mkdtemp(prefix="idop_net_html_"))
+    plot_network_html(
+        edges,
+        str(out_dir / "network.html"),
+        title=title,
+        group_name=title or "network",
+        group_dir=str(out_dir),
+        modules=list(modules),
+    )
+    return (out_dir / "network.html").read_text(encoding="utf-8")
+
+
+def _render_interactive_network(
     adj_df,
     *,
     key: str,
@@ -43,54 +69,38 @@ def _interactive_network_panel(
     top_edges: int | None = 60,
     title: str | None = None,
 ) -> None:
-    """新版交互式网络图（环形布局 → 单文件 HTML）。
+    """渲染新版环形布局交互式 HTML 网络图（已取代原静态 matplotlib 网络图）。
 
-    与上面的静态 matplotlib 图并列提供、互不影响：可内嵌查看，也可下载单文件
-    HTML 离线打开（自带弱边 slider、节点/标签/边缩放等控件）。
-    生成过程中的中间文件写在临时目录，不污染工作目录。
+    交互式版自带弱边 slider、节点/标签/边缩放与透明度，以及与弱边过滤**严格同步**
+    的 in/out-degree 面板，因此不再需要另出静态图。
     """
-    import tempfile
-    from pathlib import Path
+    from idopnetwork.network.interactive import network_edges_from_adjacency
 
-    from idopnetwork.network.interactive import (
-        network_edges_from_adjacency,
-        plot_network as plot_network_html,
+    edges = network_edges_from_adjacency(
+        adj_df, target_node=target_node, top_edges=top_edges,
     )
+    if edges.empty:
+        st.warning("没有可绘制的边（目标节点可能没有入边，或边权全为 0）。")
+        return
 
-    with st.expander("Interactive network HTML (ring layout)", expanded=False):
-        if st.button("Generate interactive HTML", key=f"{key}_gen"):
-            edges = network_edges_from_adjacency(
-                adj_df, target_node=target_node, top_edges=top_edges,
-            )
-            if edges.empty:
-                st.warning("没有可绘制的边（目标节点可能没有入边）。")
-            else:
-                out_dir = Path(tempfile.mkdtemp(prefix="idop_net_html_"))
-                try:
-                    plot_network_html(
-                        edges,
-                        str(out_dir / "network.html"),
-                        title=title,
-                        group_name=title or "network",
-                        group_dir=str(out_dir),
-                        modules=[str(v) for v in adj_df.index],
-                    )
-                    st.session_state[f"{key}_html"] = (
-                        out_dir / "network.html"
-                    ).read_text(encoding="utf-8")
-                except Exception as exc:  # noqa: BLE001
-                    st.error(f"生成交互式网络图失败：{exc}")
+    try:
+        html = _build_interactive_network_html(
+            edges,
+            tuple(str(v) for v in adj_df.index),
+            title or "network",
+        )
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"生成交互式网络图失败：{exc}")
+        return
 
-        html = st.session_state.get(f"{key}_html")
-        if html:
-            st.download_button(
-                "Download interactive HTML",
-                data=html,
-                file_name=f"{key}_network.html",
-                mime="text/html",
-                key=f"{key}_dl",
-            )
-            components.html(html, height=950, scrolling=True)
+    st.download_button(
+        "Download interactive HTML",
+        data=html,
+        file_name=f"{key}_network.html",
+        mime="text/html",
+        key=f"{key}_dl",
+    )
+    components.html(html, height=950, scrolling=True)
 
 
 # ========== 加载 CSS ==========
@@ -754,33 +764,18 @@ with tab1:
 
                     single_network_plot_mode = st.session_state.get("single_network_plot_mode", None)
 
-                    if single_network_plot_mode == "network_only":
-                        fig = plot_network(
-                            result["adj_df"],
-                            target_node=st.session_state.get("single_network_target", ""),
-                            top_edges=st.session_state.get("single_network_top_edges", 60),
-                            show_degree_panel=False,
-                        )
-                        st.pyplot(fig)
-                    elif single_network_plot_mode == "network_degree":
-                        fig = plot_network(
-                            result["adj_df"],
-                            target_node=st.session_state.get("single_network_target", ""),
-                            top_edges=st.session_state.get("single_network_top_edges", 60),
-                            show_degree_panel=True,
-                        )
-                        st.pyplot(fig)
-                    else:
-                        st.info("点击 `Run Network Plot` 或 `Run Network + Degree Plot` 渲染网络图。")
-
                     if single_network_plot_mode in ("network_only", "network_degree"):
-                        _interactive_network_panel(
+                        # 交互式 HTML 始终包含与弱边过滤同步的 in/out-degree 面板，
+                        # 因此 network_only / network_degree 两种模式渲染结果一致。
+                        _render_interactive_network(
                             result["adj_df"],
                             key="single_network",
                             target_node=st.session_state.get("single_network_target", ""),
                             top_edges=st.session_state.get("single_network_top_edges", 60),
                             title="Single network",
                         )
+                    else:
+                        st.info("点击 `Run Network Plot` 或 `Run Network + Degree Plot` 渲染交互式网络图。")
                 # ========== Tab 1_2_2 Effect Decomposition ==========
                 with tab1_2_2:
                     st.markdown("### Effect Decomposition")
@@ -1325,14 +1320,7 @@ with tab2:
                             and inter_plot_request.get("target_node") == inter_target_node
                             and int(inter_plot_request.get("top_edges", 60)) == int(inter_top_edges_for_plot)
                         ):
-                            fig = plot_network(
-                                inter_adj_df,
-                                target_node=inter_target_node,
-                                top_edges=int(inter_plot_request["top_edges"]),
-                                show_degree_panel=bool(inter_plot_request["show_degree_panel"]),
-                            )
-                            st.pyplot(fig)
-                            _interactive_network_panel(
+                            _render_interactive_network(
                                 inter_adj_df,
                                 key="ml_inter_network",
                                 target_node=inter_target_node,
@@ -1427,14 +1415,7 @@ with tab2:
                             and intra_plot_request.get("target_node") == intra_target_node
                             and int(intra_plot_request.get("top_edges", 60)) == int(intra_top_edges_for_plot)
                         ):
-                            fig = plot_network(
-                                intra_adj_df,
-                                target_node=intra_target_node,
-                                top_edges=int(intra_plot_request["top_edges"]),
-                                show_degree_panel=bool(intra_plot_request["show_degree_panel"]),
-                            )
-                            st.pyplot(fig)
-                            _interactive_network_panel(
+                            _render_interactive_network(
                                 intra_adj_df,
                                 key="ml_intra_network",
                                 target_node=intra_target_node,
