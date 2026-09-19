@@ -32,6 +32,67 @@ from idopnetwork.network.plot import (
 )
 from idopnetwork_app.utils import font_prop, load_css, setup_sidebar
 
+import streamlit.components.v1 as components
+
+
+def _interactive_network_panel(
+    adj_df,
+    *,
+    key: str,
+    target_node: str = "",
+    top_edges: int | None = 60,
+    title: str | None = None,
+) -> None:
+    """新版交互式网络图（环形布局 → 单文件 HTML）。
+
+    与上面的静态 matplotlib 图并列提供、互不影响：可内嵌查看，也可下载单文件
+    HTML 离线打开（自带弱边 slider、节点/标签/边缩放等控件）。
+    生成过程中的中间文件写在临时目录，不污染工作目录。
+    """
+    import tempfile
+    from pathlib import Path
+
+    from idopnetwork.network.interactive import (
+        network_edges_from_adjacency,
+        plot_network as plot_network_html,
+    )
+
+    with st.expander("Interactive network HTML (ring layout)", expanded=False):
+        if st.button("Generate interactive HTML", key=f"{key}_gen"):
+            edges = network_edges_from_adjacency(
+                adj_df, target_node=target_node, top_edges=top_edges,
+            )
+            if edges.empty:
+                st.warning("没有可绘制的边（目标节点可能没有入边）。")
+            else:
+                out_dir = Path(tempfile.mkdtemp(prefix="idop_net_html_"))
+                try:
+                    plot_network_html(
+                        edges,
+                        str(out_dir / "network.html"),
+                        title=title,
+                        group_name=title or "network",
+                        group_dir=str(out_dir),
+                        modules=[str(v) for v in adj_df.index],
+                    )
+                    st.session_state[f"{key}_html"] = (
+                        out_dir / "network.html"
+                    ).read_text(encoding="utf-8")
+                except Exception as exc:  # noqa: BLE001
+                    st.error(f"生成交互式网络图失败：{exc}")
+
+        html = st.session_state.get(f"{key}_html")
+        if html:
+            st.download_button(
+                "Download interactive HTML",
+                data=html,
+                file_name=f"{key}_network.html",
+                mime="text/html",
+                key=f"{key}_dl",
+            )
+            components.html(html, height=950, scrolling=True)
+
+
 # ========== 加载 CSS ==========
 load_css()
 setup_sidebar()
@@ -711,6 +772,15 @@ with tab1:
                         st.pyplot(fig)
                     else:
                         st.info("点击 `Run Network Plot` 或 `Run Network + Degree Plot` 渲染网络图。")
+
+                    if single_network_plot_mode in ("network_only", "network_degree"):
+                        _interactive_network_panel(
+                            result["adj_df"],
+                            key="single_network",
+                            target_node=st.session_state.get("single_network_target", ""),
+                            top_edges=st.session_state.get("single_network_top_edges", 60),
+                            title="Single network",
+                        )
                 # ========== Tab 1_2_2 Effect Decomposition ==========
                 with tab1_2_2:
                     st.markdown("### Effect Decomposition")
@@ -1262,6 +1332,13 @@ with tab2:
                                 show_degree_panel=bool(inter_plot_request["show_degree_panel"]),
                             )
                             st.pyplot(fig)
+                            _interactive_network_panel(
+                                inter_adj_df,
+                                key="ml_inter_network",
+                                target_node=inter_target_node,
+                                top_edges=int(inter_plot_request["top_edges"]),
+                                title="Inter-cluster network",
+                            )
                         else:
                             st.info("Click `Run Inter Network` or `Run Inter Network + Degree` to render.")
                     else:
@@ -1357,6 +1434,13 @@ with tab2:
                                 show_degree_panel=bool(intra_plot_request["show_degree_panel"]),
                             )
                             st.pyplot(fig)
+                            _interactive_network_panel(
+                                intra_adj_df,
+                                key="ml_intra_network",
+                                target_node=intra_target_node,
+                                top_edges=int(intra_plot_request["top_edges"]),
+                                title="Intra-cluster network",
+                            )
                         else:
                             st.info("Click `Run Intra Network` or `Run Intra Network + Degree` to render.")
                     else:
