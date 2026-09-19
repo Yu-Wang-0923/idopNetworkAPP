@@ -16,7 +16,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -546,7 +545,12 @@ with tab2:
                     show_legend=bool(em_show_legend),
                 )
                 if str(em_profile_layout) == "per_cluster":
-                    # funclu_v4 风格：每簇一张 4x3 图，且跨簇共享 y 范围
+                    # funclu_v4 风格：每簇一张 4x3 图，且跨簇共享 y 范围。
+                    # pyplot 在这里局部导入而非模块级：避免在页面入口新增
+                    # matplotlib 的模块级导入边（并发加载时易与 idopnetwork.*
+                    # 形成相反顺序的导入竞争）。
+                    import matplotlib.pyplot as plt
+
                     for _fig in plot_cluster_profiles_per_cluster(
                         **_profile_kwargs, show_in_streamlit=True,
                     ):
