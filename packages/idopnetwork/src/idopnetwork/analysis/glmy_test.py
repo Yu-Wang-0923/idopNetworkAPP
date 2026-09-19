@@ -66,7 +66,14 @@ def load_m3_dataframe(csv_path: Path | str | None = None) -> pd.DataFrame:
     ValueError
         缺少必需列、或清洗后没有任何有效数据行。
     """
-    path = Path(csv_path) if csv_path is not None else DEFAULT_M3_CSV
+    resolved = csv_path if csv_path is not None else DEFAULT_M3_CSV
+    if resolved is None:
+        raise FileNotFoundError(
+            "未设置 M3 CSV 路径：应用层需注入 DEFAULT_M3_CSV，或显式传入 csv_path。"
+        )
+    # 应用层注入的是 str（utils.py 用 str(files(...)) 赋值），这里统一转 Path，
+    # 否则 path.exists() 会 AttributeError。
+    path = Path(resolved)
     if not path.exists():
         raise FileNotFoundError(f"找不到 M3 CSV: {path}")
 

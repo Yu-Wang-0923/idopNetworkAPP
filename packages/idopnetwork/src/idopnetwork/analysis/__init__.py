@@ -3,10 +3,14 @@ from idopnetwork.analysis.network_analysis import (
     member_display_label,
     load_from_to_from_zip,
     run_glmy,
+    run_glmy_split,
     suggest_max_x,
     sanitize_name,
 )
-from idopnetwork.analysis.plot_analysis import plot_glmy_barcode
+from idopnetwork.analysis.plot_analysis import (
+    plot_glmy_barcode,
+    plot_glmy_barcode_split,
+)
 from idopnetwork.analysis.glmy_test import (
     DEFAULT_DIM as M3_DEFAULT_DIM,
     DEFAULT_M3_CSV,

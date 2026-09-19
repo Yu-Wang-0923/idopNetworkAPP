@@ -16,7 +16,11 @@ import pandas as pd
 from idopnetwork.analysis.glmy import (
     DEFAULT_DIMENSION,
     DEFAULT_WEIGHT_OFFSET,
+    build_weighted_digraph,
     compute_glmy_homology,
+    compute_glmy_homology_split,
+    normalize_network,
+    vertex_id_map,
 )
 
 
@@ -74,36 +78,74 @@ def run_glmy(
     from_to_df: pd.DataFrame,
     *,
     dim: int = DEFAULT_DIMENSION,
-    weight_offset: float = DEFAULT_WEIGHT_OFFSET,
+    weight_offset: float | None = DEFAULT_WEIGHT_OFFSET,
 ) -> dict[str, Any]:
     """Compute GLMY/path homology with the bundled Python implementation.
 
     Parameters
     ----------
     from_to_df:
-        DataFrame containing ``from``, ``to`` and ``weight`` columns.
+        边表，接受 ``from`` / ``to`` / ``weight``（页面导出的 from_to.csv）
+        或 ``source`` / ``target`` / ``weight``（上游脚本）。
     dim:
-        Compute homology dimensions ``0`` through ``dim - 1``.
+        透传给 ``Digraph`` 的维度（默认 5，多算一维以保证 3 维结果正确）；
+        返回的维度固定为 β₃…β₀ 四个。
     weight_offset:
-        Legacy GLMY shift: internally uses ``weight + weight_offset``, then
-        subtracts it from barcode endpoints (except ``-1``).
+        加到每条边权上的数值偏移，仅用于滤波数值分离，**不是**归一化。
+        为 ``None``（默认）时自动取 ``max(0, 1 - min(weight))``。
 
     Returns
     -------
     dict
-        Structure consumed by ``pages/4_NetAnal.py`` and
-        ``plot_glmy_barcode``.
+        ``homology`` 为 ``{dim: [[birth, death], ...]}``，无穷区间用 ``None``；
+        ``weight_offset`` 是本轮**实际**使用的偏移（自动模式下为推算值）。
     """
-    homology, vertex_id_map = compute_glmy_homology(
-        from_to_df,
-        dim=dim,
-        weight_offset=weight_offset,
+    clean = normalize_network(from_to_df)
+
+    # 先把偏移解析出来（None → 自动值），这样返回给页面的就是实际用的数字
+    _, _, resolved_offset = build_weighted_digraph(clean, weight_offset)
+
+    homology = compute_glmy_homology(
+        clean,
+        resolved_offset,
+        dimension=dim,
     )
     return {
         "homology": homology,
-        "vertex_id_map": vertex_id_map,
+        "vertex_id_map": vertex_id_map(clean),
         "dimension": dim,
-        "weight_offset": weight_offset,
+        "weight_offset": resolved_offset,
+        "backend": "python",
+    }
+
+
+def run_glmy_split(
+    from_to_df: pd.DataFrame,
+    *,
+    dim: int = DEFAULT_DIMENSION,
+) -> dict[str, Any]:
+    """分别对正权与负权子图计算 homology（新版正负拆分视图用）。
+
+    Returns
+    -------
+    dict
+        ``homologies`` 为 ``{"positive": Homology, "negative": Homology}``；
+        另附 ``edge_counts`` 便于页面显示两侧各用了多少条边。
+    """
+    clean = normalize_network(from_to_df)
+    homologies = compute_glmy_homology_split(clean, dimension=dim)
+
+    positive_count = int((clean["weight"] > 0).sum())
+    negative_count = int((clean["weight"] < 0).sum())
+
+    return {
+        "homologies": homologies,
+        "edge_counts": {
+            "positive": positive_count,
+            "negative": negative_count,
+        },
+        "dimension": dim,
+        "weight_offset": 0.0,
         "backend": "python",
     }
 
