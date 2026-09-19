@@ -150,6 +150,46 @@ def test_intercept_is_window_start_value():
         assert intercept[lead] == pytest.approx(float(np.mean(starts)), abs=1e-9)
 
 
+def test_network_observation_aligns_with_prediction_grid():
+    """观测必须与预测/效应落在同一网格 —— 否则两张图会整体错位。
+
+    回归：动态模式下曾把完整时间序列（如 1000 点 / 0~10 s）直接当观测，
+    而预测只有 250 点 / 0~2.5 s，观测散点铺满横轴、预测被挤在左侧。
+    """
+    data = _ecg_like(n_timepoints=1000)
+    network = fit_dynamic_idop_network(
+        data, data, max_order=2, n_fourier=5, window=250,
+        lasso_alpha=0.05, lasso_windows=5, lasso_threshold=0.3,
+    )
+
+    observed = network["quasi_dynamic_df"]
+    predicted = network["predicted_df"]
+    effects = network["effect_df_list"]
+
+    assert len(observed) == len(predicted) == 250
+    assert observed.index.equals(predicted.index)
+    assert all(observed.index.equals(effect.index) for effect in effects)
+    assert list(observed.columns) == LEADS
+
+
+def test_observed_is_window_averaged_absolute_signal():
+    """观测必须是「各窗口绝对信号的跨窗均值」，与 predict 同尺度。"""
+    data = _ecg_like(n_timepoints=1000)
+    model = DynamicIDOPRegressor(
+        n_fourier=5, r_legendre=2, window=250, fs=100.0,
+        lasso_alpha=0.05, lasso_windows=5, lasso_threshold=0.3,
+    )
+    model.fit(data)
+    observed = model.observed()
+
+    window, n_windows = 250, 4
+    windowed = data.to_numpy(dtype=float)[: window * n_windows].reshape(
+        n_windows, window, -1
+    )
+    expected = windowed.mean(axis=(0, 1))
+    assert np.allclose(observed.to_numpy(dtype=float).mean(axis=0), expected, atol=1e-9)
+
+
 def test_dynamic_selector_uses_idopecg_convention():
     """动态流程的选边器必须不标准化 y（对齐 idopECG.edge_select）。"""
     data = _ecg_like(n_timepoints=1000)

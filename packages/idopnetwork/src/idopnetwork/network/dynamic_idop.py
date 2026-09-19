@@ -476,6 +476,26 @@ class DynamicIDOPRegressor:
             columns[lead] = self._intercepts[j] + core["avg_self"][lead] + cross
         return pd.DataFrame(columns, index=pd.Index(t_win, name="time"))
 
+    def observed(self) -> pd.DataFrame:
+        """窗口对齐的**绝对**观测，用于和 :meth:`predict` 叠在同一张图上。
+
+        ``avg_obs`` 是居中量 ``mean_w(x_w(t) − x(0)_w)``，加回 ``avg_x0``
+        （各窗起点 x(0) 的跨窗均值）后即为 ``mean_w(x_w(t))`` ——
+        各窗口绝对信号的跨窗均值，与 predict / effect **同网格、同尺度**。
+
+        注意：完整时间序列（如 1000 点 / 0~10 s）并不在这个网格上；窗口平均是
+        idopECG 的既定口径（跨心搏相位平均，避免相位混叠）。把整条原始波形直接
+        和窗口网格的预测画在一起会因横轴范围不同而完全错位。
+        """
+        if self._core is None:
+            raise RuntimeError("call fit before observed")
+        core = self._core
+        columns = {
+            lead: core["avg_x0"][lead] + core["avg_obs"][lead]
+            for lead in core["leads"]
+        }
+        return pd.DataFrame(columns, index=pd.Index(core["t_win"], name="time"))
+
     def effect(self, power_function_sample_df: pd.DataFrame | None = None) -> list[pd.DataFrame]:
         """每个 target 一个 DataFrame：index = 窗口网格，columns = 全部通道。
 
@@ -546,6 +566,10 @@ def fit_dynamic_idop_network(
     """按页面 ``_fit_idop_network_from_curve_sample`` 的约定产出 network 字典。
 
     与静态路线一样返回 9 个键，因此下游导出、效应分解、绘图都无需分支。
+
+    ``response_df`` 仅为接口兼容而保留：动态流程的观测取自模型内部跨窗平均的
+    **窗口对齐绝对观测**（见 :meth:`DynamicIDOPRegressor.observed`），因为完整时间
+    序列与窗口网格的预测不在同一横轴上，直接混用会让两张图整体错位。
     """
     from idopnetwork.network.construction import align_response_to_design
 
@@ -564,9 +588,10 @@ def fit_dynamic_idop_network(
     model.fit(curve_sample_df)
 
     design_X = model._design()
-    response = (
-        response_df if response_df is not None else curve_sample_df
-    )
+    # 关键：观测必须与 predict / effect 落在同一网格（窗口时间网格）上。
+    # 若直接放原始完整时间序列（如 1000 点 / 0~10 s），而预测只有 250 点 /
+    # 0~2.5 s，Fitting-vs-Prediction 与 Effect Decomposition 两张图会整体错位。
+    response = model.observed()
     return {
         "model": model,
         "quasi_dynamic_df": response,
