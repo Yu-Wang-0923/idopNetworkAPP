@@ -9,3 +9,4 @@ from idopnetwork.curve_fitting.fitting import (
     get_quasi_dynamic_df,
     load_csv,
 )
+from idopnetwork.curve_fitting.dynamic import swt_denoise

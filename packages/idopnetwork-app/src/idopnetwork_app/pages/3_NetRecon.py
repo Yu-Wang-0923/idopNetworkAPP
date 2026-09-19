@@ -24,14 +24,22 @@ from idopnetwork.network.construction import (
     polynomial_basis_expansion,
 )
 from idopnetwork.network.static_idop import StaticIDOPRegressor
+from idopnetwork.network.dynamic_idop import DynamicIDOPRegressor
 
 IDOP_ALGORITHM_ASGL = "asgl"
 IDOP_ALGORITHM_STATIC = "static_idop"
+IDOP_ALGORITHM_DYNAMIC = "dynamic_idop"
 
 IDOP_ALGORITHM_LABELS = {
     IDOP_ALGORITHM_ASGL: "ASGL + BIC（默认）",
-    IDOP_ALGORITHM_STATIC: "LASSO + ODE（新版静态 idop）",
+    IDOP_ALGORITHM_STATIC: "LASSO + ODE（静态 idop）",
+    IDOP_ALGORITHM_DYNAMIC: "Fourier + Legendre（动态 idop / ECG）",
 }
+
+# 动态求解器的默认值（2.5 s 窗口 @ 100 Hz = 250 点）
+DYNAMIC_DEFAULT_FS = 100.0
+DYNAMIC_DEFAULT_WINDOW = 250
+DYNAMIC_DEFAULT_N_FOURIER = 30
 
 
 def _make_idop_model(
@@ -43,20 +51,35 @@ def _make_idop_model(
     lasso_alpha: float = 0.1,
     lasso_windows: int = 1,
     lasso_threshold: float = 0.5,
+    n_fourier: int = DYNAMIC_DEFAULT_N_FOURIER,
+    dynamic_window: int = DYNAMIC_DEFAULT_WINDOW,
+    dynamic_fs: float = DYNAMIC_DEFAULT_FS,
 ):
     """按所选算法构造建网模型。
 
-    两条路线**共用同一套求解流程**（基函数、cvxpy 约束分解、效应约束校验、
-    ``max_order`` 的 BIC 网格都由 :class:`IDOPRegressor` 提供），差别只在
-    **交叉边选边器**：
+    三条路线：
 
-    - ``asgl``：仓库原有选边器——在**基函数列**上沿 alpha 路径跑单次 LASSO，
-      取第一个非零解，再按组打分做 Top-K；
-    - ``static_idop``：新版选边器——在**原始拟动态数据**上跑多窗口 LASSO，
-      按**出现频率**过阈值入选。
-
-    因此两条路线的预测曲线、效应分解、邻接矩阵形态一致，唯一差别来自支撑集。
+    - ``asgl``：仓库原有路线（基函数列上沿 alpha 路径的单次 LASSO + cvxpy 约束
+      分解 + max_order 的 BIC 网格）；
+    - ``static_idop``：与 ``asgl`` **共用同一套求解流程**，只把交叉边选边器换成
+      原始数据上的多窗口 LASSO（频率阈值）；
+    - ``dynamic_idop``：动态数据路线 —— 自效应用积分 **Fourier** 基、交叉效应用
+      **Legendre** 基，按窗口做**两阶段正交化最小二乘**（无 cvxpy），跨窗平均。
+      适用于「曲线拟合」页 Dynamic 模式输出的 SWT 去噪波形。
     """
+    if str(algorithm) == IDOP_ALGORITHM_DYNAMIC:
+        return DynamicIDOPRegressor(
+            n_fourier=int(n_fourier),
+            r_legendre=int(max_order),
+            window=int(dynamic_window),
+            fs=float(dynamic_fs),
+            lasso_alpha=float(lasso_alpha),
+            lasso_windows=int(lasso_windows),
+            lasso_threshold=float(lasso_threshold),
+            mix=0.5,
+            nonneg_self=bool(nonneg_self),
+            max_interactions=int(max_interactions),
+        )
     if str(algorithm) == IDOP_ALGORITHM_STATIC:
         return StaticIDOPRegressor(
             max_order=int(max_order),
@@ -294,6 +317,9 @@ def _fit_idop_network_from_curve_sample(
     lasso_alpha: float = 0.1,
     lasso_windows: int = 1,
     lasso_threshold: float = 0.5,
+    n_fourier: int = DYNAMIC_DEFAULT_N_FOURIER,
+    dynamic_window: int = DYNAMIC_DEFAULT_WINDOW,
+    dynamic_fs: float = DYNAMIC_DEFAULT_FS,
 ) -> dict:
     """复用单层 IdopNetwork 流程：curve_sample 做设计矩阵，response_df 做响应。"""
     if curve_sample_df.shape[1] < 2:
@@ -308,6 +334,9 @@ def _fit_idop_network_from_curve_sample(
         lasso_alpha=float(lasso_alpha),
         lasso_windows=int(lasso_windows),
         lasso_threshold=float(lasso_threshold),
+        n_fourier=int(n_fourier),
+        dynamic_window=int(dynamic_window),
+        dynamic_fs=float(dynamic_fs),
     )
     model.fit(
         curve_sample_df,
@@ -654,18 +683,23 @@ with tab1:
             with st.expander("IdopNetwork parameter settings", expanded=True):
                 idop_algorithm = st.radio(
                     "建网算法 / Construction algorithm",
-                    options=[IDOP_ALGORITHM_ASGL, IDOP_ALGORITHM_STATIC],
+                    options=[
+                        IDOP_ALGORITHM_ASGL,
+                        IDOP_ALGORITHM_STATIC,
+                        IDOP_ALGORITHM_DYNAMIC,
+                    ],
                     format_func=lambda key: IDOP_ALGORITHM_LABELS.get(key, key),
                     horizontal=True,
                     key="netrecon_idop_algorithm",
                     help=(
-                        "两条路线**共用同一套求解流程**（基函数、cvxpy 约束分解、"
-                        "效应约束校验、max_order 的 BIC 网格），差别只在**交叉边选边器**：\n\n"
-                        "• ASGL + BIC：在**基函数列**上沿 alpha 路径跑单次 LASSO，"
-                        "取第一个非零解，再按组打分做 Top-K。\n"
-                        "• LASSO + ODE：在**原始拟动态数据**上跑多窗口 LASSO，"
-                        "按**出现频率**过阈值入选。\n\n"
-                        "因此预测曲线与效应分解的形态保持一致，唯一差别来自支撑集。"
+                        "• ASGL + BIC：仓库原有路线（基函数列上沿 alpha 路径的单次 "
+                        "LASSO + cvxpy 约束分解 + max_order 的 BIC 网格）。\n"
+                        "• LASSO + ODE：与上一条**共用同一套求解流程**，只把交叉边选边器"
+                        "换成原始数据上的多窗口 LASSO（频率阈值）——仅仅支撑集不同。\n"
+                        "• Fourier + Legendre：动态数据路线，自效应用积分 Fourier 基、"
+                        "交叉效应用 Legendre 基，按窗口做两阶段正交化最小二乘"
+                        "（无 cvxpy），跨窗平均。适用于「曲线拟合」页 Dynamic 模式"
+                        "（SWT 去噪）产出的波形。"
                     ),
                 )
                 with st.form(key="netrecon_form_single"):
@@ -735,8 +769,80 @@ with tab1:
                                 key="netrecon_lasso_threshold",
                                 help="source 需在超过该比例的窗口中非零，才进入该 target 的支撑集。",
                             )
+                        n_fourier = DYNAMIC_DEFAULT_N_FOURIER
+                        dynamic_window = DYNAMIC_DEFAULT_WINDOW
+                        dynamic_fs = DYNAMIC_DEFAULT_FS
+                    elif idop_algorithm == IDOP_ALGORITHM_DYNAMIC:
+                        st.markdown("**动态数据（Fourier 自效应 / Legendre 交叉）参数**")
+                        dyn_c1, dyn_c2, dyn_c3 = st.columns(3)
+                        with dyn_c1:
+                            n_fourier = st.number_input(
+                                "Fourier 谐波阶数",
+                                min_value=1,
+                                max_value=200,
+                                value=DYNAMIC_DEFAULT_N_FOURIER,
+                                step=1,
+                                key="netrecon_dyn_n_fourier",
+                                help="自效应的积分 Fourier 基谐波数（每源 2N+1 列）。",
+                            )
+                        with dyn_c2:
+                            dynamic_window = st.number_input(
+                                "窗口点数 (window)",
+                                min_value=8,
+                                max_value=5000,
+                                value=DYNAMIC_DEFAULT_WINDOW,
+                                step=10,
+                                key="netrecon_dyn_window",
+                                help="切窗长度（采样点数）；2.5 s @ 100 Hz = 250。",
+                            )
+                        with dyn_c3:
+                            dynamic_fs = st.number_input(
+                                "采样率 (Hz)",
+                                min_value=1.0,
+                                max_value=10000.0,
+                                value=DYNAMIC_DEFAULT_FS,
+                                step=1.0,
+                                key="netrecon_dyn_fs",
+                                help="用于把窗口点数换算成秒（t_end = window / fs）。",
+                            )
+                        st.markdown("**动态选边器（多窗口 LASSO）**")
+                        dynl_c1, dynl_c2, dynl_c3 = st.columns(3)
+                        with dynl_c1:
+                            lasso_alpha = st.number_input(
+                                "LASSO alpha",
+                                min_value=1e-6,
+                                value=0.01,
+                                step=0.005,
+                                format="%.4f",
+                                key="netrecon_dyn_lasso_alpha",
+                                help="LASSO 正则强度；越大选出的边越少。",
+                            )
+                        with dynl_c2:
+                            lasso_windows = st.number_input(
+                                "LASSO windows (k)",
+                                min_value=1,
+                                max_value=200,
+                                value=10,
+                                step=1,
+                                key="netrecon_dyn_lasso_k",
+                                help="把时间序列切成多少个窗口分别做 LASSO。",
+                            )
+                        with dynl_c3:
+                            lasso_threshold = st.number_input(
+                                "Support threshold",
+                                min_value=0.0,
+                                max_value=1.0,
+                                value=0.4,
+                                step=0.05,
+                                format="%.2f",
+                                key="netrecon_dyn_lasso_threshold",
+                                help="source 需在超过该比例的窗口中非零，才进入支撑集。",
+                            )
                     else:
                         lasso_alpha, lasso_windows, lasso_threshold = 0.1, 1, 0.5
+                        n_fourier = DYNAMIC_DEFAULT_N_FOURIER
+                        dynamic_window = DYNAMIC_DEFAULT_WINDOW
+                        dynamic_fs = DYNAMIC_DEFAULT_FS
 
                     submit_run = st.form_submit_button("Run IdopNetwork")
 
@@ -766,6 +872,9 @@ with tab1:
                             lasso_alpha=float(lasso_alpha),
                             lasso_windows=int(lasso_windows),
                             lasso_threshold=float(lasso_threshold),
+                            n_fourier=int(n_fourier),
+                            dynamic_window=int(dynamic_window),
+                            dynamic_fs=float(dynamic_fs),
                         )
 
                         progress_bar.progress(35, text="Fitting model and enforcing effect constraints...")
@@ -1203,6 +1312,20 @@ with tab2:
                     ),
                     "lasso_threshold": float(
                         st.session_state.get("netrecon_lasso_threshold", 0.5)
+                    ),
+                    # 动态求解器参数（同为单层表单里的 widget）
+                    "n_fourier": int(
+                        st.session_state.get(
+                            "netrecon_dyn_n_fourier", DYNAMIC_DEFAULT_N_FOURIER
+                        )
+                    ),
+                    "dynamic_window": int(
+                        st.session_state.get(
+                            "netrecon_dyn_window", DYNAMIC_DEFAULT_WINDOW
+                        )
+                    ),
+                    "dynamic_fs": float(
+                        st.session_state.get("netrecon_dyn_fs", DYNAMIC_DEFAULT_FS)
                     ),
                 }
                 inter_cluster: dict[str, dict] = {}

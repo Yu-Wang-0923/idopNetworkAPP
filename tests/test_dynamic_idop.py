@@ -1,0 +1,201 @@
+"""动态数据版建网（SWT 去噪 + Fourier/Legendre 两阶段最小二乘）回归测试。"""
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from idopnetwork.curve_fitting.dynamic import swt_denoise
+from idopnetwork.network.dynamic_idop import (
+    DynamicIDOPRegressor,
+    fit_dynamic_idop_network,
+    solve_dynamic_core,
+)
+from idopnetwork.network.static_idop import select_edges_lasso
+
+LEADS = ["I", "II", "III", "aVR", "aVL", "aVF",
+         "V1", "V2", "V3", "V4", "V5", "V6"]
+
+
+def _ecg_like(n_timepoints: int = 1000, seed: int = 5) -> pd.DataFrame:
+    """构造带耦合的 12 导联类 ECG 信号。"""
+    rng = np.random.default_rng(seed)
+    t = np.arange(n_timepoints) / 100.0
+    base = np.sin(2 * np.pi * 1.2 * t) + 0.4 * np.sin(2 * np.pi * 4.0 * t)
+    columns = {}
+    for index, lead in enumerate(LEADS):
+        coupling = 0.5 if index % 3 == 0 else (-0.3 if index % 3 == 1 else 0.15)
+        columns[lead] = (
+            (1.0 + coupling) * base
+            + 0.2 * np.roll(base, 7 + index)
+            + rng.normal(0.0, 0.05, size=n_timepoints)
+        )
+    return pd.DataFrame(columns, index=t)
+
+
+def _noisy_ecg(n_timepoints: int = 1000, seed: int = 5) -> pd.DataFrame:
+    clean = _ecg_like(n_timepoints, seed)
+    rng = np.random.default_rng(seed + 100)
+    noise = rng.normal(0.0, 0.25, size=clean.shape)
+    return clean + pd.DataFrame(noise, index=clean.index, columns=clean.columns)
+
+
+# ── SWT 去噪 ─────────────────────────────────────────────────────────────────
+
+def test_swt_denoise_preserves_shape_and_index():
+    data = _noisy_ecg()
+    fitted, params = swt_denoise(data)
+    assert fitted.shape == data.shape
+    assert fitted.index.equals(data.index)
+    assert list(fitted.columns) == list(data.columns)
+    assert list(params.index) == list(data.columns)
+    assert {"wavelet", "level", "sigma", "threshold", "denoised"} <= set(params.columns)
+
+
+def test_swt_denoise_reduces_noise():
+    clean = _ecg_like()
+    noisy = _noisy_ecg()
+    fitted, _ = swt_denoise(noisy)
+    err_noisy = float(np.mean((noisy.to_numpy() - clean.to_numpy()) ** 2))
+    err_fitted = float(np.mean((fitted.to_numpy() - clean.to_numpy()) ** 2))
+    assert err_fitted < err_noisy
+
+
+def test_swt_denoise_handles_constant_channel():
+    data = _noisy_ecg()
+    data["flat"] = 0.0
+    fitted, params = swt_denoise(data)
+    assert np.allclose(fitted["flat"].to_numpy(), 0.0)
+    assert bool(params.loc["flat", "denoised"]) is False
+
+
+# ── 求解内核 ─────────────────────────────────────────────────────────────────
+
+def test_solve_dynamic_core_shapes_and_windows():
+    data = _ecg_like(n_timepoints=1000)
+    supports = select_edges_lasso(data, alpha=0.05, k=5, threshold=0.3)
+    core = solve_dynamic_core(data, supports, n_fourier=5, r_legendre=2, window=250)
+
+    assert core["leads"] == LEADS
+    assert core["n_windows"] == 4
+    assert len(core["t_win"]) == 250
+    assert core["t_end"] == pytest.approx(2.5)
+    for lead in LEADS:
+        assert core["avg_self"][lead].shape == (250,)
+        assert core["avg_obs"][lead].shape == (250,)
+        assert 0.0 <= core["r2_mean"][lead] <= 1.0
+
+
+def test_solve_dynamic_core_rejects_short_series():
+    data = _ecg_like(n_timepoints=100)
+    supports = select_edges_lasso(data, alpha=0.05, k=2, threshold=0.3)
+    with pytest.raises(ValueError):
+        solve_dynamic_core(data, supports, window=250)
+
+
+# ── 适配器 ───────────────────────────────────────────────────────────────────
+
+def _fitted_model() -> DynamicIDOPRegressor:
+    model = DynamicIDOPRegressor(
+        n_fourier=5, r_legendre=2, window=250, fs=100.0,
+        lasso_alpha=0.05, lasso_windows=5, lasso_threshold=0.3,
+    )
+    model.fit(_ecg_like(n_timepoints=1000))
+    return model
+
+
+def test_effect_layout_matches_regressor_contract():
+    model = _fitted_model()
+    effects = model.effect()
+    assert len(effects) == len(LEADS)
+    for effect in effects:
+        assert list(effect.columns) == LEADS
+        assert len(effect) == 250
+
+
+def test_effect_identity_holds():
+    """intercept + Σ effects == predicted（与静态路线同一口径）。"""
+    model = _fitted_model()
+    effects = model.effect()
+    predicted = model.predict().to_numpy(dtype=float)
+    intercept = model.coef_.loc["intercept"].to_numpy(dtype=float)
+    total = np.column_stack([
+        intercept[j] + sum(effects[j][c].to_numpy(dtype=float) for c in effects[j].columns)
+        for j in range(len(effects))
+    ])
+    assert np.allclose(total, predicted, atol=1e-8)
+
+
+def test_adjacency_matches_effect_means():
+    model = _fitted_model()
+    adj = model.adjacency_matrix(aggregation="mean")
+    effects = model.effect()
+    assert list(adj.index) == LEADS
+    assert list(adj.columns) == LEADS
+    for target_index, target in enumerate(LEADS):
+        for source in LEADS:
+            if source == target:
+                continue
+            assert adj.loc[source, target] == pytest.approx(
+                float(effects[target_index][source].mean()), abs=1e-9
+            )
+
+
+def test_export_attributes_present():
+    model = _fitted_model()
+    assert isinstance(model.max_order, int)
+    assert isinstance(model.alpha, float)
+    assert isinstance(model.mse_, float) and np.isfinite(model.mse_)
+    assert list(model.coef_.loc["intercept"].index) == LEADS
+
+
+def test_fit_dynamic_idop_network_matches_page_contract():
+    network = fit_dynamic_idop_network(
+        _ecg_like(n_timepoints=1000),
+        max_order=2, n_fourier=5, window=250,
+        lasso_alpha=0.05, lasso_windows=5, lasso_threshold=0.3,
+    )
+    assert set(network) == {
+        "model", "quasi_dynamic_df", "curve_sample_df", "design_X",
+        "response_Y", "predicted_df", "effect_df_list", "adj_df",
+        "adjacency_aggregation",
+    }
+    assert list(network["adj_df"].index) == LEADS
+    assert network["predicted_df"].shape == (250, len(LEADS))
+    assert len(network["effect_df_list"]) == len(LEADS)
+    assert isinstance(network["model"], DynamicIDOPRegressor)
+
+
+# ── 上传工作流（曲线拟合页的 dynamic 分支） ───────────────────────────────────
+
+def test_fit_uploaded_csv_dynamic_mode_keeps_three_table_contract():
+    """dynamic 模式必须仍返回三表（FunClu / NetRecon 的 ZIP 读取依赖它）。"""
+    from idopnetwork_app.curve_fitting_workflow import (
+        DATA_MODE_DYNAMIC,
+        fit_uploaded_csv,
+    )
+
+    data = _noisy_ecg(n_timepoints=512)
+    result = fit_uploaded_csv(
+        data.to_csv().encode(), data_mode=DATA_MODE_DYNAMIC, swt_level=2,
+    )
+    assert set(result) == {"quasi_dynamic", "curve_params", "curve_sample"}
+    assert result["quasi_dynamic"].shape == data.shape
+    assert result["curve_sample"].shape == data.shape
+    assert list(result["curve_params"].columns)[:1] == ["wavelet"]
+
+
+def test_fit_uploaded_csv_quasi_mode_still_works():
+    from idopnetwork_app.curve_fitting_workflow import (
+        DATA_MODE_QUASI,
+        fit_uploaded_csv,
+    )
+
+    rng = np.random.default_rng(3)
+    static = pd.DataFrame(
+        rng.lognormal(0.0, 0.4, size=(40, 5)),
+        columns=[f"M{i}" for i in range(5)],
+    )
+    result = fit_uploaded_csv(static.to_csv().encode(), data_mode=DATA_MODE_QUASI)
+    assert set(result) == {"quasi_dynamic", "curve_params", "curve_sample"}
+    # 仓库的幂律拟合返回 c / beta（另有 a / b 等派生列）
+    assert {"c", "beta"} <= set(result["curve_params"].columns)

@@ -3,6 +3,7 @@
 numpy
 pandas
 scipy
+PyWavelets
 scikit-learn
 matplotlib
 streamlit

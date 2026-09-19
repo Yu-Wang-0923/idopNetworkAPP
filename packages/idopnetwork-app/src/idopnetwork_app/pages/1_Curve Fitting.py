@@ -7,7 +7,13 @@ import numpy as np
 import streamlit as st
 
 from idopnetwork.curve_fitting.plot import plot_curve_fitting, plot_curve_fitting_compare
-from idopnetwork_app.curve_fitting_workflow import fit_uploaded_csv, build_fitting_export
+from idopnetwork_app.curve_fitting_workflow import (
+    DATA_MODE_DYNAMIC,
+    DATA_MODE_LABELS,
+    DATA_MODE_QUASI,
+    build_fitting_export,
+    fit_uploaded_csv,
+)
 from idopnetwork_app.utils import load_css, setup_sidebar
 
 _ICON = str(files("idopnetwork_app.static.images") / "TSA.png")
@@ -40,31 +46,81 @@ if len(names) != len(set(names)):
     st.error("上传文件名不能重复，请重命名后重试。")
     st.stop()
 
-signature = tuple((file.name, sha256(file.getvalue()).hexdigest()) for file in uploaded)
+data_mode = st.radio(
+    "数据类型 / Data type",
+    options=[DATA_MODE_QUASI, DATA_MODE_DYNAMIC],
+    format_func=lambda key: DATA_MODE_LABELS.get(key, key),
+    horizontal=True,
+    key="fit_data_mode",
+    help=(
+        "• Quasi-dynamic：静态数据 → 列变换 → 按行和排序成拟动态序列 → 幂律拟合。\n"
+        "• Dynamic：时间序列（如 12 导联 ECG）→ 逐通道 SWT 平稳小波软阈值去噪。"
+        "去噪后的波形可直接用于建网页的「Fourier + Legendre（动态 idop）」算法。"
+    ),
+)
+
+signature = (data_mode,) + tuple(
+    (file.name, sha256(file.getvalue()).hexdigest()) for file in uploaded
+)
 previous = st.session_state.get("curve_fitting_run_v4")
 if previous is not None and previous["signature"] != signature:
     st.session_state.pop("curve_fitting_run_v4", None)
 
 with st.form("curve_fitting_parameters"):
-    st.markdown("**Fitting parameters**")
-    left, right = st.columns(2)
-    methods = ["None", "Z_min_add1", "Log10_1p", "Minmax_0_1"]
-    first_transform = left.selectbox("First transform", methods, index=1,
-                                     key="fit_first_transform")
-    second_transform = right.selectbox("Second transform", methods, index=2,
-                                        key="fit_second_transform")
-    n_samples = left.number_input("Sample points", min_value=2, max_value=10000,
-                                  value=30, step=1, key="fit_n_samples")
-    trim_percent = right.number_input("Remove first rows (%)", min_value=0.0,
-                                       max_value=99.0, value=1.0, step=0.5,
-                                       key="fit_trim_percent")
-    st.caption("Transforms run in order; None skips a step. Z_min_add1 shifts each column to a minimum of 1. "
-               "Rows are sorted by log1p of their sums, filtered to positive indices, then trimmed.")
+    if data_mode == DATA_MODE_DYNAMIC:
+        st.markdown("**SWT denoise parameters**")
+        swt_left, swt_mid, swt_right = st.columns(3)
+        swt_wavelet = swt_left.selectbox(
+            "Wavelet", ["rbio3.9", "db4", "sym8", "coif3", "bior3.9"],
+            index=0, key="fit_swt_wavelet",
+            help="SWT 小波基；ECG 常用 rbio3.9。",
+        )
+        swt_level = swt_mid.number_input(
+            "SWT level", min_value=1, max_value=10, value=2, step=1,
+            key="fit_swt_level",
+            help="分解层数上限；实际取 min(level, swt_max_level(N))。",
+        )
+        swt_alpha = swt_right.number_input(
+            "Threshold alpha", min_value=0.0, max_value=5.0, value=0.5,
+            step=0.05, format="%.2f", key="fit_swt_alpha",
+            help="阈值系数：threshold = alpha · sigma · sqrt(2 log N)，soft 阈值，"
+                 "sigma 由最细层细节系数的 MAD/0.6745 估计。",
+        )
+        st.caption(
+            "Dynamic 模式下导出沿用同一套三表契约，但含义为："
+            "quasi_dynamic = 原始波形，curve_sample = SWT 去噪后波形，"
+            "curve_params = 每个通道的小波/层数/sigma/阈值诊断。"
+        )
+        first_transform = "Z_min_add1"
+        second_transform = "Log10_1p"
+        n_samples = 30
+        trim_percent = 1.0
+    else:
+        st.markdown("**Fitting parameters**")
+        left, right = st.columns(2)
+        methods = ["None", "Z_min_add1", "Log10_1p", "Minmax_0_1"]
+        first_transform = left.selectbox("First transform", methods, index=1,
+                                         key="fit_first_transform")
+        second_transform = right.selectbox("Second transform", methods, index=2,
+                                            key="fit_second_transform")
+        n_samples = left.number_input("Sample points", min_value=2, max_value=10000,
+                                      value=30, step=1, key="fit_n_samples")
+        trim_percent = right.number_input("Remove first rows (%)", min_value=0.0,
+                                           max_value=99.0, value=1.0, step=0.5,
+                                           key="fit_trim_percent")
+        st.caption("Transforms run in order; None skips a step. Z_min_add1 shifts each column to a minimum of 1. "
+                   "Rows are sorted by log1p of their sums, filtered to positive indices, then trimmed.")
+        swt_wavelet, swt_level, swt_alpha = "rbio3.9", 2, 0.5
     submitted = st.form_submit_button("Run Fitting", type="primary")
 
 if submitted:
-    options = dict(first_transform=first_transform, second_transform=second_transform,
-                   n_samples=int(n_samples), trim_percent=float(trim_percent))
+    options = dict(
+        data_mode=data_mode,
+        first_transform=first_transform, second_transform=second_transform,
+        n_samples=int(n_samples), trim_percent=float(trim_percent),
+        swt_wavelet=str(swt_wavelet), swt_level=int(swt_level),
+        swt_alpha=float(swt_alpha),
+    )
     results, errors = {}, {}
     for file in uploaded:
         try:
@@ -86,9 +142,17 @@ results = run["results"]
 if not results:
     st.stop()
 used = run["options"]
-st.caption(f"Displayed results: {used['first_transform']} → {used['second_transform']}; "
-           f"{used['n_samples']} sample points; remove first {used['trim_percent']:g}%. "
-           "After changing parameters, click Run Fitting to update results.")
+if used.get("data_mode") == DATA_MODE_DYNAMIC:
+    st.caption(
+        f"Displayed results: Dynamic (SWT) — wavelet `{used.get('swt_wavelet')}`, "
+        f"level {used.get('swt_level')}, alpha {used.get('swt_alpha')}。"
+        "quasi_dynamic = 原始波形，curve_sample = 去噪波形。"
+        "After changing parameters, click Run Fitting to update results."
+    )
+else:
+    st.caption(f"Displayed results: {used['first_transform']} → {used['second_transform']}; "
+               f"{used['n_samples']} sample points; remove first {used['trim_percent']:g}%. "
+               "After changing parameters, click Run Fitting to update results.")
 
 if len(results) == len(uploaded):
     st.success(f"Fitting complete: {len(results)} file(s).")
@@ -104,10 +168,18 @@ selected = st.selectbox("Results for", list(results))
 result = results[selected]
 quasi, params, samples = (result[k] for k in ("quasi_dynamic", "curve_params", "curve_sample"))
 valid = np.isfinite(samples.to_numpy(float)).all(axis=0)
+is_dynamic = used.get("data_mode") == DATA_MODE_DYNAMIC
 cols = st.columns(3)
-cols[0].metric("Features fitted", f"{int(valid.sum())} / {len(valid)}")
-cols[1].metric("Quasi-dynamic rows", len(quasi))
-cols[2].metric("Sample points", len(samples))
+cols[0].metric(
+    "Features denoised" if is_dynamic else "Features fitted",
+    f"{int(valid.sum())} / {len(valid)}",
+)
+cols[1].metric(
+    "Time points" if is_dynamic else "Quasi-dynamic rows", len(quasi)
+)
+cols[2].metric(
+    "Annotated samples" if is_dynamic else "Sample points", len(samples)
+)
 if not valid.all():
     st.warning("Some features have insufficient positive observations. Their parameters and samples contain NaN and will be excluded from clustering.")
 
