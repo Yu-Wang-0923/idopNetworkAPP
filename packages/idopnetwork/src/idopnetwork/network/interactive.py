@@ -200,7 +200,11 @@ DEFAULT_LABEL_SCALE = 1.0
 
 DEFAULT_EDGE_SCALE = 1.0
 
-DEFAULT_EDGE_OPACITY = 0.35
+DEFAULT_EDGE_OPACITY = 1.0
+
+# 注意：边的高亮色用的是 min(1.0, edgeOpacity + 0.30)。默认取 1.0 时边已完全不透明，
+# 因此悬停不会再改变边的透明度——这是"已经完全不透明就没法再提亮"的固有限制，
+# 若需要明显的悬停反馈可把默认调低（例如 0.85）。
 
 DEFAULT_EDGE_PERCENTILE = 0
 
@@ -3149,7 +3153,7 @@ button:hover,
                 id="nodeScale"
                 type="range"
                 min="0.45"
-                max="2.20"
+                max="5.00"
                 step="0.05"
                 value="{DEFAULT_NODE_SCALE}"
             >
@@ -3172,7 +3176,7 @@ button:hover,
                 id="labelScale"
                 type="range"
                 min="0.40"
-                max="2.60"
+                max="6.00"
                 step="0.05"
                 value="{DEFAULT_LABEL_SCALE}"
             >
@@ -3195,7 +3199,7 @@ button:hover,
                 id="edgeScale"
                 type="range"
                 min="0.25"
-                max="3.50"
+                max="8.00"
                 step="0.05"
                 value="{DEFAULT_EDGE_SCALE}"
             >
