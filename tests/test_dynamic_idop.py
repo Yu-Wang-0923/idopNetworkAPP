@@ -89,7 +89,57 @@ def test_solve_dynamic_core_rejects_short_series():
     data = _ecg_like(n_timepoints=100)
     supports = select_edges_lasso(data, alpha=0.05, k=2, threshold=0.3)
     with pytest.raises(ValueError):
-        solve_dynamic_core(data, supports, window=250)
+        solve_dynamic_core(data, supports, window=250, auto_adapt=False)
+
+
+def test_solve_dynamic_core_auto_adapts_short_series():
+    """短序列（如误用准动态的 30 行采样）应自动缩小窗口而不是直接失败。"""
+    data = _ecg_like(n_timepoints=30)
+    supports = select_edges_lasso(data, alpha=0.05, k=2, threshold=0.3)
+    core = solve_dynamic_core(data, supports, n_fourier=30, window=250)
+
+    assert core["adapted"] is True
+    assert core["window"] == 30
+    assert core["n_windows"] == 1
+    assert len(core["t_win"]) == 30
+    # Fourier 基列数 2N+1 不得超过窗口的一半
+    assert 2 * core["n_fourier"] + 1 <= 30 // 2
+    assert core["notes"] and "Dynamic" in " ".join(core["notes"])
+
+
+def test_solver_surfaces_adaptation_notes():
+    model = DynamicIDOPRegressor(
+        n_fourier=30, r_legendre=2, window=250, fs=100.0,
+        lasso_alpha=0.05, lasso_windows=2, lasso_threshold=0.3,
+    )
+    model.fit(_ecg_like(n_timepoints=30))
+    assert model.adaptation_notes_
+    assert model.window == 30
+    # 适配之后仍应产出可用的效应曲线（长度 = 生效窗口）
+    effects = model.effect()
+    assert len(effects[0]) == 30
+
+
+def test_no_adaptation_note_for_full_length_series():
+    data = _ecg_like(n_timepoints=1000)
+    supports = select_edges_lasso(data, alpha=0.05, k=5, threshold=0.3)
+    core = solve_dynamic_core(data, supports, n_fourier=5, window=250)
+    assert core["adapted"] is False
+    assert core["window"] == 250
+    assert core["notes"] == []
+
+
+def test_over_complete_design_is_flagged_as_unreliable():
+    """设计列数超过窗口长度时必须给出"结果不可信"的警告，而不是静默跑通。"""
+    data = _ecg_like(n_timepoints=30)
+    supports = select_edges_lasso(data, alpha=0.05, k=2, threshold=0.2)
+    core = solve_dynamic_core(data, supports, n_fourier=30, window=250)
+    assert core["adapted"] is True
+    joined = " ".join(core["notes"])
+    assert "结果不可信" in joined
+    # 确实发生了完美插值（这是被警告的现象本身）
+    r2s = np.array([core["r2_mean"][lead] for lead in core["leads"]])
+    assert float(r2s.max()) > 0.999
 
 
 # ── 适配器 ───────────────────────────────────────────────────────────────────

@@ -885,6 +885,11 @@ with tab1:
                             power_function_params=power_function_params,
                         )
 
+                        # 动态求解器在数据过短时会自动适配窗口 / Fourier 阶数，
+                        # 这里把原因显式告知，避免"看起来跑通了但口径不对"。
+                        for _adapt_note in getattr(model, "adaptation_notes_", []) or []:
+                            st.warning(f"⚠️ {_adapt_note}")
+
                         progress_bar.progress(70, text="Generating prediction curves...")
                         log.write("Generating prediction curves...")
                         predicted_df = model.predict(curve_sample_df)

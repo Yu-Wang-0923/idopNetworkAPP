@@ -139,6 +139,7 @@ def solve_dynamic_core(
     r_legendre: int = DEFAULT_R_LEGENDRE,
     window: int = DEFAULT_WINDOW,
     fs: float = DEFAULT_FS,
+    auto_adapt: bool = True,
 ) -> dict:
     """动态数据的 ODE 求解内核（纯计算，不落盘不绘图）。
 
@@ -152,24 +153,57 @@ def solve_dynamic_core(
         自效应 Fourier 谐波阶数 / 交叉效应 Legendre 阶数。
     window / fs:
         窗口采样点数 / 采样率（决定窗口时长 ``window / fs`` 秒）。
+    auto_adapt:
+        数据点少于一个窗口（或 Fourier 阶数相对窗口过大）时是否自动缩小，
+        而不是直接报错。缩小的原因记录在返回值的 ``notes`` 中。
 
     Returns
     -------
     dict
         ``leads / support_sets / t_win / t_end / n_windows / n_edges /
         window_self / window_cross / window_r2 / window_beta_self /
-        avg_self / avg_cross / avg_obs / edge_rows / r2_mean``。
+        avg_self / avg_cross / avg_obs / edge_rows / r2_mean``，
+        以及实际生效的 ``window`` / ``n_fourier`` 与 ``adapted`` / ``notes``。
     """
     leads = [str(c) for c in data_fit.columns]
     x_all = data_fit[leads].to_numpy(dtype=float)
     n_samples = x_all.shape[0]
-    window = int(window)
-    if window < 2:
+
+    requested_window = int(window)
+    requested_n_fourier = int(n_fourier)
+    if requested_window < 2:
         raise ValueError("window 至少为 2。")
-    if n_samples < window:
-        raise ValueError(
-            f"时间点数 {n_samples} 少于一个窗口 {window}，无法切窗求解。"
+    if n_samples < 2:
+        raise ValueError("时间点数少于 2，无法求解。")
+
+    notes: list[str] = []
+
+    # 1) 窗口不能超过序列长度
+    if n_samples < requested_window:
+        if not auto_adapt:
+            raise ValueError(
+                f"时间点数 {n_samples} 少于一个窗口 {requested_window}，无法切窗求解。"
+            )
+        window = max(2, n_samples)
+        notes.append(
+            f"时间点数仅 {n_samples}，少于设定窗口 {requested_window}，"
+            f"已自动缩小为 {window}（只切成 1 个窗口）。"
+            "若这不是预期结果，请确认「曲线拟合」页选的是 **Dynamic** 模式、"
+            "且上传的是完整时间序列（而非准动态模式下幂律拟合的采样点）。"
         )
+    else:
+        window = requested_window
+
+    # 2) Fourier 基列数（2N+1）不应超过窗口长度的一半，否则最小二乘欠定
+    max_fourier = max(1, (window // 2 - 1) // 2)
+    if requested_n_fourier > max_fourier:
+        n_fourier = max_fourier
+        notes.append(
+            f"Fourier 阶数 {requested_n_fourier} 相对窗口 {window} 过大"
+            f"（基列数会超过窗口的一半），已自动降为 {n_fourier}。"
+        )
+    else:
+        n_fourier = requested_n_fourier
 
     t_win = np.arange(window) / float(fs)
     t_end = window / float(fs)
@@ -179,6 +213,19 @@ def solve_dynamic_core(
         for _, row in edge_supports.iterrows()
     }
     n_edges = sum(len(v) for v in support_sets.values())
+
+    # 设计列数达到/超过窗口长度时，无正则的两阶段最小二乘会**完美插值**：
+    # R² 接近 1、mse 接近 0，但效应分解没有统计意义。必须显式告知。
+    max_support = max((len(v) for v in support_sets.values()), default=0)
+    max_columns = (2 * n_fourier + 1) + max_support * (int(r_legendre) + 1)
+    if max_columns >= window:
+        notes.append(
+            f"⚠️ 结果不可信：最大设计列数为 {max_columns}（自效应 {2 * n_fourier + 1} 列"
+            f" + 交叉 {max_support} 源 × {int(r_legendre) + 1} 阶），已达到或超过窗口"
+            f"长度 {window}。无正则的最小二乘会完美插值（R²≈1、MSE≈0），但效应分解"
+            "没有统计意义。请改用 Dynamic 模式上传完整时间序列，或减小窗口内的"
+            "Fourier / Legendre 阶数。"
+        )
 
     n_windows = n_samples // window
     windows = [x_all[i * window:(i + 1) * window] for i in range(n_windows)]
@@ -254,6 +301,12 @@ def solve_dynamic_core(
         "avg_obs": avg_obs,
         "edge_rows": edge_rows,
         "r2_mean": r2_mean,
+        # 实际生效的基函数 / 窗口，以及自动适配说明
+        "window": window,
+        "n_fourier": n_fourier,
+        "r_legendre": int(r_legendre),
+        "adapted": bool(notes),
+        "notes": notes,
     }
 
 
@@ -312,6 +365,7 @@ class DynamicIDOPRegressor:
         self.edge_supports_: pd.DataFrame | None = None
         self._core: dict | None = None
         self._intercepts: np.ndarray | None = None
+        self.adaptation_notes_: list[str] = []
 
     def fit(
         self,
@@ -338,6 +392,10 @@ class DynamicIDOPRegressor:
             fs=self.fs,
         )
         self._core = core
+        # 实际生效的参数可能与设定不同（数据太短 / 阶数过大时自动适配）
+        self.n_fourier = int(core["n_fourier"])
+        self.window = int(core["window"])
+        self.adaptation_notes_ = list(core.get("notes", []))
         self._intercepts = np.array(
             [float(np.mean(core["avg_obs"][lead])) for lead in leads]
         )
