@@ -1,185 +1,216 @@
-"""静态数据版 idopNetwork（LASSO 选边 + cvxpy 弱形式 ODE）的回归测试。"""
+"""可选建网算法（新版选边器）的回归测试。
+
+重点覆盖：
+
+1. ``select_edges_lasso`` 的行为与参数校验；
+2. ``StaticIDOPRegressor`` 只换选边器——**效应分解、预测、邻接矩阵的格式与
+   仓库 ``IDOPRegressor`` 完全一致**，并且 ``intercept + Σ effects == predicted``；
+3. ``fit_static_idop_network`` 产出页面约定的 network 字典。
+"""
 
 import numpy as np
 import pandas as pd
 import pytest
 
+from idopnetwork.curve_fitting import get_power_function_params, get_power_function_sample
+from idopnetwork.network.construction import IDOPRegressor, _build_groups
 from idopnetwork.network.static_idop import (
-    StaticIDOPModel,
-    fit_power_params,
+    StaticIDOPRegressor,
     fit_static_idop_network,
-    sample_power_function,
     select_edges_lasso,
-    to_quasi_dynamic,
-    transform_static_data,
 )
 
 
-def _static_data(n_samples: int = 24, n_features: int = 4, seed: int = 3):
-    """构造一份有内部关联的静态数据（样本 × 特征）。"""
+def _static_data(n_samples: int = 26, n_features: int = 5, seed: int = 7):
     rng = np.random.default_rng(seed)
     base = rng.normal(0.0, 1.0, size=(n_samples, 1))
-    columns = {}
-    for index in range(n_features):
-        coupling = 0.6 if index % 2 else -0.4
-        columns[f"M{index}"] = (
-            base[:, 0] * coupling + rng.normal(0.0, 0.3, size=n_samples) + index + 2.0
-        )
     return pd.DataFrame(
-        columns, index=[f"s{i}" for i in range(n_samples)]
+        {
+            f"M{i}": base[:, 0] * (0.7 if i % 2 else -0.5)
+            + rng.normal(0.0, 0.25, size=n_samples) + i + 2.0
+            for i in range(n_features)
+        },
+        index=[f"s{i}" for i in range(n_samples)],
     ).clip(lower=0.05)
 
 
-def _network_inputs(n_samples: int = 24, n_features: int = 4):
+def _network_inputs(n_samples: int = 26, n_features: int = 5):
     static = _static_data(n_samples, n_features)
-    quasi = to_quasi_dynamic(static)
-    quasi.index = pd.Index(np.log1p(quasi.index.to_numpy(dtype=float)), name="quasi time")
+    row_sum = static.sum(axis=1)
+    order = np.argsort(row_sum.to_numpy(), kind="stable")
+    quasi = static.iloc[order].copy()
+    quasi.index = pd.Index(
+        np.log1p(row_sum.to_numpy(dtype=float)[order]), name="quasi time"
+    )
     quasi = quasi.iloc[int(0.05 * len(quasi)):]
-    params = fit_power_params(quasi)
-    samples = sample_power_function(params, quasi.index, n_samples=30)
-    return quasi, samples
+
+    params = get_power_function_params(quasi)
+    samples = get_power_function_sample(quasi, n_samples=30)
+    return quasi, samples, params
 
 
-# ── 变换 / 拟动态 ────────────────────────────────────────────────────────────
-
-def test_transform_shift_min_makes_min_equal_one():
-    static = _static_data()
-    shifted = transform_static_data(static, "Shift_min")
-    assert np.allclose(shifted.min(axis=0).to_numpy(), 1.0)
-
-
-def test_transform_unknown_method_raises():
-    with pytest.raises(ValueError):
-        transform_static_data(_static_data(), "Nope")
+def _repo_model(max_order: int = 1) -> IDOPRegressor:
+    return IDOPRegressor(
+        max_order=max_order, mix=0.5, fix_mix=False, nonneg_self=True,
+        max_interactions=0, adaptive_weights=False,
+    )
 
 
-def test_quasi_dynamic_is_sorted_by_row_sum():
-    static = _static_data()
-    quasi = to_quasi_dynamic(static)
-    row_sums = quasi.sum(axis=1).to_numpy(dtype=float)
-    assert np.all(np.diff(row_sums) >= -1e-9)
-    assert quasi.index.name == "quasi time"
+def _static_model(max_order: int = 1) -> StaticIDOPRegressor:
+    return StaticIDOPRegressor(
+        max_order=max_order, mix=0.5, fix_mix=False, nonneg_self=True,
+        max_interactions=0, adaptive_weights=False,
+        lasso_alpha=0.05, lasso_windows=1, lasso_threshold=0.5,
+    )
 
 
 # ── 选边器 ───────────────────────────────────────────────────────────────────
 
-def test_edge_select_returns_target_source_frame():
+def test_select_edges_lasso_returns_target_source_frame():
     supports = select_edges_lasso(_static_data(), alpha=0.05, k=1, threshold=0.5)
     assert list(supports.columns) == ["target", "source"]
-    assert set(supports["target"]) == {"M0", "M1", "M2", "M3"}
+    assert set(supports["target"]) == {"M0", "M1", "M2", "M3", "M4"}
 
 
-def test_edge_select_rejects_bad_parameters():
+def test_select_edges_lasso_rejects_bad_parameters():
     with pytest.raises(ValueError):
         select_edges_lasso(_static_data(), alpha=0.0)
     with pytest.raises(ValueError):
         select_edges_lasso(_static_data(), threshold=1.5)
+    with pytest.raises(ValueError):
+        select_edges_lasso(_static_data(), k=0)
 
 
-# ── 端到端建网 ───────────────────────────────────────────────────────────────
+def test_higher_threshold_selects_fewer_or_equal_sources():
+    data = _static_data(n_samples=60)
+    loose = select_edges_lasso(data, alpha=0.05, k=3, threshold=0.0)
+    strict = select_edges_lasso(data, alpha=0.05, k=3, threshold=0.99)
+    def _count(frame):
+        return sum(
+            len([s for s in str(row["source"]).strip("{}").split(",") if s.strip()])
+            for _, row in frame.iterrows()
+        )
+    assert _count(strict) <= _count(loose)
+
+
+# ── 与仓库路线的一致性（本文件的核心） ────────────────────────────────────────
+
+def test_effect_decomposition_format_matches_repo():
+    """效应分解的索引/列/形状必须与仓库路线一致 —— 这是「像之前一样」的契约。"""
+    quasi, samples, params = _network_inputs()
+    repo = _repo_model().fit(samples, quasi, power_function_params=params)
+    static = _static_model().fit(samples, quasi, power_function_params=params)
+
+    repo_effects = repo.effect(samples)
+    static_effects = static.effect(samples)
+
+    assert len(repo_effects) == len(static_effects)
+    for expected, actual in zip(repo_effects, static_effects):
+        assert list(actual.columns) == list(expected.columns)
+        assert actual.index.equals(expected.index)
+        assert actual.shape == expected.shape
+
+
+def test_effect_identity_holds_for_both_routes():
+    """``intercept + Σ effects == predicted`` 两条路线都必须成立。"""
+    quasi, samples, params = _network_inputs()
+    for model in (
+        _repo_model().fit(samples, quasi, power_function_params=params),
+        _static_model().fit(samples, quasi, power_function_params=params),
+    ):
+        effects = model.effect(samples)
+        predicted = model.predict(samples).to_numpy(dtype=float)
+        intercept = model.coef_.loc["intercept"].to_numpy(dtype=float)
+        total = np.column_stack([
+            intercept[j]
+            + sum(effects[j][c].to_numpy(dtype=float) for c in effects[j].columns)
+            for j in range(len(effects))
+        ])
+        assert np.allclose(total, predicted, atol=1e-8)
+
+
+def test_effect_curves_start_at_zero_like_repo():
+    """基函数首点为 0，因此每条效应曲线都应从 0 起步（两条路线一致）。"""
+    quasi, samples, params = _network_inputs()
+    for model in (
+        _repo_model().fit(samples, quasi, power_function_params=params),
+        _static_model().fit(samples, quasi, power_function_params=params),
+    ):
+        for effect in model.effect(samples):
+            assert np.allclose(effect.to_numpy(dtype=float)[0, :], 0.0, atol=1e-12)
+
+
+def test_adjacency_matrix_format_matches_repo():
+    quasi, samples, params = _network_inputs()
+    repo = _repo_model().fit(samples, quasi, power_function_params=params)
+    static = _static_model().fit(samples, quasi, power_function_params=params)
+
+    repo_adj = repo.adjacency_matrix(samples)
+    static_adj = static.adjacency_matrix(samples)
+    assert list(static_adj.index) == list(repo_adj.index)
+    assert list(static_adj.columns) == list(repo_adj.columns)
+    assert static_adj.shape == repo_adj.shape
+
+
+def test_cross_support_comes_from_new_selector():
+    """覆写生效：交叉边支撑集必须来自 select_edges_lasso，而不是父类的 alpha 路径。"""
+    quasi, samples, params = _network_inputs()
+    model = _static_model().fit(samples, quasi, power_function_params=params)
+
+    assert model.edge_supports_ is not None
+    basis = model._design(samples).values[:, 1:]
+    groups = _build_groups(len(samples.columns), model.max_order)
+    cross_ids = model._select_lasso_cross_support(
+        basis, np.zeros(len(samples)), groups, 0
+    )
+
+    target = model._target_names_[0]
+    expected = {
+        index + 1
+        for index, name in enumerate(model._feature_names_)
+        if name != target and name in model._support_names_[target]
+    }
+    assert set(cross_ids) == expected
+
+
+def test_selector_override_actually_changes_results():
+    """两套选边器在同一份数据上应给出不同的支撑集（否则这个可选项没有意义）。"""
+    quasi, samples, params = _network_inputs()
+    repo = _repo_model().fit(samples, quasi, power_function_params=params)
+    static = _static_model().fit(samples, quasi, power_function_params=params)
+    repo_nnz = int((repo.adjacency_matrix(samples).to_numpy(dtype=float) != 0).sum())
+    static_nnz = int((static.adjacency_matrix(samples).to_numpy(dtype=float) != 0).sum())
+    assert repo_nnz != static_nnz
+
+
+# ── 页面契约 ─────────────────────────────────────────────────────────────────
 
 def test_fit_static_idop_network_matches_page_contract():
-    quasi, samples = _network_inputs()
+    quasi, samples, params = _network_inputs()
     network = fit_static_idop_network(
-        samples, quasi, basis_order=0, alpha=0.05, windows=1, threshold=0.5,
+        samples, quasi,
+        max_order=1,
+        nonneg_self=True,
+        max_interactions=0,
+        adjacency_aggregation="mean",
+        power_function_params=params,
+        lasso_alpha=0.05,
     )
 
     assert set(network) == {
-        "model",
-        "quasi_dynamic_df",
-        "curve_sample_df",
-        "design_X",
-        "response_Y",
-        "predicted_df",
-        "effect_df_list",
-        "adj_df",
+        "model", "quasi_dynamic_df", "curve_sample_df", "design_X",
+        "response_Y", "predicted_df", "effect_df_list", "adj_df",
         "adjacency_aggregation",
     }
-
-    adj_df = network["adj_df"]
     features = list(samples.columns)
-    assert list(adj_df.index) == features
-    assert list(adj_df.columns) == features
-
-    predicted = network["predicted_df"]
-    assert predicted.shape == (len(samples), len(features))
-    assert list(predicted.columns) == features
-
-    effects = network["effect_df_list"]
-    assert len(effects) == len(features)
-    for effect in effects:
-        assert effect.shape == (len(samples), len(features))
-        assert list(effect.columns) == features
-
-    # _design 的索引必须覆盖 response_Y 的重建（页面用它对齐）
+    assert list(network["adj_df"].index) == features
+    assert list(network["adj_df"].columns) == features
+    assert network["predicted_df"].shape == (len(samples), len(features))
+    assert len(network["effect_df_list"]) == len(features)
     assert network["design_X"].index.equals(samples.index)
-    assert list(network["response_Y"].columns) == features
 
-
-def test_model_exposes_attributes_used_by_export():
-    quasi, samples = _network_inputs()
-    network = fit_static_idop_network(
-        samples, quasi, basis_order=0, alpha=0.05, windows=1, threshold=0.5,
-    )
     model = network["model"]
-
+    assert isinstance(model, StaticIDOPRegressor)
     # 导出逻辑会读这些属性
-    assert isinstance(model.max_order, int)
-    assert isinstance(model.alpha, float)
-    assert isinstance(model.mix, float)
-    assert isinstance(model.nonneg_self, bool)
-    assert isinstance(model.max_interactions, int)
-    assert isinstance(model.basis_type, str)
-    assert isinstance(model.ebic_gamma, float)
-    assert isinstance(model.enforce_effect_constraints, bool)
     assert isinstance(model.mse_, float) and np.isfinite(model.mse_)
-
-    # 效应分解绘图读 coef_.loc["intercept"]
-    intercept = model.coef_.loc["intercept"]
-    assert list(intercept.index) == list(samples.columns)
-
-    # coef_ 的设计列必须能在 _design 里找到
-    design_columns = set(model._design(samples).columns) - {"intercept"}
-    assert design_columns.issubset(set(model.coef_.index))
-
-
-def test_adjacency_matches_effect_curves():
-    """adj_df.loc[source, target] 必须对应 effect_df_list[target][source] 的聚合。"""
-    quasi, samples = _network_inputs()
-    network = fit_static_idop_network(
-        samples, quasi, basis_order=0, alpha=0.05, windows=1, threshold=0.5,
-        adjacency_aggregation="mean",
-    )
-    adj_df = network["adj_df"]
-    features = list(samples.columns)
-    for target_index, target in enumerate(features):
-        effect = network["effect_df_list"][target_index]
-        for source in features:
-            if source == target:
-                continue
-            expected = float(effect[source].mean())
-            assert adj_df.loc[source, target] == pytest.approx(expected, abs=1e-9)
-
-
-def test_integral_aggregation_differs_from_mean():
-    quasi, samples = _network_inputs()
-    mean_network = fit_static_idop_network(
-        samples, quasi, basis_order=0, alpha=0.05, adjacency_aggregation="mean",
-    )
-    integral_network = fit_static_idop_network(
-        samples, quasi, basis_order=0, alpha=0.05, adjacency_aggregation="integral",
-    )
-    assert not np.allclose(
-        mean_network["adj_df"].to_numpy(dtype=float),
-        integral_network["adj_df"].to_numpy(dtype=float),
-    )
-
-
-def test_basis_order_one_still_solves():
-    quasi, samples = _network_inputs()
-    network = fit_static_idop_network(
-        samples, quasi, basis_order=1, alpha=0.05, windows=1, threshold=0.5,
-    )
-    model = network["model"]
-    # intercept + 每个源 (basis_order+1) 列
-    assert len(model.coef_.index) == 1 + len(samples.columns) * 2
+    assert list(model.coef_.loc["intercept"].index) == features

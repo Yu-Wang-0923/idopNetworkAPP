@@ -23,7 +23,7 @@ from idopnetwork.network.construction import (
     align_response_to_design,
     polynomial_basis_expansion,
 )
-from idopnetwork.network.static_idop import StaticIDOPModel
+from idopnetwork.network.static_idop import StaticIDOPRegressor
 
 IDOP_ALGORITHM_ASGL = "asgl"
 IDOP_ALGORITHM_STATIC = "static_idop"
@@ -46,24 +46,28 @@ def _make_idop_model(
 ):
     """按所选算法构造建网模型。
 
-    两条路线对外接口一致（``fit`` / ``predict`` / ``effect`` /
-    ``adjacency_matrix`` / ``_design``，以及导出逻辑要读的若干属性），因此下游
-    代码不需要分支。
+    两条路线**共用同一套求解流程**（基函数、cvxpy 约束分解、效应约束校验、
+    ``max_order`` 的 BIC 网格都由 :class:`IDOPRegressor` 提供），差别只在
+    **交叉边选边器**：
 
-    - ``asgl``：ASGL + BIC，仓库原有路线；
-    - ``static_idop``：新版静态 idop —— 多窗口 LASSO 按出现频率选边，再用 cvxpy
-      解约束弱形式 ODE；此处把页面的 ``max_order`` 映射为基函数阶数
-      ``basis_order``（每源 ``basis_order + 1`` 个积分 Legendre 基）。
+    - ``asgl``：仓库原有选边器——在**基函数列**上沿 alpha 路径跑单次 LASSO，
+      取第一个非零解，再按组打分做 Top-K；
+    - ``static_idop``：新版选边器——在**原始拟动态数据**上跑多窗口 LASSO，
+      按**出现频率**过阈值入选。
+
+    因此两条路线的预测曲线、效应分解、邻接矩阵形态一致，唯一差别来自支撑集。
     """
     if str(algorithm) == IDOP_ALGORITHM_STATIC:
-        return StaticIDOPModel(
-            basis_order=int(max_order),
-            alpha=float(lasso_alpha),
-            windows=int(lasso_windows),
-            threshold=float(lasso_threshold),
+        return StaticIDOPRegressor(
+            max_order=int(max_order),
             mix=0.5,
+            fix_mix=False,
             nonneg_self=bool(nonneg_self),
             max_interactions=int(max_interactions),
+            adaptive_weights=False,
+            lasso_alpha=float(lasso_alpha),
+            lasso_windows=int(lasso_windows),
+            lasso_threshold=float(lasso_threshold),
         )
     return IDOPRegressor(
         max_order=int(max_order),
@@ -655,14 +659,13 @@ with tab1:
                     horizontal=True,
                     key="netrecon_idop_algorithm",
                     help=(
-                        "两条路线**共用同一套 cvxpy 约束求解内核**（TIGER-style 逐目标"
-                        "约束分解：同样的 ridge / gap_min / 跨源 L1 与同号约束），"
-                        "差别在选边器、基函数与超参搜索：\n\n"
-                        "• ASGL + BIC：在基函数列上跑单次 LASSO（沿 alpha 路径取首个"
-                        "非零解），外层用 BIC 网格选 max_order。\n"
-                        "• LASSO + ODE：在原始拟动态数据上跑多窗口 LASSO，按出现频率"
-                        "过阈值入选；不做 BIC 搜索，阶数与 LASSO 参数由你给定；"
-                        "另加两条软惩罚（重构 y 限制在观测区间、单源效应幅值上限）。"
+                        "两条路线**共用同一套求解流程**（基函数、cvxpy 约束分解、"
+                        "效应约束校验、max_order 的 BIC 网格），差别只在**交叉边选边器**：\n\n"
+                        "• ASGL + BIC：在**基函数列**上沿 alpha 路径跑单次 LASSO，"
+                        "取第一个非零解，再按组打分做 Top-K。\n"
+                        "• LASSO + ODE：在**原始拟动态数据**上跑多窗口 LASSO，"
+                        "按**出现频率**过阈值入选。\n\n"
+                        "因此预测曲线与效应分解的形态保持一致，唯一差别来自支撑集。"
                     ),
                 )
                 with st.form(key="netrecon_form_single"):
