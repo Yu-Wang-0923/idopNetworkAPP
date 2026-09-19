@@ -239,11 +239,13 @@ def solve_dynamic_core(
     window_r2: dict[str, list[float]] = {c: [] for c in leads}
     window_beta_self: dict[str, list[np.ndarray]] = {c: [] for c in leads}
     window_obs: dict[str, list[np.ndarray]] = {c: [] for c in leads}
+    window_x0: dict[str, list[float]] = {c: [] for c in leads}
 
     for x_w in windows:
         x0 = x_w[0]
         for j, lead_j in enumerate(leads):
             y = x_w[:, j] - x0[j]
+            window_x0[lead_j].append(float(x0[j]))
             cross_cols, cross_names = [], []
             for k_name in support_sets.get(lead_j, []):
                 if k_name in leads:
@@ -264,12 +266,15 @@ def solve_dynamic_core(
     avg_self: dict[str, np.ndarray] = {}
     avg_cross: dict[str, dict[str, np.ndarray]] = {c: {} for c in leads}
     avg_obs: dict[str, np.ndarray] = {}
+    avg_x0: dict[str, float] = {}
     r2_mean: dict[str, float] = {}
     edge_rows: list[dict[str, Any]] = []
 
     for lead_j in leads:
         avg_self[lead_j] = np.stack(window_self[lead_j]).mean(axis=0)
         avg_obs[lead_j] = np.stack(window_obs[lead_j]).mean(axis=0)
+        # 截距 = 各窗口起点 x(0) 的跨窗均值（绝对尺度），效应曲线是相对它的居中量
+        avg_x0[lead_j] = float(np.mean(window_x0[lead_j]))
         r2_mean[lead_j] = float(np.mean(np.array(window_r2[lead_j])))
 
         for k_name in support_sets.get(lead_j, []):
@@ -299,6 +304,7 @@ def solve_dynamic_core(
         "avg_self": avg_self,
         "avg_cross": avg_cross,
         "avg_obs": avg_obs,
+        "avg_x0": avg_x0,
         "edge_rows": edge_rows,
         "r2_mean": r2_mean,
         # 实际生效的基函数 / 窗口，以及自动适配说明
@@ -382,6 +388,7 @@ class DynamicIDOPRegressor:
             alpha=self.lasso_alpha,
             k=self.lasso_windows,
             threshold=self.lasso_threshold,
+            standardize_y=False,  # 对齐 idopECG.edge_select（不标准化 y）
         )
         core = solve_dynamic_core(
             signal,
@@ -396,8 +403,10 @@ class DynamicIDOPRegressor:
         self.n_fourier = int(core["n_fourier"])
         self.window = int(core["window"])
         self.adaptation_notes_ = list(core.get("notes", []))
+        # 截距 = 每导联各窗口起点 x(0) 的跨窗均值（绝对尺度）。
+        # 注意：不能拿 avg_obs 的均值充当截距 —— avg_obs 是**居中后**的观测。
         self._intercepts = np.array(
-            [float(np.mean(core["avg_obs"][lead])) for lead in leads]
+            [float(core["avg_x0"][lead]) for lead in leads]
         )
 
         # mse：跨窗平均观测 vs 平均预测（预测 = 自效应 + 交叉效应之和）

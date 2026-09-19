@@ -129,6 +129,77 @@ def test_no_adaptation_note_for_full_length_series():
     assert core["notes"] == []
 
 
+def test_intercept_is_window_start_value():
+    """截距必须是各窗口起点 x(0) 的跨窗均值，而不是居中观测的均值。
+
+    这是与 idopECG 对齐的关键口径：效应曲线是相对 x(0) 的居中量，
+    绝对还原为 ``x(0) + 自效应 + Σ 交叉效应``。
+    """
+    data = _ecg_like(n_timepoints=1000)
+    model = DynamicIDOPRegressor(
+        n_fourier=5, r_legendre=2, window=250, fs=100.0,
+        lasso_alpha=0.05, lasso_windows=5, lasso_threshold=0.3,
+    )
+    model.fit(data)
+
+    intercept = model.coef_.loc["intercept"]
+    window = model.window
+    n_windows = len(data) // window
+    for lead in LEADS:
+        starts = data[lead].to_numpy(dtype=float)[np.arange(n_windows) * window]
+        assert intercept[lead] == pytest.approx(float(np.mean(starts)), abs=1e-9)
+
+
+def test_dynamic_selector_uses_idopecg_convention():
+    """动态流程的选边器必须不标准化 y（对齐 idopECG.edge_select）。"""
+    data = _ecg_like(n_timepoints=1000)
+    model = DynamicIDOPRegressor(
+        n_fourier=5, r_legendre=2, window=250, fs=100.0,
+        lasso_alpha=0.05, lasso_windows=5, lasso_threshold=0.3,
+    )
+    model.fit(data)
+
+    expected = select_edges_lasso(
+        data, alpha=0.05, k=5, threshold=0.3, standardize_y=False
+    )
+    assert model.edge_supports_.reset_index(drop=True).equals(
+        expected.reset_index(drop=True)
+    )
+
+
+def test_selector_standardize_y_flag_is_wired():
+    """standardize_y 开关必须真实生效（默认 True 保留静态路线口径）。"""
+    data = _ecg_like(n_timepoints=1000)
+    default = select_edges_lasso(data, alpha=0.05, k=5, threshold=0.3)
+    raw = select_edges_lasso(
+        data, alpha=0.05, k=5, threshold=0.3, standardize_y=False
+    )
+    assert list(default.columns) == ["target", "source"]
+    assert list(raw.columns) == ["target", "source"]
+    assert len(default) == len(raw) == len(LEADS)
+
+
+def test_predict_is_intercept_plus_effects_in_absolute_scale():
+    """预测必须落在绝对尺度上（截距 + 效应），而非居中尺度。"""
+    data = _ecg_like(n_timepoints=1000)
+    model = DynamicIDOPRegressor(
+        n_fourier=5, r_legendre=2, window=250, fs=100.0,
+        lasso_alpha=0.05, lasso_windows=5, lasso_threshold=0.3,
+    )
+    model.fit(data)
+
+    predicted = model.predict()
+    # 预测的均值应与各窗口观测均值同量级（绝对尺度），而不是围绕 0 的居中量
+    observed_mean = float(
+        data.to_numpy(dtype=float)[:250 * (len(data) // 250)].mean()
+    )
+    assert abs(float(predicted.to_numpy(dtype=float).mean()) - observed_mean) < 5.0
+    # 居中效应之和本身应围绕 0
+    effects = model.effect()
+    centered = sum(float(effects[0][c].mean()) for c in effects[0].columns)
+    assert abs(centered) < 5.0
+
+
 def test_over_complete_design_is_flagged_as_unreliable():
     """设计列数超过窗口长度时必须给出"结果不可信"的警告，而不是静默跑通。"""
     data = _ecg_like(n_timepoints=30)

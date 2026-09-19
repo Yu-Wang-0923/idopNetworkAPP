@@ -43,6 +43,7 @@ def select_edges_lasso(
     alpha: float = 0.1,
     k: int = 10,
     threshold: float = 0.9,
+    standardize_y: bool = True,
 ) -> pd.DataFrame:
     """多窗口 LASSO：按「跨窗口出现频率」恢复稀疏有向支撑集。
 
@@ -60,6 +61,10 @@ def select_edges_lasso(
         窗口数；``k=1`` 即全样本一次。
     threshold:
         出现频率阈值，取值 ``[0, 1]``。
+    standardize_y:
+        是否同时标准化 y。``True``（默认，静态 idop 版口径）把 LASSO 目标尺度压到
+        O(1)；``False`` 与 ``idopECG.edge_select`` 一致——注意这**等价于按 y 的尺度
+        缩放 alpha**，会改变实际选出的支撑集，动态流程必须传 ``False`` 才能对齐。
 
     Returns
     -------
@@ -90,22 +95,27 @@ def select_edges_lasso(
             x = window[:, source_indices]
             y = window[:, target_idx]
 
-            # 标准化 x(逐列) 与 y，让 LASSO 目标尺度 O(1)，改善收敛
+            # 标准化 x(逐列)，让 LASSO 目标尺度 O(1)，改善收敛
             x_mean = x.mean(axis=0)
             x_scale = x.std(axis=0)
             x_scale[x_scale == 0] = 1.0
             x_std = (x - x_mean) / x_scale
 
-            y_mean = float(y.mean())
-            y_scale = float(y.std())
-            if y_scale == 0.0:
+            if standardize_y:
+                y_mean = float(y.mean())
+                y_scale = float(y.std())
+                if y_scale == 0.0:
+                    y_scale = 1.0
+                y_target = (y - y_mean) / y_scale
+            else:
+                # 不标准化 y：与 idopECG.edge_select 完全一致
                 y_scale = 1.0
-            y_std = (y - y_mean) / y_scale
+                y_target = y
 
             model = Lasso(
                 alpha=alpha, fit_intercept=True, max_iter=100_000, tol=1e-5,
             )
-            model.fit(x_std, y_std)
+            model.fit(x_std, y_target)
 
             # 系数还原到原始尺度: beta_orig = beta_std * y_scale / x_scale
             coefficients = model.coef_ * (y_scale / x_scale)
