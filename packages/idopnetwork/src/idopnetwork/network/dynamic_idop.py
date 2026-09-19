@@ -302,6 +302,8 @@ def solve_dynamic_core(
         "window_cross": window_cross,
         "window_r2": window_r2,
         "window_beta_self": window_beta_self,
+        "window_x0": window_x0,
+        "window_obs": window_obs,
         "avg_self": avg_self,
         "avg_cross": avg_cross,
         "avg_obs": avg_obs,
@@ -348,6 +350,7 @@ class DynamicIDOPRegressor:
         basis_type: str = "fourier_legendre",
         ebic_gamma: float = 0.0,
         enforce_effect_constraints: bool = False,
+        window_index: int | None = None,
     ):
         self.n_fourier = int(n_fourier)
         self.r_legendre = int(r_legendre)
@@ -356,6 +359,8 @@ class DynamicIDOPRegressor:
         self.lasso_alpha = float(lasso_alpha)
         self.lasso_windows = int(lasso_windows)
         self.lasso_threshold = float(lasso_threshold)
+        # 绘图所用窗口；None 表示自动取各导联 R² 之和最大的那一个
+        self.window_index = None if window_index is None else int(window_index)
 
         # 供导出 / 诊断读取的兼容属性
         self.max_order = int(r_legendre)
@@ -373,6 +378,11 @@ class DynamicIDOPRegressor:
         self._core: dict | None = None
         self._intercepts: np.ndarray | None = None
         self.adaptation_notes_: list[str] = []
+        # 绘图口径：默认取 R² 最高的窗口（对齐 idopECG._plot_ode_lead）
+        self.plot_window_: int = 0
+        self.n_windows_: int = 0
+        self.window_r2_: dict[str, list[float]] = {}
+        self.r2_mean_: dict[str, float] = {}
 
     def fit(
         self,
@@ -404,20 +414,41 @@ class DynamicIDOPRegressor:
         self.n_fourier = int(core["n_fourier"])
         self.window = int(core["window"])
         self.adaptation_notes_ = list(core.get("notes", []))
-        # 截距 = 每导联各窗口起点 x(0) 的跨窗均值（绝对尺度）。
-        # 注意：不能拿 avg_obs 的均值充当截距 —— avg_obs 是**居中后**的观测。
+
+        # ---- 绘图口径（对齐 idopECG._plot_ode_lead）----
+        # 观测 / 预测 / 效应都取**同一个窗口**，默认取各导联 R² 之和最大的那个。
+        # 跨窗平均会把不同心搏相位的波形抹平，图上会看起来"拟合很差" ——
+        # 这正是 idopECG 注释里写明的修复点。边权仍用跨窗平均（见 adjacency_matrix）。
+        self.n_windows_ = int(core["n_windows"])
+        self.window_r2_ = {lead: list(core["window_r2"][lead]) for lead in leads}
+        self.r2_mean_ = dict(core["r2_mean"])
+        if self.window_index is None:
+            scores = [
+                float(sum(core["window_r2"][lead][iw] for lead in leads))
+                for iw in range(self.n_windows_)
+            ]
+            self.plot_window_ = int(np.argmax(scores)) if scores else 0
+        else:
+            self.plot_window_ = int(
+                min(max(self.window_index, 0), max(self.n_windows_ - 1, 0))
+            )
+
+        window_used = self.plot_window_
+        # 截距 = 该窗口起点 x(0)（绝对尺度）；效应曲线是相对它的居中量
         self._intercepts = np.array(
-            [float(core["avg_x0"][lead]) for lead in leads]
+            [float(core["window_x0"][lead][window_used]) for lead in leads]
         )
 
-        # mse：跨窗平均观测 vs 平均预测（预测 = 自效应 + 交叉效应之和）
+        # mse：绘图所用窗口上的观测 vs 预测
         errors = []
         for lead in leads:
-            prediction = core["avg_self"][lead] + (
-                sum(core["avg_cross"][lead].values())
-                if core["avg_cross"][lead] else 0.0
+            per_window = core["window_cross"][lead][window_used]
+            prediction = core["window_self"][lead][window_used] + (
+                sum(per_window.values()) if per_window else 0.0
             )
-            errors.append(float(np.mean((core["avg_obs"][lead] - prediction) ** 2)))
+            errors.append(
+                float(np.mean((core["window_obs"][lead][window_used] - prediction) ** 2))
+            )
         self.mse_ = float(np.mean(errors)) if errors else float("nan")
 
         # coef_：intercept 行（跨窗平均的 x(0)）+ 自效应 Fourier 系数的窗均值。
@@ -462,37 +493,40 @@ class DynamicIDOPRegressor:
         return pd.DataFrame(data, index=pd.Index(t_win, name="time"))
 
     def predict(self, power_function_sample_df: pd.DataFrame | None = None) -> pd.DataFrame:
-        """绝对预测（``x(0) + 自效应 + 交叉效应``），索引为窗口时间网格。"""
+        """绝对预测（``x(0) + 自效应 + 交叉效应``），索引为窗口时间网格。
+
+        取绘图所用窗口（:attr:`plot_window_`），与 :meth:`observed` / :meth:`effect`
+        同窗口同口径。
+        """
         if self._core is None:
             raise RuntimeError("call fit before predict")
         core = self._core
         leads = core["leads"]
         t_win = core["t_win"]
+        iw = self.plot_window_
         columns = {}
         for j, lead in enumerate(leads):
-            cross = (
-                sum(core["avg_cross"][lead].values())
-                if core["avg_cross"][lead] else 0.0
-            )
-            columns[lead] = self._intercepts[j] + core["avg_self"][lead] + cross
+            per_window = core["window_cross"][lead][iw]
+            cross = sum(per_window.values()) if per_window else 0.0
+            columns[lead] = self._intercepts[j] + core["window_self"][lead][iw] + cross
         return pd.DataFrame(columns, index=pd.Index(t_win, name="time"))
 
     def observed(self) -> pd.DataFrame:
-        """窗口对齐的**绝对**观测，用于和 :meth:`predict` 叠在同一张图上。
+        """绘图所用**单个窗口**的绝对观测（``x(0) + 居中观测``）。
 
-        ``avg_obs`` 是居中量 ``mean_w(x_w(t) − x(0)_w)``，加回 ``avg_x0``
-        （各窗起点 x(0) 的跨窗均值）后即为 ``mean_w(x_w(t))`` ——
-        各窗口绝对信号的跨窗均值，与 predict / effect **同网格、同尺度**。
+        与 :meth:`predict` / :meth:`effect` 同窗口同网格同尺度，可直接叠在一张图上。
 
-        注意：完整时间序列（如 1000 点 / 0~10 s）并不在这个网格上；窗口平均是
-        idopECG 的既定口径（跨心搏相位平均，避免相位混叠）。把整条原始波形直接
-        和窗口网格的预测画在一起会因横轴范围不同而完全错位。
+        为什么是单窗口而不是跨窗平均：不同窗口的心搏相位不同，跨窗平均会把波形
+        **抹平**，图上看起来"拟合很差"。idopECG 的 ``_plot_ode_lead`` 正是为此
+        改成"同一个窗口、观测与预测同口径"，本实现与之对齐。边权仍用跨窗平均
+        （见 :meth:`adjacency_matrix`），因为那才是统计意义上的稳定估计。
         """
         if self._core is None:
             raise RuntimeError("call fit before observed")
         core = self._core
+        iw = self.plot_window_
         columns = {
-            lead: core["avg_x0"][lead] + core["avg_obs"][lead]
+            lead: core["window_x0"][lead][iw] + core["window_obs"][lead][iw]
             for lead in core["leads"]
         }
         return pd.DataFrame(columns, index=pd.Index(core["t_win"], name="time"))
@@ -502,22 +536,24 @@ class DynamicIDOPRegressor:
 
         自身列为自效应（Fourier），其余为交叉效应（Legendre），未入选的为 0 ——
         与仓库 ``IDOPRegressor.effect`` 的排布一致，且同为**居中**贡献
-        （截距由 ``coef_.loc["intercept"]`` 承载）。
+        （截距由 ``coef_.loc["intercept"]`` 承载）。取绘图所用窗口。
         """
         if self._core is None:
             raise RuntimeError("call fit before effect")
         core = self._core
         leads = core["leads"]
+        iw = self.plot_window_
         index = pd.Index(core["t_win"], name="time")
 
         effect_df_list: list[pd.DataFrame] = []
         for lead_j in leads:
+            per_window = core["window_cross"][lead_j][iw]
             columns = {}
             for name in leads:
                 if name == lead_j:
-                    columns[name] = core["avg_self"][lead_j]
-                elif name in core["avg_cross"][lead_j]:
-                    columns[name] = core["avg_cross"][lead_j][name]
+                    columns[name] = core["window_self"][lead_j][iw]
+                elif name in per_window:
+                    columns[name] = per_window[name]
                 else:
                     columns[name] = np.zeros(len(core["t_win"]))
             effect_df_list.append(pd.DataFrame(columns, index=index))

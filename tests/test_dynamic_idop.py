@@ -143,11 +143,10 @@ def test_intercept_is_window_start_value():
     model.fit(data)
 
     intercept = model.coef_.loc["intercept"]
-    window = model.window
-    n_windows = len(data) // window
+    iw, window = model.plot_window_, model.window
     for lead in LEADS:
-        starts = data[lead].to_numpy(dtype=float)[np.arange(n_windows) * window]
-        assert intercept[lead] == pytest.approx(float(np.mean(starts)), abs=1e-9)
+        expected = float(data[lead].to_numpy(dtype=float)[iw * window])
+        assert intercept[lead] == pytest.approx(expected, abs=1e-9)
 
 
 def test_network_observation_aligns_with_prediction_grid():
@@ -199,8 +198,12 @@ def test_observed_for_plot_helper_is_testable():
     assert observed_for_plot(_Plain(), data) is data
 
 
-def test_observed_is_window_averaged_absolute_signal():
-    """观测必须是「各窗口绝对信号的跨窗均值」，与 predict 同尺度。"""
+def test_observed_is_single_window_slice():
+    """绘图口径：观测必须取自**同一个窗口**，而不是跨窗平均。
+
+    不同窗口的心搏相位不同，跨窗平均会把波形抹平，图上看起来"拟合很差" ——
+    idopECG._plot_ode_lead 正是为此改成单窗口同口径；本实现与之对齐。
+    """
     data = _ecg_like(n_timepoints=1000)
     model = DynamicIDOPRegressor(
         n_fourier=5, r_legendre=2, window=250, fs=100.0,
@@ -209,12 +212,86 @@ def test_observed_is_window_averaged_absolute_signal():
     model.fit(data)
     observed = model.observed()
 
-    window, n_windows = 250, 4
-    windowed = data.to_numpy(dtype=float)[: window * n_windows].reshape(
-        n_windows, window, -1
+    iw, w = model.plot_window_, model.window
+    expected = data.to_numpy(dtype=float)[iw * w:(iw + 1) * w]
+    assert np.allclose(observed.to_numpy(dtype=float), expected, atol=1e-9)
+
+
+def test_plot_window_defaults_to_best_r2():
+    data = _ecg_like(n_timepoints=1000)
+    model = DynamicIDOPRegressor(
+        n_fourier=5, r_legendre=2, window=250, fs=100.0,
+        lasso_alpha=0.05, lasso_windows=5, lasso_threshold=0.3,
     )
-    expected = windowed.mean(axis=(0, 1))
-    assert np.allclose(observed.to_numpy(dtype=float).mean(axis=0), expected, atol=1e-9)
+    model.fit(data)
+
+    scores = [
+        sum(model.window_r2_[lead][iw] for lead in LEADS)
+        for iw in range(model.n_windows_)
+    ]
+    assert model.plot_window_ == int(np.argmax(scores))
+
+
+def test_window_index_can_be_pinned():
+    data = _ecg_like(n_timepoints=1000)
+    model = DynamicIDOPRegressor(
+        n_fourier=5, r_legendre=2, window=250, fs=100.0,
+        lasso_alpha=0.05, lasso_windows=5, lasso_threshold=0.3,
+        window_index=0,
+    )
+    model.fit(data)
+    assert model.plot_window_ == 0
+    observed = model.observed()
+    w = model.window
+    assert np.allclose(
+        observed.to_numpy(dtype=float), data.to_numpy(dtype=float)[:w], atol=1e-9
+    )
+
+
+def test_adjacency_still_uses_cross_window_average():
+    """边权必须仍是跨窗平均（统计上更稳），只有绘图改为单窗。"""
+    data = _ecg_like(n_timepoints=1000)
+    model = DynamicIDOPRegressor(
+        n_fourier=5, r_legendre=2, window=250, fs=100.0,
+        lasso_alpha=0.05, lasso_windows=5, lasso_threshold=0.3,
+    )
+    model.fit(data)
+    core = model._core
+    adj = model.adjacency_matrix(aggregation="mean")
+    for target in LEADS:
+        for source, curve in core["avg_cross"][target].items():
+            assert adj.loc[source, target] == pytest.approx(
+                float(np.mean(curve)), abs=1e-9
+            )
+
+
+def test_observed_is_not_cross_window_average():
+    """绘图用**单窗**，不是跨窗平均 —— 后者会把不同心搏相位的波形抹平。
+
+    构造各窗口相位不同的信号：单窗观测应等于该窗口原样切片，且与跨窗平均显著不同。
+    """
+    n, window = 1000, 250
+    t = np.arange(n) / 100.0
+    signal = np.sin(2 * np.pi * (1.0 + 0.35 * (np.arange(n) // window)) * t)
+    data = pd.DataFrame(
+        {lead: (1.0 + 0.3 * i) * signal for i, lead in enumerate(LEADS)}
+    )
+
+    model = DynamicIDOPRegressor(
+        n_fourier=5, r_legendre=2, window=window, fs=100.0,
+        lasso_alpha=0.05, lasso_windows=5, lasso_threshold=0.3,
+    )
+    model.fit(data)
+    observed = model.observed().to_numpy(dtype=float)
+
+    iw = model.plot_window_
+    expected = data.to_numpy(dtype=float)[iw * window:(iw + 1) * window]
+    assert np.allclose(observed, expected, atol=1e-9)
+
+    averaged = data.to_numpy(dtype=float)[: window * (n // window)].reshape(
+        n // window, window, -1
+    ).mean(axis=0)
+    assert not np.allclose(observed, averaged, atol=1e-6)
 
 
 def test_dynamic_selector_uses_idopecg_convention():
@@ -313,18 +390,21 @@ def test_effect_identity_holds():
     assert np.allclose(total, predicted, atol=1e-8)
 
 
-def test_adjacency_matches_effect_means():
+def test_adjacency_uses_cross_window_average_not_single_window():
+    """边权用**跨窗平均**，效应曲线用**单窗** —— 两套口径刻意不同。
+
+    边权是统计量，跨窗平均更稳；绘图则必须单窗，否则心搏相位不同会把波形抹平，
+    图上看起来"拟合很差"（idopECG._plot_ode_lead 的修复说明）。
+    """
     model = _fitted_model()
+    core = model._core
     adj = model.adjacency_matrix(aggregation="mean")
-    effects = model.effect()
     assert list(adj.index) == LEADS
     assert list(adj.columns) == LEADS
-    for target_index, target in enumerate(LEADS):
-        for source in LEADS:
-            if source == target:
-                continue
+    for target in LEADS:
+        for source, curve in core["avg_cross"][target].items():
             assert adj.loc[source, target] == pytest.approx(
-                float(effects[target_index][source].mean()), abs=1e-9
+                float(np.mean(curve)), abs=1e-9
             )
 
 

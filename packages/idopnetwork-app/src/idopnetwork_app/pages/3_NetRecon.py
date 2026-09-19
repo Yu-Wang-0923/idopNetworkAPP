@@ -902,6 +902,23 @@ with tab1:
                         for _adapt_note in getattr(model, "adaptation_notes_", []) or []:
                             st.warning(f"⚠️ {_adapt_note}")
 
+                        # 动态路线的绘图口径：观测/预测/效应取同一个窗口（R² 最高），
+                        # 避免跨窗平均把不同心搏相位的波形抹平。
+                        if hasattr(model, "plot_window_"):
+                            _iw = int(model.plot_window_)
+                            _n = int(getattr(model, "n_windows_", 1))
+                            _r2 = float(
+                                np.mean([
+                                    model.window_r2_[lead][_iw]
+                                    for lead in model.window_r2_
+                                ])
+                            ) if getattr(model, "window_r2_", None) else float("nan")
+                            st.caption(
+                                f"动态绘图口径：观测 / 预测 / 效应均取第 "
+                                f"**{_iw + 1} / {_n}** 个窗口（各导联 R² 之和最高者，"
+                                f"该窗口平均 R² = {_r2:.4f}）；网络边权仍为跨窗平均。"
+                            )
+
                         progress_bar.progress(70, text="Generating prediction curves...")
                         log.write("Generating prediction curves...")
                         predicted_df = model.predict(curve_sample_df)
