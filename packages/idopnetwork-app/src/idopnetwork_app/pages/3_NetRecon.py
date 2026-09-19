@@ -655,10 +655,14 @@ with tab1:
                     horizontal=True,
                     key="netrecon_idop_algorithm",
                     help=(
-                        "ASGL + BIC：仓库原有路线（Adaptive Sparse Group Lasso + BIC 网格）。"
-                        "LASSO + ODE：新版静态 idopNetwork —— 把样本切成 k 个窗口逐窗口做 "
-                        "LASSO，出现频率超过阈值的 source 才进入支撑集，再用 cvxpy 解约束"
-                        "弱形式 ODE。更慢，但支撑集更稀疏，且显式约束跨源效应同号。"
+                        "两条路线**共用同一套 cvxpy 约束求解内核**（TIGER-style 逐目标"
+                        "约束分解：同样的 ridge / gap_min / 跨源 L1 与同号约束），"
+                        "差别在选边器、基函数与超参搜索：\n\n"
+                        "• ASGL + BIC：在基函数列上跑单次 LASSO（沿 alpha 路径取首个"
+                        "非零解），外层用 BIC 网格选 max_order。\n"
+                        "• LASSO + ODE：在原始拟动态数据上跑多窗口 LASSO，按出现频率"
+                        "过阈值入选；不做 BIC 搜索，阶数与 LASSO 参数由你给定；"
+                        "另加两条软惩罚（重构 y 限制在观测区间、单源效应幅值上限）。"
                     ),
                 )
                 with st.form(key="netrecon_form_single"):

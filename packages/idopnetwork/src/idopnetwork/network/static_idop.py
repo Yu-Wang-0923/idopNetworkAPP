@@ -1,7 +1,28 @@
 """静态数据版 idopNetwork：LASSO 选边 + cvxpy 约束弱形式 ODE 求解。
 
-移植自新版 ``idop.py``（@author: Yu Wang），作为 :class:`IDOPRegressor`
-（ASGL + BIC 路线）之外的**可选建网算法**。
+移植自新版 ``idop.py``（@author: Yu Wang），作为建网算法的**可选项**。
+
+与 :class:`IDOPRegressor` 的关系（重要，别被类名误导）
+------------------------------------------------------
+两者的**求解内核是同一个**：都是 TIGER-style 逐目标约束凸优化——cvxpy、
+CLARABEL→SCS、``ridge=1e-6``、``gap_min=1e-6``、跨源 L1 同为 ``5e-4``，
+约束同为「跨源效应同号且均值不小于 ``gap_min``」「self 动态非负」，两个方向各解
+一次取残差最小者，目标同为
+``‖y_adj − Bθ‖² + ridge‖θ‖² + L1‖θ_cross‖₁``。仓库的 ``IDOPRegressor`` 虽然叫
+ASGL，但 ``fit`` 实际走 ``_fit_asgl_bic`` → ``_fit_one_order``，也就是这套 cvxpy
+求解，ASGL 只体现在命名的历史包袱上。
+
+真正的差异只有四处：
+
+1. **基函数**：仓库 ``tiger_lop_basis_expansion`` vs 本模块的积分 Legendre 基；
+2. **选边器**：仓库 ``_select_lasso_cross_support`` 在**基函数列**上跑单次 LASSO
+   （沿 alpha 路径取第一个非零解，再按组打分做 Top-K）；本模块
+   :func:`select_edges_lasso` 在**原始拟动态数据**上跑**多窗口** LASSO，按
+   **出现频率**过阈值入选；
+3. **超参搜索**：仓库外层有 ``max_order`` 的 BIC 网格；本模块不做搜索，阶数与
+   LASSO 参数由调用方给定；
+4. **额外软惩罚**（本模块特有）：把重构 y 约束在观测区间内（``y_soft_scale``）、
+   限制单个源的累积效应幅值（``effect_cap`` / ``effect_soft_scale``）。
 
 流程
 ----
