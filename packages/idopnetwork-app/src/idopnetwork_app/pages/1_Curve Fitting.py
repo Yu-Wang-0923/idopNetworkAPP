@@ -196,6 +196,13 @@ plot_tab, params_tab, samples_tab, quasi_tab = st.tabs(
     ["Curve Fitting Plot", "Curve Parameters", "Curve Samples", "Quasi-dynamic Data"]
 )
 with plot_tab:
+    selected_features = st.multiselect(
+        "Features to plot",
+        options=list(quasi.columns),
+        default=list(quasi.columns[:6]),
+        key=f"fit_features_{selected}_{sha256(repr(list(quasi.columns)).encode()).hexdigest()[:12]}",
+        help="默认只绘制前 6 个 Feature；可自行增减，超过每页容量时分页显示。",
+    )
     with st.expander("Plot settings", expanded=False):
         c1, c2, c3 = st.columns(3)
         nrow = c1.number_input("Rows", min_value=1, max_value=10, value=2)
@@ -207,18 +214,22 @@ with plot_tab:
         curve_color = c3.color_picker("Curve Color", "#D62728")
         background = c3.color_picker("Subfig Background Color", "#FFFFFF")
     per_page = int(nrow * ncol)
-    pages = max(1, (len(quasi.columns) + per_page - 1) // per_page)
+    pages = max(1, (len(selected_features) + per_page - 1) // per_page)
     page = st.selectbox("Feature page", range(1, pages + 1), key=f"fit_page_{selected}_{per_page}")
-    features = quasi.columns[(page - 1) * per_page:page * per_page]
-    fig = plot_curve_fitting(
-        df_scatter=quasi.loc[:, features], df_curve=samples.loc[:, features],
-        plot_scatter_type=plot_type, show_curve=True, scatter_x="index",
-        nrow=int(nrow), ncol=int(ncol), nsubfig=per_page, scatter_size=scatter_size,
-        scatter_linewidth=linewidth, color_scatter=scatter_color, color_curve=curve_color,
-        subfig_background_color=background,
-    )
-    st.pyplot(fig)
-    plt.close(fig)
+    features = selected_features[(page - 1) * per_page:page * per_page]
+    st.caption(f"显示 {len(features)} / {len(quasi.columns)} 个 Feature；默认选择前 6 个。")
+    if features:
+        fig = plot_curve_fitting(
+            df_scatter=quasi.loc[:, features], df_curve=samples.loc[:, features],
+            plot_scatter_type=plot_type, show_curve=True, scatter_x="index",
+            nrow=int(nrow), ncol=int(ncol), nsubfig=per_page, scatter_size=scatter_size,
+            scatter_linewidth=linewidth, color_scatter=scatter_color, color_curve=curve_color,
+            subfig_background_color=background,
+        )
+        st.pyplot(fig)
+        plt.close(fig)
+    else:
+        st.info("请选择至少一个 Feature 以显示拟合图。")
 
 for tab, table, suffix in (
     (params_tab, params, "params"),

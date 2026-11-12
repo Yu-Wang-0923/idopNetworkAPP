@@ -17,6 +17,30 @@ def upload(name, frame):
 
 
 class CurveFittingPageTests(unittest.TestCase):
+    def test_many_features_default_to_six_and_can_be_selected_or_cleared(self):
+        from idopnetwork.curve_fitting.plot import plot_curve_fitting
+
+        frame = pd.DataFrame({f'feature_{i}': [x * (i + 1) for x in range(1, 21)]
+                              for i in range(12)})
+        app = AppTest.from_file(str(PAGE), default_timeout=60)
+        app.session_state['logged_in'] = True
+        with patch('streamlit.file_uploader', return_value=[upload('many.csv', frame)]), \
+             patch('idopnetwork_app.utils.setup_sidebar'), \
+             patch('idopnetwork.curve_fitting.plot.plot_curve_fitting', wraps=plot_curve_fitting) as draw:
+            app.run()
+            app.button[0].click().run()
+            self.assertFalse(app.exception)
+            self.assertEqual(app.multiselect[0].value, list(frame.columns[:6]))
+            self.assertEqual(list(draw.call_args.kwargs['df_scatter'].columns), list(frame.columns[:6]))
+            app.multiselect[0].set_value(['feature_10', 'feature_11']).run()
+            self.assertFalse(app.exception)
+            self.assertEqual(list(draw.call_args.kwargs['df_scatter'].columns), ['feature_10', 'feature_11'])
+            draw.reset_mock()
+            app.multiselect[0].set_value([]).run()
+            self.assertFalse(app.exception)
+            draw.assert_not_called()
+            self.assertEqual(len(app.dataframe), 3)
+
     def test_upload_results_replacement_comparison_and_clear(self):
         frame = pd.DataFrame({'a': range(1, 21), 'b': [x * x for x in range(1, 21)]})
         files = [upload('A.csv', frame), upload('B.csv', frame * 2)]
