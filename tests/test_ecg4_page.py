@@ -38,6 +38,11 @@ def test_netrecon_dynamic_full_record_and_native_export():
         next(button for button in app.button if button.label == 'Run IdopNetwork').click().run()
         assert not app.exception
         assert not app.error
+        next(button for button in app.button if button.label == 'Run Effect Decomposition Plot').click().run()
+        assert not app.exception
+        assert not app.error
+        assert app.session_state['single_ecg_effect_render'][1] == 'a'
+        assert any('idopECG' in item.value for item in app.caption)
     result = app.session_state['netrecon_result']
     assert result['model'].solver_version_ == SOLVER_VERSION
     assert len(result['predicted_df']) == len(frame)

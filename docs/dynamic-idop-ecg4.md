@@ -36,3 +36,13 @@ differential verification against the supplied source compares every result
 table exactly. The user-requested 12-channel, 100 Hz ECG example is bundled as
 `idopnetwork_app/data/ecg_100hz.csv`, with a time-in-seconds index added for the
 Curve Fitting uploader; the original twelve signal columns are retained.
+
+Dynamic visualization uses the supplied `plot_fitting.py` and
+`plot_effect_decomposition.py` schemes. Each fitting figure contains a full-record
+panel and a first-250-samples panel; six features are selected by default.
+Network reconstruction uses the same layout to compare the SWT observations
+with the ODE reconstruction. Effect plots show a combined overview and individual
+self/cross contribution panels, with a selectable target and display window
+(default first 2.5 seconds). Display windows preserve full-record initial values
+and cumulative contributions without refitting or amplitude normalization.
+Both schemes offer PNG, PDF and SVG downloads. Static routes keep their existing plots.

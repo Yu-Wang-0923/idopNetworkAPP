@@ -684,7 +684,7 @@ with tab1:
     common_conditions = [k for k in quasi_map if k in curve_map]
 
     tab1_1, tab1_2, tab1_3 = st.tabs(["Data Overview", "IdopNetwork Construction", "Export"])
-    
+
     # ========== Tab 1_1 Data Overview ==========
     with tab1_1:
         if not common_conditions:
@@ -934,23 +934,29 @@ with tab1:
             if result is not None:
                 # 嵌套 Tab 展示结果
                 tab1_2_1, tab1_2_2, tab1_2_3 = st.tabs(["Network", "Effect Decomposition", "Adjacency Matrix"])
-                
+
                 # ========== Tab 1_2_1 Network ==========
                 with tab1_2_1:
                     st.markdown("### Fitting vs Prediction")
-                    fig = plot_curve_fitting(
-                        df_scatter=result["quasi_dynamic_df"],
-                        df_curve=result["predicted_df"],
-                        plot_scatter_type="scatter",
-                        show_curve=True,
-                        nrow=2,
-                        ncol=3,
-                        nsubfig=6,
-                        scatter_x="index",
-                        scatter_size=30,
-                        scatter_linewidth=1,
-                    )
-                    st.pyplot(fig)
+                    if isinstance(result["model"], DynamicIDOPRegressor):
+                        from idopnetwork_app.ecg_visualization import render_ecg_fitting
+                        render_ecg_fitting(result["model"].observed(), result["predicted_df"],
+                                           key="dynamic_prediction", fit_label="ODE reconstruction",
+                                           sampling_rate=result["model"].fs)
+                    else:
+                        fig = plot_curve_fitting(
+                            df_scatter=result["quasi_dynamic_df"],
+                            df_curve=result["predicted_df"],
+                            plot_scatter_type="scatter",
+                            show_curve=True,
+                            nrow=2,
+                            ncol=3,
+                            nsubfig=6,
+                            scatter_x="index",
+                            scatter_size=30,
+                            scatter_linewidth=1,
+                        )
+                        st.pyplot(fig)
 
                     st.markdown("### Interaction Network")
 
@@ -1010,61 +1016,65 @@ with tab1:
                 with tab1_2_2:
                     st.markdown("### Effect Decomposition")
 
-                    with st.form(key="single_effect_form"):
-                        ceff1, ceff2, ceff3, ceff4 = st.columns(4)
-
-                        with ceff1:
-                            run_effect_plot = st.form_submit_button(
-                                "Run Effect Decomposition Plot",
-                            )
-
-                        with ceff2:
-                            st.write("")
-
-                        with ceff3:
-                            single_effect_ncols = st.number_input(
-                                "Subplot cols",
-                                min_value=1,
-                                max_value=12,
-                                value=4,
-                                step=1,
-                                key="single_effect_ncols",
-                            )
-
-                        with ceff4:
-                            single_effect_max_vars = st.number_input(
-                                "Max variables (0=all)",
-                                min_value=0,
-                                max_value=500,
-                                value=0,
-                                step=1,
-                                key="single_effect_max_vars",
-                                help="限制显示的目标变量数量；0 表示绘制全部变量。",
-                            )
-
-                    clear_effect_plot = st.button(
-                        "Clear Effect Plot",
-                        key="clear_single_effect_plot_btn",
-                    )
-
-                    if run_effect_plot:
-                        st.session_state["single_effect_plot_render"] = True
-
-                    if clear_effect_plot:
-                        st.session_state["single_effect_plot_render"] = False
-
-                    if st.session_state.get("single_effect_plot_render", False):
-                        fig = plot_effect(
-                            quasi_dynamic_df=result["quasi_dynamic_df"],
-                            curve_df=result["predicted_df"],
-                            effect_df_list=result["effect_df_list"],
-                            intercept=result["model"].coef_.loc["intercept"],
-                            plot_ncols=st.session_state.get("single_effect_ncols", 4),
-                            plot_max_vars=st.session_state.get("single_effect_max_vars", 0),
-                        )
-                        st.pyplot(fig)
+                    if isinstance(result["model"], DynamicIDOPRegressor):
+                        from idopnetwork_app.ecg_visualization import render_ecg_effects
+                        render_ecg_effects(result["model"], key="single_ecg_effect")
                     else:
-                        st.info("Click `Run Effect Decomposition Plot` to render effect curves.")
+                        with st.form(key="single_effect_form"):
+                            ceff1, ceff2, ceff3, ceff4 = st.columns(4)
+
+                            with ceff1:
+                                run_effect_plot = st.form_submit_button(
+                                    "Run Effect Decomposition Plot",
+                                )
+
+                            with ceff2:
+                                st.write("")
+
+                            with ceff3:
+                                single_effect_ncols = st.number_input(
+                                    "Subplot cols",
+                                    min_value=1,
+                                    max_value=12,
+                                    value=4,
+                                    step=1,
+                                    key="single_effect_ncols",
+                                )
+
+                            with ceff4:
+                                single_effect_max_vars = st.number_input(
+                                    "Max variables (0=all)",
+                                    min_value=0,
+                                    max_value=500,
+                                    value=0,
+                                    step=1,
+                                    key="single_effect_max_vars",
+                                    help="限制显示的目标变量数量；0 表示绘制全部变量。",
+                                )
+
+                        clear_effect_plot = st.button(
+                            "Clear Effect Plot",
+                            key="clear_single_effect_plot_btn",
+                        )
+
+                        if run_effect_plot:
+                            st.session_state["single_effect_plot_render"] = True
+
+                        if clear_effect_plot:
+                            st.session_state["single_effect_plot_render"] = False
+
+                        if st.session_state.get("single_effect_plot_render", False):
+                            fig = plot_effect(
+                                quasi_dynamic_df=result["quasi_dynamic_df"],
+                                curve_df=result["predicted_df"],
+                                effect_df_list=result["effect_df_list"],
+                                intercept=result["model"].coef_.loc["intercept"],
+                                plot_ncols=st.session_state.get("single_effect_ncols", 4),
+                                plot_max_vars=st.session_state.get("single_effect_max_vars", 0),
+                            )
+                            st.pyplot(fig)
+                        else:
+                            st.info("Click `Run Effect Decomposition Plot` to render effect curves.")
 
                 # ========== Tab 1_2_3 Adjacency Matrix ==========
                 # ========== Tab 1_2_3 Adjacency Matrix ==========
@@ -1253,7 +1263,7 @@ with tab2:
         else:
             condition_names = list(centers.keys())
             ml_algorithm = st.session_state.get("netrecon_idop_algorithm", IDOP_ALGORITHM_ASGL)
-            
+
             with st.expander("Multi-Layer IdopNetwork parameter settings", expanded=True):
                 with st.form(key="netrecon_form_multilayer"):
                     mc1, mc2, mc3, mc4, mc5 = st.columns(5)
@@ -1707,73 +1717,99 @@ with tab2:
                     if not layer_options:
                         st.warning("No built network available for effect decomposition.")
                     else:
-                        with st.form(key="ml_effect_form"):
-                            effect_layer = st.selectbox(
-                                "Layer",
-                                options=layer_options,
-                                key="netrecon_ml_effect_layer",
-                            )
-                            if effect_layer == "inter_cluster":
-                                effect_condition = st.selectbox(
-                                    "Condition",
-                                    options=list(multilayer_result["inter_cluster"].keys()),
-                                    key="netrecon_ml_effect_inter_condition",
-                                )
-                                effect_network = multilayer_result["inter_cluster"][effect_condition]
-                                st.markdown(f"当前网络: `inter_cluster / {effect_condition}`")
-                            else:
-                                effect_condition = st.selectbox(
-                                    "Condition",
-                                    options=list(available_intra.keys()),
-                                    key="netrecon_ml_effect_intra_condition",
-                                )
-                                effect_cluster = st.selectbox(
-                                    "Cluster",
-                                    options=list(available_intra[effect_condition].keys()),
-                                    key="netrecon_ml_effect_intra_cluster",
-                                )
-                                effect_network = available_intra[effect_condition][effect_cluster]
-                                st.markdown(
-                                    f"当前网络: `intra_cluster / {effect_condition} / {effect_cluster}`"
-                                )
-
-                            ce1, ce2, ce3, ce4 = st.columns(4)
-
-                            with ce1:
-                                run_ml_effect_plot = st.form_submit_button(
-                                    "Run Multi-Layer Effect Plot",
-                                )
-                            with ce2:
-                                st.write("")
-
-                            with ce3:
-                                effect_ncols = st.number_input(
-                                    "Subplot cols",
-                                    min_value=1,
-                                    max_value=12,
-                                    value=4,
-                                    step=1,
-                                    key="ml_effect_ncols",
-                                )
-                            with ce4:
-                                effect_max_vars = st.number_input(
-                                    "Max variables (0=all)",
-                                    min_value=0,
-                                    max_value=500,
-                                    value=0,
-                                    step=1,
-                                    key="ml_effect_max_vars",
-                                    help="限制显示的目标变量数量；0 表示绘制全部变量。",
-                                )
-
-                        clear_ml_effect_plot = st.button(
-                            "Clear Multi-Layer Effect Plot",
-                            key="clear_ml_effect_plot_btn",
+                        effect_layer = st.selectbox(
+                            "Layer",
+                            options=layer_options,
+                            key="netrecon_ml_effect_layer",
                         )
+                        if effect_layer == "inter_cluster":
+                            effect_condition = st.selectbox(
+                                "Condition",
+                                options=list(multilayer_result["inter_cluster"].keys()),
+                                key="netrecon_ml_effect_inter_condition",
+                            )
+                            effect_network = multilayer_result["inter_cluster"][effect_condition]
+                            st.markdown(f"当前网络: `inter_cluster / {effect_condition}`")
+                        else:
+                            effect_condition = st.selectbox(
+                                "Condition",
+                                options=list(available_intra.keys()),
+                                key="netrecon_ml_effect_intra_condition",
+                            )
+                            effect_cluster = st.selectbox(
+                                "Cluster",
+                                options=list(available_intra[effect_condition].keys()),
+                                key="netrecon_ml_effect_intra_cluster",
+                            )
+                            effect_network = available_intra[effect_condition][effect_cluster]
+                            st.markdown(
+                                f"当前网络: `intra_cluster / {effect_condition} / {effect_cluster}`"
+                            )
 
-                        if run_ml_effect_plot:
+                        if isinstance(effect_network["model"], DynamicIDOPRegressor):
+                            from idopnetwork_app.ecg_visualization import render_ecg_effects
+                            render_ecg_effects(effect_network["model"], key=f"multi_ecg_effect_{effect_layer}_{effect_condition}_{effect_cluster if effect_layer != 'inter_cluster' else 'all'}")
+                        else:
+                            with st.form(key="ml_effect_form"):
+                                ce1, ce2, ce3, ce4 = st.columns(4)
+
+                                with ce1:
+                                    run_ml_effect_plot = st.form_submit_button(
+                                        "Run Multi-Layer Effect Plot",
+                                    )
+                                with ce2:
+                                    st.write("")
+
+                                with ce3:
+                                    effect_ncols = st.number_input(
+                                        "Subplot cols",
+                                        min_value=1,
+                                        max_value=12,
+                                        value=4,
+                                        step=1,
+                                        key="ml_effect_ncols",
+                                    )
+                                with ce4:
+                                    effect_max_vars = st.number_input(
+                                        "Max variables (0=all)",
+                                        min_value=0,
+                                        max_value=500,
+                                        value=0,
+                                        step=1,
+                                        key="ml_effect_max_vars",
+                                        help="限制显示的目标变量数量；0 表示绘制全部变量。",
+                                    )
+
+                            clear_ml_effect_plot = st.button(
+                                "Clear Multi-Layer Effect Plot",
+                                key="clear_ml_effect_plot_btn",
+                            )
+
+                            if run_ml_effect_plot:
+                                if effect_layer == "inter_cluster":
+                                    st.session_state["ml_effect_plot_request"] = {
+                                        "layer": effect_layer,
+                                        "condition": effect_condition,
+                                        "cluster": "",
+                                        "ncols": int(effect_ncols),
+                                        "max_vars": int(effect_max_vars),
+                                    }
+                                else:
+                                    st.session_state["ml_effect_plot_request"] = {
+                                        "layer": effect_layer,
+                                        "condition": effect_condition,
+                                        "cluster": effect_cluster,
+                                        "ncols": int(effect_ncols),
+                                        "max_vars": int(effect_max_vars),
+                                    }
+
+                            if clear_ml_effect_plot:
+                                st.session_state["ml_effect_plot_request"] = None
+
+                            effect_plot_request = st.session_state.get("ml_effect_plot_request", None)
+
                             if effect_layer == "inter_cluster":
-                                st.session_state["ml_effect_plot_request"] = {
+                                current_effect_key = {
                                     "layer": effect_layer,
                                     "condition": effect_condition,
                                     "cluster": "",
@@ -1781,7 +1817,7 @@ with tab2:
                                     "max_vars": int(effect_max_vars),
                                 }
                             else:
-                                st.session_state["ml_effect_plot_request"] = {
+                                current_effect_key = {
                                     "layer": effect_layer,
                                     "condition": effect_condition,
                                     "cluster": effect_cluster,
@@ -1789,40 +1825,18 @@ with tab2:
                                     "max_vars": int(effect_max_vars),
                                 }
 
-                        if clear_ml_effect_plot:
-                            st.session_state["ml_effect_plot_request"] = None
-
-                        effect_plot_request = st.session_state.get("ml_effect_plot_request", None)
-
-                        if effect_layer == "inter_cluster":
-                            current_effect_key = {
-                                "layer": effect_layer,
-                                "condition": effect_condition,
-                                "cluster": "",
-                                "ncols": int(effect_ncols),
-                                "max_vars": int(effect_max_vars),
-                            }
-                        else:
-                            current_effect_key = {
-                                "layer": effect_layer,
-                                "condition": effect_condition,
-                                "cluster": effect_cluster,
-                                "ncols": int(effect_ncols),
-                                "max_vars": int(effect_max_vars),
-                            }
-
-                        if effect_plot_request == current_effect_key:
-                            fig = plot_effect(
-                                quasi_dynamic_df=effect_network["quasi_dynamic_df"],
-                                curve_df=effect_network["predicted_df"],
-                                effect_df_list=effect_network["effect_df_list"],
-                                intercept=effect_network["model"].coef_.loc["intercept"],
-                                plot_ncols=int(effect_plot_request.get("ncols", 4)),
-                                plot_max_vars=int(effect_plot_request.get("max_vars", 0)),
-                            )
-                            st.pyplot(fig)
-                        else:
-                            st.info("Click `Run Multi-Layer Effect Plot` to render effect curves.")
+                            if effect_plot_request == current_effect_key:
+                                fig = plot_effect(
+                                    quasi_dynamic_df=effect_network["quasi_dynamic_df"],
+                                    curve_df=effect_network["predicted_df"],
+                                    effect_df_list=effect_network["effect_df_list"],
+                                    intercept=effect_network["model"].coef_.loc["intercept"],
+                                    plot_ncols=int(effect_plot_request.get("ncols", 4)),
+                                    plot_max_vars=int(effect_plot_request.get("max_vars", 0)),
+                                )
+                                st.pyplot(fig)
+                            else:
+                                st.info("Click `Run Multi-Layer Effect Plot` to render effect curves.")
 
                 # ========== Tab 2_2_3 Adjacency Matrix ==========
                 # ========== Tab 2_2_3 Adjacency Matrix ==========
@@ -1874,7 +1888,7 @@ with tab2:
                             "Clear Inter Heatmap",
                             key="clear_ml_inter_heatmap_btn",
                         )
-                            
+
                         if run_inter_heatmap:
                             st.session_state["ml_inter_heatmap_request"] = {
                                 "condition": inter_adj_condition,
@@ -1951,7 +1965,7 @@ with tab2:
                             "Clear Intra Heatmap",
                             key="clear_ml_intra_heatmap_btn",
                         )
-                            
+
                         if run_intra_heatmap:
                             st.session_state["ml_intra_heatmap_request"] = {
                                 "condition": intra_adj_condition,

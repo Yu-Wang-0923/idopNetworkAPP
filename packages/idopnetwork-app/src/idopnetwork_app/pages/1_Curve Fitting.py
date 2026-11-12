@@ -212,31 +212,41 @@ with plot_tab:
         key=f"fit_features_{selected}_{sha256(repr(list(quasi.columns)).encode()).hexdigest()[:12]}",
         help="默认只绘制前 6 个 Feature；可自行增减，超过每页容量时分页显示。",
     )
-    with st.expander("Plot settings", expanded=False):
-        c1, c2, c3 = st.columns(3)
-        nrow = c1.number_input("Rows", min_value=1, max_value=10, value=2)
-        ncol = c1.number_input("Cols", min_value=1, max_value=10, value=3)
-        plot_type = c2.selectbox("Plot Type", ["scatter", "line"])
-        scatter_size = c2.number_input("Scatter Size", min_value=1, max_value=1000, value=100)
-        linewidth = c2.number_input("Line Size", min_value=1, max_value=10, value=1)
-        scatter_color = c3.color_picker("Data Color", "#1F77B4")
-        curve_color = c3.color_picker("Curve Color", "#D62728")
-        background = c3.color_picker("Subfig Background Color", "#FFFFFF")
-    per_page = int(nrow * ncol)
+    if is_dynamic:
+        per_page = 6
+        ecg_sampling_rate = st.number_input("ECG 采样率 (Hz)", min_value=1.0, value=100.0,
+                                            help="有 time 时间索引时直接使用该时间；否则按此采样率生成秒单位横轴。")
+    else:
+        with st.expander("Plot settings", expanded=False):
+            c1, c2, c3 = st.columns(3)
+            nrow = c1.number_input("Rows", min_value=1, max_value=10, value=2)
+            ncol = c1.number_input("Cols", min_value=1, max_value=10, value=3)
+            plot_type = c2.selectbox("Plot Type", ["scatter", "line"])
+            scatter_size = c2.number_input("Scatter Size", min_value=1, max_value=1000, value=100)
+            linewidth = c2.number_input("Line Size", min_value=1, max_value=10, value=1)
+            scatter_color = c3.color_picker("Data Color", "#1F77B4")
+            curve_color = c3.color_picker("Curve Color", "#D62728")
+            background = c3.color_picker("Subfig Background Color", "#FFFFFF")
+        per_page = int(nrow * ncol)
     pages = max(1, (len(selected_features) + per_page - 1) // per_page)
     page = st.selectbox("Feature page", range(1, pages + 1), key=f"fit_page_{selected}_{per_page}")
     features = selected_features[(page - 1) * per_page:page * per_page]
     st.caption(f"显示 {len(features)} / {len(quasi.columns)} 个 Feature；默认选择前 6 个。")
     if features:
-        fig = plot_curve_fitting(
-            df_scatter=quasi.loc[:, features], df_curve=samples.loc[:, features],
-            plot_scatter_type=plot_type, show_curve=True, scatter_x="index",
-            nrow=int(nrow), ncol=int(ncol), nsubfig=per_page, scatter_size=scatter_size,
-            scatter_linewidth=linewidth, color_scatter=scatter_color, color_curve=curve_color,
-            subfig_background_color=background,
-        )
-        st.pyplot(fig)
-        plt.close(fig)
+        if is_dynamic:
+            from idopnetwork_app.ecg_visualization import render_ecg_fitting
+            render_ecg_fitting(quasi, samples, features=features, key=f"swt_{selected}",
+                               sampling_rate=float(ecg_sampling_rate))
+        else:
+            fig = plot_curve_fitting(
+                df_scatter=quasi.loc[:, features], df_curve=samples.loc[:, features],
+                plot_scatter_type=plot_type, show_curve=True, scatter_x="index",
+                nrow=int(nrow), ncol=int(ncol), nsubfig=per_page, scatter_size=scatter_size,
+                scatter_linewidth=linewidth, color_scatter=scatter_color, color_curve=curve_color,
+                subfig_background_color=background,
+            )
+            st.pyplot(fig)
+            plt.close(fig)
     else:
         st.info("请选择至少一个 Feature 以显示拟合图。")
 
@@ -263,11 +273,19 @@ if len(results) > 1:
                 compare_pages = max(1, (len(common) + per_page - 1) // per_page)
                 compare_page = st.selectbox("Comparison page", range(1, compare_pages + 1))
                 subset = common[(compare_page - 1) * per_page:compare_page * per_page]
-                fig = plot_curve_fitting_compare(
-                    df_scatter_list=[t["quasi_dynamic"].loc[:, subset] for t in results.values()],
-                    df_curve_list=[t["curve_sample"].loc[:, subset] for t in results.values()],
-                    label_list=list(results), show_curve=True, nrow=int(nrow),
-                    ncol=int(ncol), nsubfig=per_page,
-                )
-                st.pyplot(fig)
-                plt.close(fig)
+                if is_dynamic:
+                    from idopnetwork_app.ecg_visualization import render_ecg_fitting
+                    for name, tables in results.items():
+                        st.markdown(f"**{name}**")
+                        render_ecg_fitting(tables["quasi_dynamic"], tables["curve_sample"],
+                                           features=subset, key=f"compare_swt_{name}",
+                                           sampling_rate=float(ecg_sampling_rate))
+                else:
+                    fig = plot_curve_fitting_compare(
+                        df_scatter_list=[t["quasi_dynamic"].loc[:, subset] for t in results.values()],
+                        df_curve_list=[t["curve_sample"].loc[:, subset] for t in results.values()],
+                        label_list=list(results), show_curve=True, nrow=int(nrow),
+                        ncol=int(ncol), nsubfig=per_page,
+                    )
+                    st.pyplot(fig)
+                    plt.close(fig)
