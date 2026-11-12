@@ -115,11 +115,11 @@ def _build_interactive_network_html(
     edges: pd.DataFrame,
     modules: tuple,
     title: str,
+    renderer_revision: str,
 ) -> str:
     """生成单文件交互式 HTML（Hub 同心环布局）。
 
-    缓存键为 (边表, 模块顺序, 标题)：Streamlit 每次交互都会重跑整页脚本，缓存可
-    避免同一个网络被反复重建。
+    缓存键包含绘图源码摘要；绘图实现更新后重新生成 HTML。
     """
     import tempfile
     from pathlib import Path
@@ -152,6 +152,9 @@ def _render_interactive_network(
     的 in/out-degree 面板，因此不再需要另出静态图。
     """
     from idopnetwork.network.interactive import network_edges_from_adjacency
+    from idopnetwork.network import interactive
+    from hashlib import sha256
+    from pathlib import Path
 
     edges = network_edges_from_adjacency(
         adj_df, target_node=target_node, top_edges=top_edges,
@@ -165,6 +168,7 @@ def _render_interactive_network(
             edges,
             tuple(str(v) for v in adj_df.index),
             title or "network",
+            renderer_revision=sha256(Path(interactive.__file__).read_bytes()).hexdigest(),
         )
     except Exception as exc:  # noqa: BLE001
         st.error(f"生成交互式网络图失败：{exc}")
