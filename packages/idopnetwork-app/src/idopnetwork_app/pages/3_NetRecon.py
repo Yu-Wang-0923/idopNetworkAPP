@@ -33,13 +33,13 @@ IDOP_ALGORITHM_DYNAMIC = "dynamic_idop"
 IDOP_ALGORITHM_LABELS = {
     IDOP_ALGORITHM_ASGL: "ASGL + BIC（默认）",
     IDOP_ALGORITHM_STATIC: "LASSO + ODE（静态 idop）",
-    IDOP_ALGORITHM_DYNAMIC: "Fourier + Legendre（动态 idop / ECG）",
+    IDOP_ALGORITHM_DYNAMIC: "idopECG(4)（动态 / Shapley）",
 }
 
-# 动态求解器的默认值（2.5 s 窗口 @ 100 Hz = 250 点）
+# idopECG(4)：0 表示自动 Fourier 阶数 / 选边滑窗。
 DYNAMIC_DEFAULT_FS = 100.0
-DYNAMIC_DEFAULT_WINDOW = 250
-DYNAMIC_DEFAULT_N_FOURIER = 30
+DYNAMIC_DEFAULT_WINDOW = 0
+DYNAMIC_DEFAULT_N_FOURIER = 0
 
 
 def _make_idop_model(
@@ -63,18 +63,17 @@ def _make_idop_model(
       分解 + max_order 的 BIC 网格）；
     - ``static_idop``：与 ``asgl`` **共用同一套求解流程**，只把交叉边选边器换成
       原始数据上的多窗口 LASSO（频率阈值）；
-    - ``dynamic_idop``：动态数据路线 —— 自效应用积分 **Fourier** 基、交叉效应用
-      **Legendre** 基，按窗口做**两阶段正交化最小二乘**（无 cvxpy），跨窗平均。
-      适用于「曲线拟合」页 Dynamic 模式输出的 SWT 去噪波形。
+    - ``dynamic_idop``：整段数据、来源信号 Legendre 基、交互优先 Shapley 分摊，
+      自身 Fourier 项拟合剩余响应，边权为带独立符号的能量份额。
     """
     if str(algorithm) == IDOP_ALGORITHM_DYNAMIC:
         return DynamicIDOPRegressor(
-            n_fourier=int(n_fourier),
+            n_fourier=None if int(n_fourier) == 0 else int(n_fourier),
             r_legendre=int(max_order),
-            window=int(dynamic_window),
+            window=None if int(dynamic_window) == 0 else int(dynamic_window),
             fs=float(dynamic_fs),
             lasso_alpha=float(lasso_alpha),
-            lasso_windows=int(lasso_windows),
+            lasso_windows=None if int(lasso_windows) == 0 else int(lasso_windows),
             lasso_threshold=float(lasso_threshold),
             mix=0.5,
             nonneg_self=bool(nonneg_self),
@@ -311,8 +310,7 @@ def _load_funclu_export_from_zip(
 def _observed_for_plot(model, fallback: pd.DataFrame) -> pd.DataFrame:
     """取**与预测同网格**的观测序列（实现见 idopnetwork.network.dynamic_idop）。
 
-    动态路线的预测落在窗口时间网格上，而传入的响应是完整时间序列，两者横轴不同，
-    直接混用会让「Fitting vs Prediction」与「Effect Decomposition」整体错位。
+    动态路线使用模型保存的整段物理时间网格，保证观测、预测与效应逐点对齐。
     """
     from idopnetwork.network.dynamic_idop import observed_for_plot
 
@@ -468,6 +466,11 @@ def _collect_network_export_artifacts(
         "n_nodes": int(adj_df.shape[0]),
         "n_edges_nonzero": int(from_to_df.shape[0]),
     }
+    if hasattr(model, "settings_"):
+        params.update(model.settings_)
+        params.update({"solver_version": model.solver_version_, "edge_weight": "sign * energy_share",
+                       "alpha_ratio": model.lasso_alpha, "support_window": model.window,
+                       "support_stride": model.lasso_windows, "support_threshold": model.lasso_threshold})
     if extra_params:
         params.update(extra_params)
 
@@ -476,6 +479,7 @@ def _collect_network_export_artifacts(
         "effect_map": effect_map,
         "from_to_df": from_to_df,
         "params_df": _params_to_df(params),
+        "dynamic_tables": getattr(model, "ecg_exports_", {}),
     }
 
 
@@ -502,6 +506,8 @@ def _build_singlelayer_export_zip(result: dict) -> bytes:
             "params.csv",
             _to_csv_utf8_sig_bytes(artifacts["params_df"], index=False),
         )
+        for name, table in artifacts["dynamic_tables"].items():
+            zf.writestr(f"dynamic/{name}.csv", _to_csv_utf8_sig_bytes(table, index=False))
         for target_name, effect_df in artifacts["effect_map"].items():
             zf.writestr(
                 f"effect/{target_name}.csv",
@@ -552,6 +558,8 @@ def _build_multilayer_export_zip(
                 f"{base_dir}/params.csv",
                 _to_csv_utf8_sig_bytes(artifacts["params_df"], index=False),
             )
+            for name, table in artifacts["dynamic_tables"].items():
+                zf.writestr(f"{base_dir}/dynamic/{name}.csv", _to_csv_utf8_sig_bytes(table, index=False))
             for target_name, effect_df in artifacts["effect_map"].items():
                 zf.writestr(
                     f"{base_dir}/effect/{target_name}.csv",
@@ -584,6 +592,8 @@ def _build_multilayer_export_zip(
                     f"{base_dir}/params.csv",
                     _to_csv_utf8_sig_bytes(artifacts["params_df"], index=False),
                 )
+                for name, table in artifacts["dynamic_tables"].items():
+                    zf.writestr(f"{base_dir}/dynamic/{name}.csv", _to_csv_utf8_sig_bytes(table, index=False))
                 for target_name, effect_df in artifacts["effect_map"].items():
                     zf.writestr(
                         f"{base_dir}/effect/{target_name}.csv",
@@ -598,6 +608,20 @@ def _build_multilayer_export_zip(
             )
 
     return buffer.getvalue()
+
+
+def _has_legacy_dynamic_result(value) -> bool:
+    """Reject old window-based dynamic models after this solver upgrade."""
+    if isinstance(value, dict):
+        return any(_has_legacy_dynamic_result(item) for item in value.values())
+    return (type(value).__name__ == "DynamicIDOPRegressor"
+            and getattr(value, "solver_version_", None) != "idopECG4_interaction_first_shapley")
+
+
+for result_key in ("netrecon_result", "netrecon_multilayer_result"):
+    if _has_legacy_dynamic_result(st.session_state.get(result_key)):
+        st.session_state[result_key] = None
+        st.info("动态求解器已升级为 idopECG(4)，请重新运行建网以生成新版结果。")
 
 
 # ========== Session State Initialization ==========
@@ -712,9 +736,9 @@ with tab1:
                         "LASSO + cvxpy 约束分解 + max_order 的 BIC 网格）。\n"
                         "• LASSO + ODE：与上一条**共用同一套求解流程**，只把交叉边选边器"
                         "换成原始数据上的多窗口 LASSO（频率阈值）——仅仅支撑集不同。\n"
-                        "• Fourier + Legendre：动态数据路线，自效应用积分 Fourier 基、"
-                        "交叉效应用 Legendre 基，按窗口做两阶段正交化最小二乘"
-                        "（无 cvxpy），跨窗平均。适用于「曲线拟合」页 Dynamic 模式"
+                        "• idopECG(4)：动态数据路线，自效应用积分 Fourier 基、"
+                        "交叉效应用来源信号的 Legendre 基，整段序列上做交互项优先的正交化与 Shapley 分摊"
+                        "（无 cvxpy），按能量份额计算边权。适用于「曲线拟合」页 Dynamic 模式"
                         "（SWT 去噪）产出的波形。"
                     ),
                 )
@@ -725,19 +749,20 @@ with tab1:
                             "max_order",
                             min_value=1,
                             max_value=100,
-                            value=1,
+                            value=3 if idop_algorithm == IDOP_ALGORITHM_DYNAMIC else 1,
                             step=1,
                             help=(
                                 "ASGL：BIC 在 1..该值 之间选 max_order。"
                                 "LASSO + ODE：作为基函数阶数 basis_order（每源 "
-                                "basis_order+1 个积分 Legendre 基）。"
+                                "basis_order+1 个积分 Legendre 基）。动态路线为来源信号 Legendre 阶数，默认 3。"
                             ),
                         )
                     with c2:
-                        nonneg_self = st.checkbox("nonneg_self", value=True)
+                        nonneg_self = st.checkbox("nonneg_self", value=idop_algorithm != IDOP_ALGORITHM_DYNAMIC, disabled=idop_algorithm == IDOP_ALGORITHM_DYNAMIC)
                     with c3:
                         top_k = st.number_input(
                             "max_interactions (Top-K)",
+                            disabled=idop_algorithm == IDOP_ALGORITHM_DYNAMIC,
                             min_value=0,
                             max_value=100,
                             value=0,
@@ -746,9 +771,9 @@ with tab1:
                     with c4:
                         adjacency_aggregation = st.selectbox(
                             "adjacency_aggregation",
-                            options=["mean", "integral"],
+                            options=["energy_share"] if idop_algorithm == IDOP_ALGORITHM_DYNAMIC else ["mean", "integral"],
                             index=0,
-                            help="邻接矩阵列聚合方式：mean=离散点均值，integral=按 index 梯形积分。",
+                            help="动态路线固定为 sign × 能量份额；原始 weight 与独立 sign 一并导出。静态路线保留 mean/integral。",
                         )
 
                     if idop_algorithm == IDOP_ALGORITHM_STATIC:
@@ -789,71 +814,24 @@ with tab1:
                         dynamic_window = DYNAMIC_DEFAULT_WINDOW
                         dynamic_fs = DYNAMIC_DEFAULT_FS
                     elif idop_algorithm == IDOP_ALGORITHM_DYNAMIC:
-                        st.markdown("**动态数据（Fourier 自效应 / Legendre 交叉）参数**")
-                        dyn_c1, dyn_c2, dyn_c3 = st.columns(3)
-                        with dyn_c1:
-                            n_fourier = st.number_input(
-                                "Fourier 谐波阶数",
-                                min_value=1,
-                                max_value=200,
-                                value=DYNAMIC_DEFAULT_N_FOURIER,
-                                step=1,
-                                key="netrecon_dyn_n_fourier",
-                                help="自效应的积分 Fourier 基谐波数（每源 2N+1 列）。",
-                            )
-                        with dyn_c2:
-                            dynamic_window = st.number_input(
-                                "窗口点数 (window)",
-                                min_value=8,
-                                max_value=5000,
-                                value=DYNAMIC_DEFAULT_WINDOW,
-                                step=10,
-                                key="netrecon_dyn_window",
-                                help="切窗长度（采样点数）；2.5 s @ 100 Hz = 250。",
-                            )
-                        with dyn_c3:
-                            dynamic_fs = st.number_input(
-                                "采样率 (Hz)",
-                                min_value=1.0,
-                                max_value=10000.0,
-                                value=DYNAMIC_DEFAULT_FS,
-                                step=1.0,
-                                key="netrecon_dyn_fs",
-                                help="用于把窗口点数换算成秒（t_end = window / fs）。",
-                            )
-                        st.markdown("**动态选边器（多窗口 LASSO）**")
-                        dynl_c1, dynl_c2, dynl_c3 = st.columns(3)
-                        with dynl_c1:
-                            lasso_alpha = st.number_input(
-                                "LASSO alpha",
-                                min_value=1e-6,
-                                value=0.01,
-                                step=0.005,
-                                format="%.4f",
-                                key="netrecon_dyn_lasso_alpha",
-                                help="LASSO 正则强度；越大选出的边越少。",
-                            )
-                        with dynl_c2:
-                            lasso_windows = st.number_input(
-                                "LASSO windows (k)",
-                                min_value=1,
-                                max_value=200,
-                                value=10,
-                                step=1,
-                                key="netrecon_dyn_lasso_k",
-                                help="把时间序列切成多少个窗口分别做 LASSO。",
-                            )
-                        with dynl_c3:
-                            lasso_threshold = st.number_input(
-                                "Support threshold",
-                                min_value=0.0,
-                                max_value=1.0,
-                                value=0.4,
-                                step=0.05,
-                                format="%.2f",
-                                key="netrecon_dyn_lasso_threshold",
-                                help="source 需在超过该比例的窗口中非零，才进入支撑集。",
-                            )
+                        st.caption("idopECG(4)：整段拟合；来源信号 Legendre 基 → 交互优先 Shapley 分摊 → 自身 Fourier 拟合。边权为能量份额，符号独立估计。")
+                        a, b, c = st.columns(3)
+                        n_fourier = a.number_input("Fourier 阶数（0 = 自动 10 Hz）", min_value=0,
+                            max_value=2000, value=0, step=1, key="netrecon_ecg4_n_fourier")
+                        dynamic_window = b.number_input("LASSO 滑窗点数（0 = 自动）", min_value=0,
+                            max_value=1000000, value=0, step=1, key="netrecon_ecg4_window",
+                            help="自动为 max(4, N // 5)；仅用于选边，求解始终使用整段数据。")
+                        dynamic_fs = c.number_input("采样率 (Hz)", min_value=1.0,
+                            max_value=10000.0, value=DYNAMIC_DEFAULT_FS, step=1.0, key="netrecon_ecg4_fs")
+                        a, b, c = st.columns(3)
+                        lasso_alpha = a.number_input("LASSO alpha_ratio", min_value=1e-6,
+                            max_value=1.0, value=0.1, step=0.01, format="%.4f", key="netrecon_ecg4_alpha_ratio",
+                            help="每个滑窗使用 alpha_ratio × alpha_max，x/y 同时标准化。")
+                        lasso_windows = b.number_input("LASSO 滑动步长（0 = 自动）", min_value=0,
+                            max_value=1000000, value=0, step=1, key="netrecon_ecg4_stride",
+                            help="自动为 max(1, window_size // 4)。")
+                        lasso_threshold = c.number_input("Support threshold", min_value=0.0,
+                            max_value=1.0, value=0.9, step=0.05, format="%.2f", key="netrecon_ecg4_threshold")
                     else:
                         lasso_alpha, lasso_windows, lasso_threshold = 0.1, 1, 0.5
                         n_fourier = DYNAMIC_DEFAULT_N_FOURIER
@@ -873,7 +851,7 @@ with tab1:
 
                         progress_bar.progress(10, text="Estimating power-function parameters...")
                         log.write("Estimating power-function parameters...")
-                        power_function_params = get_power_function_params(quasi_dynamic_df)
+                        power_function_params = (pd.DataFrame() if idop_algorithm == IDOP_ALGORITHM_DYNAMIC else get_power_function_params(quasi_dynamic_df))
 
                         progress_bar.progress(20, text="Initializing network model...")
                         log.write(
@@ -901,27 +879,11 @@ with tab1:
                             power_function_params=power_function_params,
                         )
 
-                        # 动态求解器在数据过短时会自动适配窗口 / Fourier 阶数，
-                        # 这里把原因显式告知，避免"看起来跑通了但口径不对"。
-                        for _adapt_note in getattr(model, "adaptation_notes_", []) or []:
-                            st.warning(f"⚠️ {_adapt_note}")
-
-                        # 动态路线的绘图口径：观测/预测/效应取同一个窗口（R² 最高），
-                        # 避免跨窗平均把不同心搏相位的波形抹平。
-                        if hasattr(model, "plot_window_"):
-                            _iw = int(model.plot_window_)
-                            _n = int(getattr(model, "n_windows_", 1))
-                            _r2 = float(
-                                np.mean([
-                                    model.window_r2_[lead][_iw]
-                                    for lead in model.window_r2_
-                                ])
-                            ) if getattr(model, "window_r2_", None) else float("nan")
-                            st.caption(
-                                f"动态绘图口径：观测 / 预测 / 效应均取第 "
-                                f"**{_iw + 1} / {_n}** 个窗口（各导联 R² 之和最高者，"
-                                f"该窗口平均 R² = {_r2:.4f}）；网络边权仍为跨窗平均。"
-                            )
+                        for note in getattr(model, "adaptation_notes_", []):
+                            st.warning(note)
+                        if hasattr(model, "solver_version_"):
+                            st.caption(f"{model.solver_version_} · 整段 {len(model.observed())} 点拟合 · Fourier 阶数 {model.n_fourier} · 边权 sign × energy share")
+                            st.dataframe(model.diagnostics_, use_container_width=True)
 
                         progress_bar.progress(70, text="Generating prediction curves...")
                         log.write("Generating prediction curves...")
@@ -1290,6 +1252,7 @@ with tab2:
             st.info("Waiting for data upload...")
         else:
             condition_names = list(centers.keys())
+            ml_algorithm = st.session_state.get("netrecon_idop_algorithm", IDOP_ALGORITHM_ASGL)
             
             with st.expander("Multi-Layer IdopNetwork parameter settings", expanded=True):
                 with st.form(key="netrecon_form_multilayer"):
@@ -1299,7 +1262,7 @@ with tab2:
                             "max_order_upper (BIC)",
                             min_value=1,
                             max_value=100,
-                            value=1,
+                            value=3 if ml_algorithm == IDOP_ALGORITHM_DYNAMIC else 1,
                             step=1,
                             key="netrecon_ml_max_order",
                             help="ASGL uses BIC to select max_order from 1..this value.",
@@ -1307,12 +1270,14 @@ with tab2:
                     with mc2:
                         ml_nonneg_self = st.checkbox(
                             "nonneg_self",
-                            value=True,
+                            value=ml_algorithm != IDOP_ALGORITHM_DYNAMIC,
+                            disabled=ml_algorithm == IDOP_ALGORITHM_DYNAMIC,
                             key="netrecon_ml_nonneg_self",
                         )
                     with mc3:
                         ml_top_k = st.number_input(
                             "max_interactions (Top-K)",
+                            disabled=ml_algorithm == IDOP_ALGORITHM_DYNAMIC,
                             min_value=0,
                             max_value=100,
                             value=0,
@@ -1322,10 +1287,10 @@ with tab2:
                     with mc4:
                         ml_adjacency_aggregation = st.selectbox(
                             "adjacency_aggregation",
-                            options=["mean", "integral"],
+                            options=["energy_share"] if ml_algorithm == IDOP_ALGORITHM_DYNAMIC else ["mean", "integral"],
                             index=0,
                             key="netrecon_ml_adjacency_aggregation",
-                            help="邻接矩阵列聚合方式：mean=离散点均值，integral=按 index 梯形积分。",
+                            help="动态路线固定为 sign × 能量份额；原始 weight 与独立 sign 一并导出。静态路线保留 mean/integral。",
                         )
                     with mc5:
                         submit_multilayer = st.form_submit_button("Run Multi-Layer IdopNetwork")
@@ -1355,18 +1320,22 @@ with tab2:
                     # 动态求解器参数（同为单层表单里的 widget）
                     "n_fourier": int(
                         st.session_state.get(
-                            "netrecon_dyn_n_fourier", DYNAMIC_DEFAULT_N_FOURIER
+                            "netrecon_ecg4_n_fourier", DYNAMIC_DEFAULT_N_FOURIER
                         )
                     ),
                     "dynamic_window": int(
                         st.session_state.get(
-                            "netrecon_dyn_window", DYNAMIC_DEFAULT_WINDOW
+                            "netrecon_ecg4_window", DYNAMIC_DEFAULT_WINDOW
                         )
                     ),
                     "dynamic_fs": float(
-                        st.session_state.get("netrecon_dyn_fs", DYNAMIC_DEFAULT_FS)
+                        st.session_state.get("netrecon_ecg4_fs", DYNAMIC_DEFAULT_FS)
                     ),
                 }
+                if params["algorithm"] == IDOP_ALGORITHM_DYNAMIC:
+                    params.update(lasso_alpha=float(st.session_state.get("netrecon_ecg4_alpha_ratio", 0.1)),
+                                  lasso_windows=int(st.session_state.get("netrecon_ecg4_stride", 0)),
+                                  lasso_threshold=float(st.session_state.get("netrecon_ecg4_threshold", 0.9)))
                 inter_cluster: dict[str, dict] = {}
                 intra_cluster: dict[str, dict[str, dict]] = {}
                 skipped: list[dict[str, str | int]] = []
