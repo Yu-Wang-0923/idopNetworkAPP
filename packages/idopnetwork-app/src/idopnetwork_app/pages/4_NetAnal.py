@@ -26,14 +26,9 @@ from idopnetwork.analysis.network_analysis import (
     list_from_to_members,
     member_display_label,
     load_from_to_from_zip,
-    run_glmy,
-    run_glmy_split,
-    suggest_max_x,
-    sanitize_name,
 )
 from idopnetwork.analysis.plot_analysis import (
     plot_glmy_barcode,
-    plot_glmy_barcode_combined,
 )
 from idopnetwork.ml.core import (
     compare_hub_tables,
@@ -566,7 +561,7 @@ with tab1:
         "`single_layer_idopnetwork_export.zip` 或 "
         "`multi_layer_idopnetwork_export.zip`），"
         "对其中的 `from_to.csv` 使用内置 Python GLMY/path homology "
-        "实现计算同调群（β₀–β₃）并展示 barcode 图。"
+        "新版实现计算 F₂ 上的 regular path homology（β₀–β₂），展示 barcode、过滤过程和代表元图。"
     )
 
     uploaded_zip = st.file_uploader(
@@ -578,6 +573,8 @@ with tab1:
 
     zip_bytes: bytes | None = None
     members: list[str] = []
+    st.session_state.pop("netanal_glmy_from_to_df", None)
+    st.session_state.pop("netanal_glmy_chosen_member", None)
     if uploaded_zip is not None:
         zip_bytes = uploaded_zip.getvalue()
         try:
@@ -592,7 +589,7 @@ with tab1:
             zip_bytes = None
 
     tab1_1, tab1_2, tab1_3, tab1_4 = st.tabs(
-        ["Uploaded Data", "GLMY Analysis", "M3 Self-test", "Paper §3.2 Self-test"]
+        ["Uploaded Data", "GLMY Analysis", "Legacy M3 Self-test", "Legacy Paper §3.2 Self-test"]
     )
 
     # ========== Tab 1_1 Uploaded Data ==========
@@ -632,249 +629,10 @@ with tab1:
 
     # ========== Tab 1_2 GLMY Analysis ==========
     with tab1_2:
-        from_to_df = st.session_state.get("netanal_glmy_from_to_df")
-        chosen_member = st.session_state.get("netanal_glmy_chosen_member")
+        from idopnetwork_app.glmy_workflow import render_glmy_analysis
 
-        if from_to_df is None:
-            st.info("Please upload a ZIP and pick a sub-network in **Uploaded Data** first.")
-        elif from_to_df.empty:
-            st.warning("当前选择的 `from_to.csv` 为空，无法运行 GLMY。")
-        else:
-            default_max_x = float(suggest_max_x(from_to_df))
-
-            with st.form(key="netanal_glmy_form"):
-                col1, col2 = st.columns([1, 1])
-                with col1:
-                    max_x = st.number_input(
-                        "Barcode max_x",
-                        min_value=1e-9,
-                        value=round(default_max_x, 4),
-                        step=0.1,
-                        format="%.4f",
-                        key="netanal_glmy_max_x",
-                        help=(
-                            "Barcode 横轴右端位置；默认按 |weight| 最大值 + 10% buffer "
-                            "自适应。仅作图横轴范围，**不**对 weight 做任何归一化。"
-                        ),
-                    )
-                with col2:
-                    st.caption("Auto suggestion (max_x)")
-                    st.code(f"{default_max_x:.4f}", language="text")
-
-                run_clicked = st.form_submit_button(
-                    "Run GLMY",
-                    type="primary",
-                )
-
-            if run_clicked:
-                with st.spinner("Running Python GLMY/path homology ..."):
-                    try:
-                        glmy_result = run_glmy(from_to_df)
-                        split_result = run_glmy_split(from_to_df)
-                    except Exception as e:
-                        st.error(f"GLMY 运行失败：{e}")
-                        glmy_result = None
-                        split_result = None
-                if glmy_result is not None:
-                    st.session_state["netanal_glmy_result"] = glmy_result
-                    st.session_state["netanal_glmy_split_result"] = split_result
-                    st.session_state["netanal_glmy_result_max_x"] = float(max_x)
-                    st.session_state["netanal_glmy_result_member"] = chosen_member
-
-            glmy_result = st.session_state.get("netanal_glmy_result")
-            result_member = st.session_state.get("netanal_glmy_result_member")
-
-            if glmy_result is None:
-                st.info("Click **Run GLMY** to compute homology and draw the barcode.")
-            else:
-                if result_member != chosen_member:
-                    st.warning(
-                        f"当前展示的是 `{result_member}` 的旧结果；"
-                        f"请重新点击 **Run GLMY** 以匹配当前选择 `{chosen_member}`。"
-                    )
-
-                homology = glmy_result["homology"]
-                summary = {
-                    f"β{dim}": len(homology.get(str(dim), []))
-                    for dim in (0, 1, 2, 3)
-                }
-                st.markdown(
-                    "**Betti number summary**：各维 **barcode 条数**（持久对个数）。"
-                )
-                st.json(summary)
-                st.caption(
-                    f"backend = `python`（新版实现），"
-                    f"weight_offset = `{glmy_result.get('weight_offset', 0.0):g}`；"
-                    "权重整体平移为正后计算，barcode 端点再减回同一偏移，"
-                    "对应 `from_to.csv` 中的原始 weight/Effect 尺度，**未做任何归一化**。"
-                )
-
-                split_result = st.session_state.get("netanal_glmy_split_result")
-                split_homologies = (split_result or {}).get("homologies") or {
-                    "positive": {key: [] for key in ("3", "2", "1", "0")},
-                    "negative": {key: [] for key in ("3", "2", "1", "0")},
-                }
-                split_edge_counts = (split_result or {}).get("edge_counts") or {}
-
-                st.markdown(
-                    "**总体 / 正权 / 负权 三联 barcode**（同一行的三个面板共享 y 轴高度）："
-                    "左列为全部带符号权重（横轴以 0 为对称中心）；中、右列按权重符号拆分后"
-                    "各自独立计算（横轴自 0 起，负权取 |w|）。"
-                )
-                if split_result is None:
-                    st.caption(
-                        "当前结果缺少正负拆分数据（可能是升级前的旧结果）；"
-                        "重新点击 **Run GLMY** 即可补齐。"
-                    )
-                elif split_edge_counts:
-                    st.caption(
-                        f"split edges：positive = `{split_edge_counts.get('positive', 0)}`，"
-                        f"negative = `{split_edge_counts.get('negative', 0)}`"
-                    )
-
-                fig = plot_glmy_barcode_combined(
-                    homology,
-                    split_homologies,
-                    max_x=float(st.session_state.get("netanal_glmy_result_max_x", default_max_x)),
-                )
-                st.pyplot(fig, width="stretch")
-
-                # PNG / PDF 下载
-                png_buf = io.BytesIO()
-                fig.savefig(png_buf, format="png", dpi=200, bbox_inches="tight")
-                pdf_buf = io.BytesIO()
-                fig.savefig(pdf_buf, format="pdf", bbox_inches="tight")
-                plt.close(fig)
-
-                base_name = sanitize_name(member_display_label(result_member or "glmy"))
-
-                col_d1, col_d2, col_d3, col_d4 = st.columns(4)
-                col_d1.download_button(
-                    label="Download barcode PNG",
-                    data=png_buf.getvalue(),
-                    file_name=f"{base_name}_glmy_barcode.png",
-                    mime="image/png",
-                    key="netanal_glmy_png_download",
-                )
-                col_d2.download_button(
-                    label="Download barcode PDF",
-                    data=pdf_buf.getvalue(),
-                    file_name=f"{base_name}_glmy_barcode.pdf",
-                    mime="application/pdf",
-                    key="netanal_glmy_pdf_download",
-                )
-                col_d3.download_button(
-                    label="Download homology.json",
-                    data=json.dumps(homology, indent=2, ensure_ascii=False).encode("utf-8"),
-                    file_name=f"{base_name}_homology.json",
-                    mime="application/json",
-                    key="netanal_glmy_json_download",
-                )
-                col_d4.download_button(
-                    label="Download split homology.json",
-                    data=json.dumps(split_homologies, indent=2, ensure_ascii=False).encode("utf-8"),
-                    file_name=f"{base_name}_homology_split.json",
-                    mime="application/json",
-                    key="netanal_glmy_split_json_download",
-                )
-
-            # ========== Run GLMY on All Sub-networks ==========
-            if zip_bytes is not None and len(members) >= 2:
-                st.divider()
-                st.markdown("### Run GLMY on All Sub-networks")
-
-                run_all = st.button(
-                    f"Run GLMY on All ({len(members)} sub-networks)",
-                    type="secondary",
-                    key="netanal_glmy_run_all",
-                    use_container_width=True,
-                )
-
-                if run_all:
-                    all_results: dict[str, dict] = {}
-                    with st.status(
-                        f"Running GLMY on {len(members)} sub-networks..."
-                    ) as status:
-                        for member in members:
-                            st.write(
-                                f"Processing `{member_display_label(member)}`..."
-                            )
-                            try:
-                                df = load_from_to_from_zip(zip_bytes, member)
-                                result = run_glmy(df)
-                                all_results[member] = {
-                                    "result": result,
-                                    "df": df,
-                                }
-                            except Exception as e:
-                                all_results[member] = {"error": str(e)}
-                        status.update(
-                            label=f"Done ({len(all_results)} sub-networks)",
-                            state="complete",
-                        )
-                    st.session_state["netanal_glmy_all_results"] = all_results
-
-                all_results = st.session_state.get("netanal_glmy_all_results")
-                if all_results:
-                    for member, data in all_results.items():
-                        label = member_display_label(member)
-                        st.markdown(f"#### {label}")
-                        if "error" in data:
-                            st.error(f"GLMY 运行失败：{data['error']}")
-                        else:
-                            result = data["result"]
-                            homology = result["homology"]
-                            summary = {
-                                f"β{dim}": len(homology.get(str(dim), []))
-                                for dim in (0, 1, 2, 3)
-                            }
-                            st.json(summary)
-
-                            max_x = suggest_max_x(data["df"])
-                            fig = plot_glmy_barcode(
-                                homology, max_x=max_x,
-                            )
-                            st.pyplot(fig, width="stretch")
-
-                            base_name = sanitize_name(label)
-                            png_buf = io.BytesIO()
-                            fig.savefig(
-                                png_buf, format="png", dpi=200,
-                                bbox_inches="tight",
-                            )
-                            pdf_buf = io.BytesIO()
-                            fig.savefig(
-                                pdf_buf, format="pdf",
-                                bbox_inches="tight",
-                            )
-                            plt.close(fig)
-
-                            c1, c2, c3 = st.columns(3)
-                            c1.download_button(
-                                label="Download PNG",
-                                data=png_buf.getvalue(),
-                                file_name=f"{base_name}_barcode.png",
-                                mime="image/png",
-                                key=f"netanal_glmy_all_png_{member}",
-                            )
-                            c2.download_button(
-                                label="Download PDF",
-                                data=pdf_buf.getvalue(),
-                                file_name=f"{base_name}_barcode.pdf",
-                                mime="application/pdf",
-                                key=f"netanal_glmy_all_pdf_{member}",
-                            )
-                            c3.download_button(
-                                label="Download JSON",
-                                data=json.dumps(
-                                    homology, indent=2,
-                                    ensure_ascii=False,
-                                ).encode("utf-8"),
-                                file_name=f"{base_name}_homology.json",
-                                mime="application/json",
-                                key=f"netanal_glmy_all_json_{member}",
-                            )
-                        st.divider()
+        render_glmy_analysis(from_to_df=st.session_state.get("netanal_glmy_from_to_df"),
+                             member=st.session_state.get("netanal_glmy_chosen_member"))
 
     # ========== Tab 1_3 M3 Self-test ==========
     with tab1_3:
