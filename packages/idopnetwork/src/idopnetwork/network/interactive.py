@@ -2094,6 +2094,14 @@ def write_interactive_network_html(
         网络 weak-edge slider 和 Degree 使用完全相同的 visible edges。
     """
 
+    single_network = title == "Single network"
+    node_min = 4.0 if single_network else 0.45
+    label_min = 5.0 if single_network else 0.40
+    edge_min = 5.0 if single_network else 0.25
+    node_default = node_min if single_network else DEFAULT_NODE_SCALE
+    label_default = label_min if single_network else DEFAULT_LABEL_SCALE
+    edge_default = edge_min if single_network else DEFAULT_EDGE_SCALE
+
     if edges.empty:
 
         print(
@@ -3152,17 +3160,17 @@ button:hover,
             <input
                 id="nodeScale"
                 type="range"
-                min="0.45"
+                min="{node_min}"
                 max="5.00"
                 step="0.05"
-                value="{DEFAULT_NODE_SCALE}"
+                value="{node_default}"
             >
 
             <span
                 id="nodeScaleValue"
                 class="value"
             >
-                {DEFAULT_NODE_SCALE:.2f}
+                {node_default:.2f}
             </span>
 
         </label>
@@ -3175,17 +3183,17 @@ button:hover,
             <input
                 id="labelScale"
                 type="range"
-                min="0.40"
+                min="{label_min}"
                 max="6.00"
                 step="0.05"
-                value="{DEFAULT_LABEL_SCALE}"
+                value="{label_default}"
             >
 
             <span
                 id="labelScaleValue"
                 class="value"
             >
-                {DEFAULT_LABEL_SCALE:.2f}
+                {label_default:.2f}
             </span>
 
         </label>
@@ -3198,17 +3206,17 @@ button:hover,
             <input
                 id="edgeScale"
                 type="range"
-                min="0.25"
+                min="{edge_min}"
                 max="8.00"
                 step="0.05"
-                value="{DEFAULT_EDGE_SCALE}"
+                value="{edge_default}"
             >
 
             <span
                 id="edgeScaleValue"
                 class="value"
             >
-                {DEFAULT_EDGE_SCALE:.2f}
+                {edge_default:.2f}
             </span>
 
         </label>
