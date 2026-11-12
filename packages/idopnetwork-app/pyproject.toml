@@ -26,5 +26,6 @@ idopnetwork_app = [
     "static/images/*",
     "static/SimHei.ttf",
     "data/*.csv",
+    "data/*.zip",
     "data/*.R",
 ]

@@ -33,6 +33,15 @@ def _fit(content: bytes, **options):
 
 st.title("Curve Fitting", text_alignment="center")
 st.caption("Upload static CSV files, choose parameters and click Run Fitting. The first column is the row index; remaining columns are features.")
+st.download_button(
+    "下载示例数据（教育数据 ZIP）",
+    data=(files("idopnetwork_app") / "data" / "education_example.zip").read_bytes(),
+    file_name="教育示例数据.zip",
+    mime="application/zip",
+    key="download_education_example",
+    on_click="ignore",
+)
+st.caption("示例包含 7 科成绩，学生姓名已匿名化。下载并解压 ZIP 后，将 CSV 文件上传至下方，选择 Quasi-dynamic 并点击 Run Fitting。")
 uploaded = st.file_uploader("Upload CSV files", type=["csv"], accept_multiple_files=True,
                             key="curve_fitting_upload_v4")
 if not uploaded:
