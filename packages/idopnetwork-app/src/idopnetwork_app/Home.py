@@ -128,61 +128,23 @@ else:
 
     with col_left:
         st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>核心计算模块</h4>", unsafe_allow_html=True)
-        st.markdown("""
-        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded" rel="stylesheet" />
-        
-        <a href=" " target="_self" class="card-link">
-            <div class='card'>
-                <div class='card-title'>
-                    <span style='display:flex; align-items:center; gap:6px;'>
-                        <span class="material-symbols-rounded" style="color:#16a34a; font-size:1.4rem;">timeline</span> 
-                        曲线拟合 (Curve Fitting)
-                    </span> 
-                    <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span>
-                </div>
-                <div class='card-desc'>基于生态位理论与异速生长定律，实现静态数据的拟动态幂律曲线转化，为后续微分方程的构建提供底层数学基础。</div>
-            </div>
-        </a >
-        
-        <a href="FunClu" target="_self" class="card-link">
-            <div class='card'>
-                <div class='card-title'>
-                    <span style='display:flex; align-items:center; gap:6px;'>
-                        <span class="material-symbols-rounded" style="color:#ea580c; font-size:1.4rem;">category</span> 
-                        功能聚类 (FunClu)
-                    </span> 
-                    <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span>
-                </div>
-                <div class='card-desc'>通过多元高斯混合模型实现功能模块聚类，降低高维网络解析复杂度。</div>
-            </div>
-        </a >
-        
-        <a href="NetRecon" target="_self" class="card-link">
-            <div class='card'>
-                <div class='card-title'>
-                    <span style='display:flex; align-items:center; gap:6px;'>
-                        <span class="material-symbols-rounded" style="color:#7c3aed; font-size:1.4rem;">hub</span> 
-                        idop网络重构 (NetRecon)
-                    </span> 
-                    <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span>
-                </div>
-                <div class='card-desc'>基于进化博弈论构建微分方程，通过带约束多任务稀疏回归，求解变量自身表达与交互效应，构建动态个性化复杂网络。</div>
-            </div>
-        </a >
-        
-        <a href="NetAnal" target="_self" class="card-link">
-            <div class='card'>
-                <div class='card-title'>
-                    <span style='display:flex; align-items:center; gap:6px;'>
-                        <span class="material-symbols-rounded" style="color:#e11d48; font-size:1.4rem;">insights</span> 
-                        idop网络解析 (NetAnal)
-                    </span> 
-                    <span style='font-size:0.9rem;color:#3b82f6;'>进入 &rarr;</span>
-                </div>
-                <div class='card-desc'>采用 GLMY 拓扑同调方法解析动态网络高阶结构，也可通过网络深度与 “网络中位数” 理论，刻画群体共性拓扑特征。</div>
-            </div>
-        </a >
-        """, unsafe_allow_html=True)
+        modules = [
+            ("pages/1_Curve Fitting.py", "曲线拟合 (Curve Fitting)", "timeline",
+             "基于生态位理论与异速生长定律，实现静态数据的拟动态幂律曲线转化，为后续微分方程的构建提供底层数学基础。"),
+            ("pages/2_FunClu.py", "功能聚类 (FunClu)", "category",
+             "通过多元高斯混合模型实现功能模块聚类，降低高维网络解析复杂度。"),
+            ("pages/3_NetRecon.py", "idop网络重构 (NetRecon)", "hub",
+             "基于进化博弈论构建微分方程，通过带约束多任务稀疏回归，求解变量自身表达与交互效应，构建动态个性化复杂网络。"),
+            ("pages/4_NetAnal.py", "idop网络解析 (NetAnal)", "insights",
+             "采用 GLMY 拓扑同调方法解析动态网络高阶结构，也可通过网络深度与“网络中位数”理论，刻画群体共性拓扑特征。"),
+        ]
+        for page, label, icon, description in modules:
+            with st.container(border=True):
+                heading, entry = st.columns([4, 1], vertical_alignment="center")
+                heading.markdown(f"**:material/{icon}: {label}**")
+                # Native page navigation preserves the authenticated session.
+                entry.page_link(page, label="进入 →", use_container_width=True)
+                st.caption(description)
 
 with col_right:
     st.markdown("<h4 style='color:#0f172a;margin-bottom:1rem;font-size:1.3rem;'>idopnetwork代表性学术成果</h4>", unsafe_allow_html=True)
