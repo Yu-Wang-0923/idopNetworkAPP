@@ -51,13 +51,13 @@ class CurveFittingPageTests(unittest.TestCase):
             app.run()
             self.assertFalse(app.exception)
             self.assertEqual(len(app.dataframe), 0)
-            self.assertEqual(len(app.get('download_button')), 1)
+            self.assertEqual(len(app.get('download_button')), 2)
             app.button[0].click().run()
             self.assertFalse(app.exception)
             self.assertEqual(len(app.dataframe), 3)
             self.assertEqual(app.dataframe[1].value.shape[0], 30)
             self.assertNotIn('Dynamic Data', [tab.label for tab in app.tabs])
-            self.assertEqual(len(app.get('download_button')), 5)
+            self.assertEqual(len(app.get('download_button')), 6)
             old = app.dataframe[0].value.copy()
             app.checkbox[0].check().run()
             self.assertFalse(app.exception)
@@ -78,7 +78,7 @@ class CurveFittingPageTests(unittest.TestCase):
             files[:] = []
             app.run()
             self.assertFalse(app.exception)
-            self.assertEqual(len(app.get('download_button')), 1)
+            self.assertEqual(len(app.get('download_button')), 2)
             self.assertEqual(len(app.dataframe), 0)
 
     def test_partial_failure_is_visible_and_does_not_block_valid_files(self):
@@ -93,4 +93,4 @@ class CurveFittingPageTests(unittest.TestCase):
         self.assertFalse(app.exception)
         self.assertEqual(len(app.error), 1)
         self.assertTrue(any('1 / 2' in w.value for w in app.warning))
-        self.assertEqual(len(app.get('download_button')), 5)
+        self.assertEqual(len(app.get('download_button')), 6)

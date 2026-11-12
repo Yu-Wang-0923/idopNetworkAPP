@@ -33,4 +33,6 @@ Old dynamic session results must be recomputed after this update. Historical
 window-average tests are replaced by full-record/additive-identity, source-order,
 physical-time, energy-share/sign, empty-support and invalid-input tests. Local
 differential verification against the supplied source compares every result
-table exactly; original ECG records are not included in the repository.
+table exactly. The user-requested 12-channel, 100 Hz ECG example is bundled as
+`idopnetwork_app/data/ecg_100hz.csv`, with a time-in-seconds index added for the
+Curve Fitting uploader; the original twelve signal columns are retained.

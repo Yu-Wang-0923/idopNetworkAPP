@@ -42,6 +42,15 @@ st.download_button(
     on_click="ignore",
 )
 st.caption("示例包含 7 科成绩，学生姓名已匿名化。下载并解压 ZIP 后，将 CSV 文件上传至下方，选择 Quasi-dynamic 并点击 Run Fitting。")
+st.download_button(
+    "下载示例数据 2（ECG · 100 Hz · 12 通道 CSV）",
+    data=(files("idopnetwork_app") / "data" / "ecg_100hz.csv").read_bytes(),
+    file_name="ECG_100Hz_12通道.csv",
+    mime="text/csv",
+    key="download_ecg_example",
+    on_click="ignore",
+)
+st.caption("ECG 示例包含 1000 个采样点，采样率为 100 Hz；首列 time 为秒，其余 12 列为导联。上传此 CSV 后选择 Dynamic 并点击 Run Fitting；建网时选择 idopECG(4)（动态 / Shapley），采样率保持 100 Hz。")
 uploaded = st.file_uploader("Upload CSV files", type=["csv"], accept_multiple_files=True,
                             key="curve_fitting_upload_v4")
 if not uploaded:
