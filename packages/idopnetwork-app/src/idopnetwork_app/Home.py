@@ -1,8 +1,9 @@
 
 
 import streamlit as st
+from html import escape
 from importlib.resources import files
-from idopnetwork_app.utils import _is_admin_user, load_css, setup_sidebar
+from idopnetwork_app.utils import HEADER_TOGGLE_KEY, _is_admin_user, load_css, setup_sidebar
 from idopnetwork_app.auth import show_login_ui
 
 _ICON = str(files("idopnetwork_app.static.images") / "TSA.png")
@@ -42,11 +43,21 @@ if not st.session_state.get("logged_in", False):
 # ==========================================
 else:
     # --- 主页专属 CSS 样式 ---
+    top_padding = "4rem" if st.session_state.get(HEADER_TOGGLE_KEY) else "1rem"
     st.markdown("""
     <style>
+    :root { --home-top: HOME_TOP; }
+    [data-testid="stMainBlockContainer"] { padding-top: var(--home-top); }
+    .st-key-home-profile {
+        display: flex; flex-direction: column; align-items: center; text-align: center;
+    }
+    .st-key-home-profile [data-testid="stImage"] { margin-inline: auto; max-width: 100%; }
+    .st-key-home-profile img { border-radius: 12px; max-width: 100%; height: auto; }
+    .st-key-home-profile p { margin: 0; }
+    .st-key-home-profile .profile-btn { white-space: nowrap; }
     /* IDOP 静态标签 */
-    .idop-badges { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; }
-    .badge-item { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 0.65rem 1.4rem; border-radius: 8px; font-size: 1.1rem; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
+    .idop-badges { display: flex; gap: 0.5rem; margin-top: 0.25rem; flex-wrap: wrap; }
+    .badge-item { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 0.35rem 0.8rem; border-radius: 8px; font-size: 1.1rem; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
 
     /* 工作流卡片样式 */
     .card-link {text-decoration: none !important;}
@@ -67,8 +78,8 @@ else:
     .profile-btn {
         display: inline-block;
         margin-top: 10px;
-        padding: 6px 20px;
-        background-color: #3b82f6;
+        padding: 10px 20px;
+        background-color: #245fc0;
         color: white !important;
         text-decoration: none !important;
         border-radius: 5px;
@@ -80,14 +91,14 @@ else:
         box-shadow: 0 4px 10px rgba(59,130,246,0.3);
     }
     </style>
-    """, unsafe_allow_html=True)
+    """.replace("HOME_TOP", top_padding), unsafe_allow_html=True)
 
     # --- 首屏横幅区 ---
-    col_hero1, col_hero2 = st.columns([1.3, 1], gap="large")
+    col_hero1, col_hero2 = st.columns([2.2, 1], gap="large")
     with col_hero1: 
-        st.markdown(f"<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>欢迎回来, {st.session_state['current_user']}</h1>", unsafe_allow_html=True)
+        st.markdown(f"<h1 style='color:#0f172a;margin:0;font-size:clamp(2rem, 4vw, 3.2rem);'>欢迎回来，{escape(str(st.session_state['current_user']))}</h1>", unsafe_allow_html=True)
         st.markdown("""
-        <p style='color:#475569;font-size:1.15rem;line-height:1.7;margin-top:1.2rem;'>
+        <p style='color:#475569;font-size:1.15rem;line-height:1.7;margin-top:0;'>
             idopNetwork 是一套基于 <b>邬荣领教授</b> 提出的统计力学框架构建的复杂系统分析体系。
             通过将静态的观测数据映射到高维拓扑空间，我们能够突破传统统计学的局限，实现对系统内部运作机理的深度还原。
         </p>
@@ -102,24 +113,14 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-    with col_hero2: 
-        # 右侧：邬教授专家名片
-        _, img_col, _ = st.columns([1.5, 4, 1.5])
-        with img_col:
-            st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
-            _, center_img_col, _ = st.columns([1, 2, 1])
-            with center_img_col:
-                st.image(_WU, width=150)  # 通过子列居中，确保与下方文字同轴
-                st.markdown("<p style='text-align:center; font-weight:bold; font-size:1.15rem; color:#0f172a; margin-top:4px; margin-bottom:2px;'>邬荣领 教授</p>", unsafe_allow_html=True)
-                st.markdown("<p style='text-align:center; color:#475569; font-size:0.95rem; margin-top:0; margin-bottom:4px;'>BIMSA 副院长 / 首席科学家</p>", unsafe_allow_html=True)
-                st.markdown("""
-                <div style="text-align:center;">
-                    <a href="https://www.bimsa.cn/zh-CN/detail/ronglingwu.html" target="_blank" class="profile-btn">
-                        查看个人主页 &rarr;
-                    </a>
-                </div>
-                """, unsafe_allow_html=True)
-       
+    with col_hero2.container(key="home-profile"):
+        st.image(_WU, width=240)
+        st.markdown("""
+        <p><strong>邬荣领 教授</strong></p>
+        <p>BIMSA 副院长 / 首席科学家</p>
+        <a href="https://www.bimsa.cn/zh-CN/detail/ronglingwu.html"
+           target="_blank" rel="noopener noreferrer" class="profile-btn">查看个人主页 &rarr;</a>
+        """, unsafe_allow_html=True)
 
     st.divider()
 
