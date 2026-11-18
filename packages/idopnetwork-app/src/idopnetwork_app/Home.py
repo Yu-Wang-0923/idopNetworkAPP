@@ -48,13 +48,17 @@ else:
     <style>
     :root { --home-top: HOME_TOP; }
     [data-testid="stMainBlockContainer"] { padding-top: var(--home-top); }
-    .st-key-home-profile {
-        display: flex; flex-direction: column; align-items: center; text-align: center;
+    .st-key-home-profile [data-testid="stImage"] { justify-content: center; }
+    .st-key-home-profile img {
+        display: block;
+        width: min(100%, clamp(10rem, 17vw, 20rem)) !important;
+        height: auto;
+        margin-inline: auto;
+        border-radius: 12px;
     }
-    .st-key-home-profile [data-testid="stImage"] { margin-inline: auto; max-width: 100%; }
-    .st-key-home-profile img { border-radius: 12px; max-width: 100%; height: auto; }
-    .st-key-home-profile p { margin: 0; }
-    .st-key-home-profile .profile-btn { white-space: nowrap; }
+    .profile-details { display: grid; justify-items: center; text-align: center; }
+    .profile-details p { margin: 0; }
+    .profile-details .profile-btn { white-space: nowrap; }
     /* IDOP 静态标签 */
     .idop-badges { display: flex; gap: 0.5rem; margin-top: 0.25rem; flex-wrap: wrap; }
     .badge-item { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 0.35rem 0.8rem; border-radius: 8px; font-size: 1.1rem; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
@@ -114,12 +118,14 @@ else:
         """, unsafe_allow_html=True)
 
     with col_hero2.container(key="home-profile"):
-        st.image(_WU, width=240)
+        st.image(_WU, width="stretch")
         st.markdown("""
+        <div class="profile-details">
         <p><strong>邬荣领 教授</strong></p>
         <p>BIMSA 副院长 / 首席科学家</p>
         <a href="https://www.bimsa.cn/zh-CN/detail/ronglingwu.html"
            target="_blank" rel="noopener noreferrer" class="profile-btn">查看个人主页 &rarr;</a>
+        </div>
         """, unsafe_allow_html=True)
 
     st.divider()
