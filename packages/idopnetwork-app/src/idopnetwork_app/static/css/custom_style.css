@@ -8,7 +8,7 @@
 .stApp { background-color: var(--workspace-paper); }
 [data-testid="stMainBlockContainer"] {
     max-width: 100rem;
-    padding-top: var(--workspace-top);
+    padding-top: 4rem;
 }
 footer, [data-testid="stSidebarNav"] { display: none; }
 
@@ -21,6 +21,7 @@ footer, [data-testid="stSidebarNav"] { display: none; }
     border-bottom: 1px solid #b9cfc5;
     margin-bottom: .25rem;
 }
+.st-key-platform-brand p { margin: .4rem 0 0; text-align: center; }
 .st-key-platform-brand img { border-radius: 10px; }
 .st-key-platform-brand strong {
     color: var(--workspace-ink);

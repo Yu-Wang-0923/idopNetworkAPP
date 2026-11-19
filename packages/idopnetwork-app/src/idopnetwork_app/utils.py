@@ -17,7 +17,6 @@ font_prop = fm.FontProperties(fname=str(FONT_PATH))
 plt.rcParams["axes.unicode_minus"] = False
 
 ADMIN_USERS = {"郭佳泽", "11"}
-HEADER_TOGGLE_KEY = "show_streamlit_header"
 
 
 def _is_admin_user() -> bool:
@@ -27,24 +26,16 @@ def _is_admin_user() -> bool:
 
 
 def load_css():
-    """在 Streamlit 工作区加载共享视觉样式，并响应管理员的顶栏设置。"""
-    show_header = st.session_state.get(HEADER_TOGGLE_KEY, False)
-    chrome = "" if show_header else """
-    [data-testid="stHeader"] { visibility: hidden; }
-    [data-testid="stExpandSidebarButton"], [data-testid="stSidebarCollapsedControl"] {
-        visibility: visible;
-    }
-    """
-    top = "4rem" if show_header else "2.25rem"
+    """加载工作区共享样式。"""
     css = CSS_PATH.read_text(encoding="utf-8")
-    st.html(f"<style>:root {{ --workspace-top: {top}; }}{css}{chrome}</style>")
+    st.html(f"<style>{css}</style>")
 
 
 def setup_sidebar():
     """全局统一的侧边栏组件"""
     with st.sidebar:
-        with st.container(key="platform-brand", horizontal=True, vertical_alignment="center"):
-            st.image(str(IMAGES_DIR / "TSA.png"), width=48)
+        with st.container(key="platform-brand", horizontal_alignment="center", gap=None):
+            st.image(str(IMAGES_DIR / "TSA.png"), width=112)
             st.markdown("**idopNetwork**")
 
         if st.session_state.get("logged_in", False):
@@ -57,12 +48,6 @@ def setup_sidebar():
             st.divider()
             user = escape(str(st.session_state["current_user"]))
             st.markdown(f"<p class='sidebar-user'>欢迎，{user}</p>", unsafe_allow_html=True)
-            if _is_admin_user():
-                st.toggle(
-                    "显示 Streamlit 顶部菜单",
-                    key=HEADER_TOGGLE_KEY,
-                    help="开启后可使用右上角 Streamlit 菜单（如 Clear cache）。",
-                )
             if st.button("退出登录", key="logout_btn_final"):
                 st.session_state["logged_in"] = False
                 st.rerun()

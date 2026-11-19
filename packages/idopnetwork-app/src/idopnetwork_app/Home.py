@@ -3,7 +3,7 @@
 import streamlit as st
 from html import escape
 from importlib.resources import files
-from idopnetwork_app.utils import HEADER_TOGGLE_KEY, _is_admin_user, load_css, setup_sidebar
+from idopnetwork_app.utils import _is_admin_user, load_css, setup_sidebar
 from idopnetwork_app.auth import show_auth_modal
 
 _ICON = str(files("idopnetwork_app.static.images") / "TSA.png")
@@ -24,9 +24,8 @@ load_css()
 setup_sidebar()
 
 logged_in = st.session_state.get("logged_in", False)
-top_padding = "4rem" if st.session_state.get(HEADER_TOGGLE_KEY) else "1rem"
 home_css = (files("idopnetwork_app.static") / "css" / "home.css").read_text(encoding="utf-8")
-st.html(f"<style>:root {{ --home-top: {top_padding}; }}{home_css}</style>")
+st.html(f"<style>{home_css}</style>")
 
 # --- 首屏横幅区 ---
 col_hero1, col_hero2 = st.container(key="home-hero").columns([2.2, 1], gap="medium", vertical_alignment="center")

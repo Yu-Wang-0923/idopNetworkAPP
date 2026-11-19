@@ -1,4 +1,3 @@
-[data-testid="stMainBlockContainer"] { padding-top: var(--home-top); max-width: 100rem; }
 .st-key-home-profile [data-testid="stImage"] { justify-content: center; }
 .st-key-home-profile img {
     display: block;
