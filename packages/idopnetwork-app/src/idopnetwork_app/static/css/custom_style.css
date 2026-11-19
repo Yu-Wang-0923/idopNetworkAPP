@@ -92,3 +92,19 @@ button:focus-visible, .stPageLink a:focus-visible {
     [data-testid="stMainBlockContainer"] { padding-inline: 1rem; }
     .stTabs [role="tab"] { padding-inline: .6rem; }
 }
+
+.st-key-fit-intake, .st-key-fit-examples {
+    padding: clamp(1rem, 2vw, 1.75rem);
+    border: 1px solid var(--workspace-line);
+    border-radius: 12px;
+}
+.st-key-fit-intake { background: white; }
+.st-key-fit-examples { background: #edf3ef; gap: .45rem; }
+.st-key-fit-intake h3, .st-key-fit-examples h3 {
+    color: var(--workspace-ink);
+    padding: 0;
+}
+.st-key-fit-intake [data-testid="stFileUploaderDropzone"] {
+    min-height: 8rem;
+    justify-content: center;
+}

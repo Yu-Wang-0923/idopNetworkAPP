@@ -32,34 +32,31 @@ def _fit(content: bytes, **options):
 
 
 st.title("Curve Fitting")
-st.caption("Upload static CSV files, choose parameters and click Run Fitting. The first column is the row index; remaining columns are features.")
-education_example, ecg_example = st.columns(2)
-with education_example.container(border=True):
-    st.download_button(
-        "下载示例数据（教育数据 ZIP）",
-        data=(files("idopnetwork_app") / "data" / "education_example.zip").read_bytes(),
-        file_name="教育示例数据.zip",
-        mime="application/zip",
-        key="download_education_example",
-        on_click="ignore",
-    )
-    st.caption("示例包含 7 科成绩，学生姓名已匿名化。下载并解压 ZIP 后，将 CSV 文件上传至下方，选择 Quasi-dynamic 并点击 Run Fitting。")
-with ecg_example.container(border=True):
-    st.download_button(
-        "下载示例数据 2（ECG · 100 Hz · 12 通道 CSV）",
-        data=(files("idopnetwork_app") / "data" / "ecg_100hz.csv").read_bytes(),
-        file_name="ECG_100Hz_12通道.csv",
-        mime="text/csv",
-        key="download_ecg_example",
-        on_click="ignore",
-    )
-    st.caption("ECG 示例包含 1000 个采样点，采样率为 100 Hz；首列 time 为秒，其余 12 列为导联。上传此 CSV 后选择 Dynamic 并点击 Run Fitting；建网时选择 idopECG(4)（动态 / Shapley），采样率保持 100 Hz。")
+intake, examples = st.columns([1.55, 1], gap="medium")
+with intake.container(key="fit-intake"):
+    st.subheader("导入观测数据")
+    st.write("上传一个或多个 CSV。第一列为样本或时间索引，其余列为待分析特征。")
+    uploaded = st.file_uploader("Upload CSV files", type=["csv"], accept_multiple_files=True,
+                                key="curve_fitting_upload_v4", label_visibility="collapsed")
 
-uploaded = st.file_uploader("Upload CSV files", type=["csv"], accept_multiple_files=True,
-                            key="curve_fitting_upload_v4")
+with examples.container(key="fit-examples"):
+    st.subheader("示例数据")
+    st.caption("静态观测 · 教育数据")
+    st.download_button(
+        "下载 7 科成绩 ZIP", data=(files("idopnetwork_app") / "data" / "education_example.zip").read_bytes(),
+        file_name="教育示例数据.zip", mime="application/zip", key="download_education_example", on_click="ignore",
+    )
+    st.caption("时间序列 · 12 导联 ECG")
+    st.download_button(
+        "下载 100 Hz ECG CSV", data=(files("idopnetwork_app") / "data" / "ecg_100hz.csv").read_bytes(),
+        file_name="ECG_100Hz_12通道.csv", mime="text/csv", key="download_ecg_example", on_click="ignore",
+    )
+    with st.expander("如何使用示例"):
+        st.write("教育数据已匿名化。解压 ZIP 后上传 CSV，选择 Quasi-dynamic 进行拟合。")
+        st.write("ECG 含 1000 个采样点。上传后选择 Dynamic 去噪，建网时选择 idopECG(4)，采样率保持 100 Hz。")
+
 if not uploaded:
     st.session_state.pop("curve_fitting_run_v4", None)
-    st.info("Upload CSV files, set parameters and run fitting to see results.")
     st.stop()
 
 names = [file.name for file in uploaded]
@@ -68,6 +65,7 @@ if len(names) != len(set(names)):
     st.error("上传文件名不能重复，请重命名后重试。")
     st.stop()
 
+st.subheader("分析设置")
 data_mode = st.radio(
     "数据类型 / Data type",
     options=[DATA_MODE_QUASI, DATA_MODE_DYNAMIC],
@@ -156,8 +154,9 @@ if submitted:
 
 run = st.session_state.get("curve_fitting_run_v4")
 if run is None:
-    st.info("Choose parameters above and click Run Fitting.")
     st.stop()
+st.divider()
+st.subheader("分析结果")
 for name, error in run["errors"].items():
     st.error(f"{name} 拟合失败：{error}")
 results = run["results"]
@@ -194,13 +193,13 @@ is_dynamic = used.get("data_mode") == DATA_MODE_DYNAMIC
 cols = st.columns(3)
 cols[0].metric(
     "Features denoised" if is_dynamic else "Features fitted",
-    f"{int(valid.sum())} / {len(valid)}",
+    f"{int(valid.sum())} / {len(valid)}", border=True,
 )
 cols[1].metric(
-    "Time points" if is_dynamic else "Quasi-dynamic rows", len(quasi)
+    "Time points" if is_dynamic else "Quasi-dynamic rows", len(quasi), border=True
 )
 cols[2].metric(
-    "Annotated samples" if is_dynamic else "Sample points", len(samples)
+    "Annotated samples" if is_dynamic else "Sample points", len(samples), border=True
 )
 if not valid.all():
     st.warning("Some features have insufficient positive observations. Their parameters and samples contain NaN and will be excluded from clustering.")
