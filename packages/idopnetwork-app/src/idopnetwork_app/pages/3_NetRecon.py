@@ -14,7 +14,7 @@ st.set_page_config(
     page_title="Network Construction",
     page_icon=_ICON,
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
 )
 
 from idopnetwork.curve_fitting.fitting import get_power_function_params
@@ -193,7 +193,7 @@ if not st.session_state.get("logged_in", False):
     st.stop()
 
 # ========== 页面标题 ==========
-st.title("Network Construction", text_alignment="center")
+st.title("Network Construction")
 
 # ========== Backend Functions ==========
 def _load_netrecon_inputs_from_zip(

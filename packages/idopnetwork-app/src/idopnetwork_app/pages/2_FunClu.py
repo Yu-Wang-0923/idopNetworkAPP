@@ -13,7 +13,7 @@ st.set_page_config(
     page_title="Functional Clustering",
     page_icon=_ICON,
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="auto"
 )
 
 import numpy as np
@@ -38,7 +38,7 @@ if not st.session_state.get("logged_in", False):
     st.warning("请先返回首页登录后使用。")
     st.stop()
 
-st.title("Functional Clustering", text_alignment="center")
+st.title("Functional Clustering")
 
 # ========== Session State ==========
 if "funclu_curve_sample" not in st.session_state:

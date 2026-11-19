@@ -1,50 +1,93 @@
-/* ===================== 全局样式优化 ===================== */
-/* 隐藏顶部白边 */
-header, footer { visibility: hidden; }
-
-/* Logo 边框美化：因为你的 TSA Logo 是白底的，加上圆角和阴影会像个高级 App 图标 */
-[data-testid="stSidebar"] img {
-    border-radius: 20px; 
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    background-color: #ffffff;
+:root {
+    --workspace-ink: #173e41;
+    --workspace-accent: #23635e;
+    --workspace-line: #ceddd7;
+    --workspace-paper: #fafbf8;
 }
 
-/* ===================== 自定义侧边栏导航链接样式 ===================== */
-/* 让侧边栏紧凑一点 */
-[data-testid="stSidebar"] { padding-top: 1rem; }
-
-/* 强制我们写的路由按钮文字变成亮白色 */
-.stPageLink a { text-decoration: none !important; padding: 0.25rem 0; transition: all 0.2s; }
-.stPageLink a p {
-    color: #f8fafc !important; 
-    font-size: 1.15rem !important; 
-    font-weight: 500;
+.stApp { background-color: var(--workspace-paper); }
+[data-testid="stMainBlockContainer"] {
+    max-width: 100rem;
+    padding-top: var(--workspace-top);
 }
-.stPageLink:hover {
-    background-color: rgba(255,255,255,0.15) !important; 
-    border-radius: 6px;
-}
+footer, [data-testid="stSidebarNav"] { display: none; }
 
-/* ===================== 主页 IDOP 标签 & 卡片 & 论文样式 ===================== */
-.idop-badges { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; }
-.badge-item {
-    background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; 
-    padding: 0.65rem 1.4rem; border-radius: 8px; font-size: 1.1rem; 
-    font-weight: 600; cursor: default; box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+[data-testid="stSidebar"] {
+    background: #eaf1ed;
+    border-right: 1px solid var(--workspace-line);
 }
-
-.card-link {text-decoration: none !important;}
-.card {
-    background:#fff; padding:1.2rem; border-radius:8px; border:1px solid #e2e8f0; 
-    box-shadow:0 2px 4px rgba(0,0,0,0.02); margin-bottom: 0.8rem; transition:0.3s;
+.st-key-platform-brand {
+    padding-bottom: .9rem;
+    border-bottom: 1px solid #b9cfc5;
+    margin-bottom: .25rem;
 }
-.card:hover { border-color:#3b82f6; box-shadow:0 4px 12px rgba(59,130,246,0.15); transform: translateY(-2px); }
-.card-title { font-size: 1.1rem; font-weight: bold; color: #0f172a; margin-bottom: 0.4rem; display: flex; align-items: center; justify-content: space-between; }
-.card-desc { font-size: 0.95rem; color: #64748b; line-height: 1.5; margin-bottom:0; }
+.st-key-platform-brand img { border-radius: 10px; }
+.st-key-platform-brand strong {
+    color: var(--workspace-ink);
+    font: bold 1.45rem Georgia, serif;
+    letter-spacing: -.035em;
+}
+[data-testid="stSidebar"] .stPageLink a {
+    color: var(--workspace-ink);
+    min-height: 44px;
+    padding-inline: .75rem;
+    border-radius: 7px;
+}
+[data-testid="stSidebar"] .stPageLink a:hover { background: #dce9e1; }
+[data-testid="stSidebar"] .stPageLink a[aria-current="page"] {
+    color: #fff;
+    background: #235550;
+}
+.sidebar-user { color: var(--workspace-ink); font-weight: 600; overflow-wrap: anywhere; }
 
-.scroll-box { height:480px; overflow-y:auto; background:#fff; padding:1.2rem; border-radius:8px; border:1px solid #e2e8f0; }
-.paper-item { margin-bottom: 1.2rem; padding-bottom: 0.8rem; border-bottom: 1px dashed #e2e8f0; }
-.paper-item:last-child {border-bottom: none;}
-.paper-title {font-weight: 600; color: #0f172a; font-size: 1.05rem; display: flex; gap: 0.4rem;}
-.paper-authors {color: #475569; font-size: 0.9rem; line-height: 1.5; margin-top: 0.3rem;}
-.paper-link {color: #3b82f6; font-size: 0.85rem; text-decoration: none; font-weight: 500;}
+[data-testid="stHeadingWithActionElements"] h1 {
+    color: var(--workspace-ink);
+    font: 600 clamp(2rem, 3.5vw, 3.25rem)/1.18 Georgia, "Songti SC", serif;
+    letter-spacing: -.035em;
+    padding-bottom: .85rem;
+    border-bottom: 1px solid var(--workspace-line);
+}
+.stTabs [role="tablist"] { gap: .4rem; }
+.stTabs [role="tab"] {
+    border-radius: 7px 7px 0 0;
+    padding-inline: .8rem;
+    flex-shrink: 0;
+    min-height: 44px;
+}
+.stTabs [role="tab"][aria-selected="true"] {
+    color: #174b47;
+    background: #e3eee7;
+}
+.stTabs [data-baseweb="tab-highlight"] { background: var(--workspace-accent); }
+
+[data-testid="stForm"], [data-testid="stExpander"] details {
+    background: #fff;
+    border: 1px solid var(--workspace-line);
+    border-radius: 10px;
+}
+[data-testid="stFileUploaderDropzone"] {
+    border: 1px dashed #86a89e;
+    background: #f0f5f1;
+    border-radius: 9px;
+}
+[data-testid="stWidgetLabel"] p { color: #324f4f; font-weight: 550; }
+button[kind="primary"]:not(:disabled) {
+    background: var(--workspace-accent);
+    border-color: var(--workspace-accent);
+    color: #fff;
+}
+button[kind="primary"]:not(:disabled):hover { background: #194b48; }
+button[kind="secondary"]:not(:disabled) {
+    background: #fff;
+    color: var(--workspace-ink);
+    border-color: #b6cbc3;
+}
+button[kind="secondary"]:not(:disabled):hover { background: #edf4ef; }
+button:focus-visible, .stPageLink a:focus-visible {
+    outline: 3px solid #458579;
+    outline-offset: 2px;
+}
+@media (max-width: 640px) {
+    [data-testid="stMainBlockContainer"] { padding-inline: 1rem; }
+    .stTabs [role="tab"] { padding-inline: .6rem; }
+}

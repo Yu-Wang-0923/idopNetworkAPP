@@ -10,7 +10,7 @@ from streamlit.testing.v1 import AppTest
     ('pages/1_Curve Fitting.py', 'Curve Fitting'),
     ('pages/2_FunClu.py', 'Functional Clustering'),
     ('pages/3_NetRecon.py', 'Network Construction'),
-    ('pages/4_NetAnal.py', 'Network Analysis sss'),
+    ('pages/4_NetAnal.py', 'Network Analysis'),
 ])
 def test_home_entries_preserve_login_when_navigating(page, title):
     root = Path(__file__).resolve().parents[1]

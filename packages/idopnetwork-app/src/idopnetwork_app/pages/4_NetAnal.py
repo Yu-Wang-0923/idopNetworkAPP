@@ -18,7 +18,7 @@ st.set_page_config(
     page_title="Network Analysis",
     page_icon=_ICON,
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
 )
 # ========== 加载 CSS ==========
 from idopnetwork_app.utils import load_css, setup_sidebar 
@@ -547,7 +547,7 @@ if not st.session_state.get("logged_in", False):
     st.warning("请先返回首页登录后使用。")
     st.stop()
 
-st.title("Network Analysis sss", text_alignment="center")
+st.title("Network Analysis")
 
 
 # ========== Tabs ==========
