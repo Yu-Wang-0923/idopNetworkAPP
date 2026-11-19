@@ -4,7 +4,7 @@ import streamlit as st
 from html import escape
 from importlib.resources import files
 from idopnetwork_app.utils import HEADER_TOGGLE_KEY, _is_admin_user, load_css, setup_sidebar
-from idopnetwork_app.auth import show_login_ui
+from idopnetwork_app.auth import show_auth_modal
 
 _ICON = str(files("idopnetwork_app.static.images") / "TSA.png")
 _WU = str(files("idopnetwork_app.static.images") / "wu.jpg")
@@ -16,144 +16,79 @@ st.set_page_config(
     page_title="idopNetwork",
     page_icon=_ICON,
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="auto"
 )
 
 # 加载全局样式和侧边栏
 load_css()
 setup_sidebar()
 
-# ==========================================
-# 2. 核心拦截门禁
-# ==========================================
-if not st.session_state.get("logged_in", False):
-    # 如果没登录，显示右上角登录按钮
-    show_login_ui()
-    
-    # 显示一个漂亮的门面介绍
-    st.markdown("<h1 style='color:#0f172a;margin-top:0.5rem;font-size:3.2rem;'>idopNetwork 在线计算平台</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#475569;font-size:1.2rem;'>一个面向复杂系统数据的可视化分析工作台。</p>", unsafe_allow_html=True)
-    st.info("💡 请点击右上角的 **[🔑 登录 / 注册]** 认证身份后解锁全部功能。")
-    
-    # 强制切断！
+logged_in = st.session_state.get("logged_in", False)
+top_padding = "4rem" if st.session_state.get(HEADER_TOGGLE_KEY) else "1rem"
+home_css = (files("idopnetwork_app.static") / "css" / "home.css").read_text(encoding="utf-8")
+st.html(f"<style>:root {{ --home-top: {top_padding}; }}{home_css}</style>")
+
+# --- 首屏横幅区 ---
+col_hero1, col_hero2 = st.container(key="home-hero").columns([2.2, 1], gap="medium", vertical_alignment="center")
+with col_hero1:
+    greeting = f"欢迎回来，{escape(str(st.session_state['current_user']))}" if logged_in else "复杂系统在线计算平台"
+    st.markdown(f"<p class='home-greeting'>{greeting}</p><h1 class='home-title'>idopNetwork</h1>", unsafe_allow_html=True)
+    st.markdown("""
+    <p class='home-intro'>
+        idopNetwork 是一套基于 <b>邬荣领教授</b> 提出的统计力学框架构建的复杂系统分析体系。
+        通过将静态的观测数据映射到高维拓扑空间，我们能够突破传统统计学的局限，实现对系统内部运作机理的深度还原。
+    </p>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="idop-badges">
+        <div class="badge-item" title="将复杂数据转化为可解释的生物/物理逻辑">Informative</div>
+        <div class="badge-item" title="刻画系统随时间与环境变化的演化轨迹">Dynamic</div>
+        <div class="badge-item" title="覆盖从分子到表型的全尺度互作网络">Omnidirectional</div>
+        <div class="badge-item" title="生成针对单样本或个体的特异性精准分析">Personalized</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if not logged_in and st.button("登录 / 注册", type="primary"):
+        show_auth_modal()
+
+with col_hero2.container(key="home-profile"):
+    st.image(_WU, width="stretch")
+    st.markdown("""
+    <div class="profile-details">
+    <p><strong>邬荣领 教授</strong></p>
+    <p>BIMSA 副院长 / 首席科学家</p>
+    <a href="https://www.bimsa.cn/zh-CN/detail/ronglingwu.html"
+       target="_blank" rel="noopener noreferrer" class="profile-btn">查看个人主页 &rarr;</a>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+if not logged_in:
     st.stop()
 
-# ==========================================
-# 3. 登录后的世界 (只有认证用户可见)
-# ==========================================
-else:
-    # --- 主页专属 CSS 样式 ---
-    top_padding = "4rem" if st.session_state.get(HEADER_TOGGLE_KEY) else "1rem"
-    st.markdown("""
-    <style>
-    :root { --home-top: HOME_TOP; }
-    [data-testid="stMainBlockContainer"] { padding-top: var(--home-top); }
-    .st-key-home-profile [data-testid="stImage"] { justify-content: center; }
-    .st-key-home-profile img {
-        display: block;
-        width: min(100%, clamp(10rem, 17vw, 20rem)) !important;
-        height: auto;
-        margin-inline: auto;
-        border-radius: 12px;
-    }
-    .profile-details { display: grid; justify-items: center; text-align: center; }
-    .profile-details p { margin: 0; }
-    .profile-details .profile-btn { white-space: nowrap; }
-    .st-key-home-hero {
-        padding: clamp(1rem, 2.2vw, 2.5rem);
-        border: 1px solid #cbdedb;
-        border-radius: 20px;
-        background: radial-gradient(ellipse at 100% 0%, #d7ebe5, transparent 58%), #f5f8f3;
-    }
-    .home-title, .home-section-title, .paper-title {
-        font-family: Georgia, "Songti SC", "Noto Serif CJK SC", serif;
-    }
-    h1.home-title { color: #123e43; font-size: clamp(2rem, 4vw, 3.6rem); line-height: 1.18; }
-    .home-intro { color: #354f51; max-width: 42em; line-height: 1.85 !important; }
-    .idop-badges { display: flex; flex-wrap: wrap; gap: .5rem; }
-    .badge-item {
-        font: 600 .88rem/1.5 Georgia, serif; color: #275957; background: #fff;
-        border: 1px solid #c9dcd5; border-radius: 100px; padding: .32rem .72rem;
-    }
-    .profile-btn {
-        display: inline-block; margin-top: .6rem; padding: .65rem 1.15rem;
-        background: #205d5d; border-radius: 8px; color: white !important;
-        font-size: .9rem; font-weight: 600; text-decoration: none !important;
-    }
-    .profile-btn:hover { background: #143f40; }
-    h2.home-section-title { color: #183e42; font-size: 1.45rem; margin-top: .85rem; }
-    [class*="st-key-home-module-"] {
-        background: white; border-color: #d3dfdc; border-inline-start: 3px solid #59847e;
-    }
-    .scroll-box {
-        height: 480px; overflow-y: auto; padding: 0 1.25rem 1rem;
-        background: white; border: 1px solid #d3dfdc; border-radius: 12px;
-    }
-    .scroll-box h3 {
-        position: sticky; top: 0; background: white; padding: .75rem 0 .5rem;
-        color: #286361; font: bold 1.35rem Georgia, serif; border-bottom: 1px solid #cfddda;
-    }
-    .paper-item { padding: .9rem 0; border-bottom: 1px solid #e6ecea; }
-    .paper-title { font-size: 1.12rem; font-weight: 600; color: #203a42; line-height: 1.45; }
-    .paper-authors { color: #53666a; font-size: .9rem; margin-top: .35rem; }
-    .scroll-box .paper-link { color: #236763; font-size: .85rem; }
-    </style>
-    """.replace("HOME_TOP", top_padding), unsafe_allow_html=True)
+# --- 核心内容区 ---
+col_left, col_right = st.columns([1.15, 1], gap="large")
 
-    # --- 首屏横幅区 ---
-    col_hero1, col_hero2 = st.container(key="home-hero").columns([2.2, 1], gap="medium", vertical_alignment="center")
-    with col_hero1: 
-        st.markdown(f"<h1 class='home-title'>欢迎回来，{escape(str(st.session_state['current_user']))}</h1>", unsafe_allow_html=True)
-        st.markdown("""
-        <p class='home-intro'>
-            idopNetwork 是一套基于 <b>邬荣领教授</b> 提出的统计力学框架构建的复杂系统分析体系。
-            通过将静态的观测数据映射到高维拓扑空间，我们能够突破传统统计学的局限，实现对系统内部运作机理的深度还原。
-        </p>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-        <div class="idop-badges">
-            <div class="badge-item" title="将复杂数据转化为可解释的生物/物理逻辑">Informative</div>
-            <div class="badge-item" title="刻画系统随时间与环境变化的演化轨迹">Dynamic</div>
-            <div class="badge-item" title="覆盖从分子到表型的全尺度互作网络">Omnidirectional</div>
-            <div class="badge-item" title="生成针对单样本或个体的特异性精准分析">Personalized</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col_hero2.container(key="home-profile"):
-        st.image(_WU, width="stretch")
-        st.markdown("""
-        <div class="profile-details">
-        <p><strong>邬荣领 教授</strong></p>
-        <p>BIMSA 副院长 / 首席科学家</p>
-        <a href="https://www.bimsa.cn/zh-CN/detail/ronglingwu.html"
-           target="_blank" rel="noopener noreferrer" class="profile-btn">查看个人主页 &rarr;</a>
-        </div>
-        """, unsafe_allow_html=True)
-
-
-    # --- 核心内容区 ---
-    col_left, col_right = st.columns([1.15, 1], gap="large")
-
-    with col_left:
-        st.markdown("<h2 class='home-section-title'>核心计算模块</h2>", unsafe_allow_html=True)
-        modules = [
-            ("pages/1_Curve Fitting.py", "曲线拟合 (Curve Fitting)", "timeline",
-             "基于生态位理论与异速生长定律，实现静态数据的拟动态幂律曲线转化，为后续微分方程的构建提供底层数学基础。"),
-            ("pages/2_FunClu.py", "功能聚类 (FunClu)", "category",
-             "通过多元高斯混合模型实现功能模块聚类，降低高维网络解析复杂度。"),
-            ("pages/3_NetRecon.py", "idop网络重构 (NetRecon)", "hub",
-             "基于进化博弈论构建微分方程，通过带约束多任务稀疏回归，求解变量自身表达与交互效应，构建动态个性化复杂网络。"),
-            ("pages/4_NetAnal.py", "idop网络解析 (NetAnal)", "insights",
-             "采用 GLMY 拓扑同调方法解析动态网络高阶结构，也可通过网络深度与“网络中位数”理论，刻画群体共性拓扑特征。"),
-        ]
-        for page, label, icon, description in modules:
-            with st.container(key=f"home-module-{icon}", border=True):
-                heading, entry = st.columns([4, 1], vertical_alignment="center")
-                heading.markdown(f"**:material/{icon}: {label}**")
-                # Native page navigation preserves the authenticated session.
-                entry.page_link(page, label="进入 →", use_container_width=True)
-                st.caption(description)
+with col_left:
+    st.markdown("<h2 class='home-section-title'>核心计算模块</h2>", unsafe_allow_html=True)
+    modules = [
+        ("pages/1_Curve Fitting.py", "曲线拟合 (Curve Fitting)", "timeline",
+         "基于生态位理论与异速生长定律，实现静态数据的拟动态幂律曲线转化，为后续微分方程的构建提供底层数学基础。"),
+        ("pages/2_FunClu.py", "功能聚类 (FunClu)", "category",
+         "通过多元高斯混合模型实现功能模块聚类，降低高维网络解析复杂度。"),
+        ("pages/3_NetRecon.py", "idop网络重构 (NetRecon)", "hub",
+         "基于进化博弈论构建微分方程，通过带约束多任务稀疏回归，求解变量自身表达与交互效应，构建动态个性化复杂网络。"),
+        ("pages/4_NetAnal.py", "idop网络解析 (NetAnal)", "insights",
+         "采用 GLMY 拓扑同调方法解析动态网络高阶结构，也可通过网络深度与“网络中位数”理论，刻画群体共性拓扑特征。"),
+    ]
+    for page, label, icon, description in modules:
+        with st.container(key=f"home-module-{icon}", border=True):
+            heading, entry = st.columns([4, 1], vertical_alignment="center")
+            heading.markdown(f"**:material/{icon}: {label}**")
+            # Native page navigation preserves the authenticated session.
+            entry.page_link(page, label="进入 →", use_container_width=True)
+            st.caption(description)
 
 with col_right:
     st.markdown("<h2 class='home-section-title'>代表性学术成果</h2>", unsafe_allow_html=True)
