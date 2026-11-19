@@ -12,7 +12,7 @@
 /* 深色卷首与纸面正文 */
 .st-key-home-hero {
     padding: clamp(1.25rem, 2.5vw, 2.75rem);
-    background-color: #153d43;
+    background-color: #173760;
     background-image: repeating-radial-gradient(ellipse at 100% 30%, transparent 0 40px, #ffffff08 41px 42px, transparent 43px 65px);
     border-radius: 16px;
 }
@@ -20,47 +20,47 @@
     font-family: Georgia, "Songti SC", "Noto Serif CJK SC", serif;
 }
 h1.home-title {
-    color: #fff9eb; font-size: clamp(2.45rem, 5vw, 5.1rem);
+    color: #f7fbff; font-size: clamp(2.45rem, 5vw, 5.1rem);
     letter-spacing: -.045em; line-height: 1.08; margin: 0; padding: 0;
     overflow-wrap: anywhere;
 }
-.home-greeting { color: #e8c6a1; margin: 0 0 .65rem; font-weight: 600; overflow-wrap: anywhere; }
-.home-intro { color: #e0ebea; max-width: 38em; margin: .5rem 0; }
+.home-greeting { color: #bddaff; margin: 0 0 .65rem; font-weight: 600; overflow-wrap: anywhere; }
+.home-intro { color: #e2edfb; max-width: 38em; margin: .5rem 0; }
 .idop-badges {
     display: flex; gap: .4rem 1rem; flex-wrap: wrap;
-    border-top: 1px solid #6d8888; padding-top: .9rem;
+    border-top: 1px solid #698ab0; padding-top: .9rem;
 }
-.badge-item { font: italic 1rem/1.5 Georgia, serif; color: #f5ddbb; }
-.profile-details { color: #fff9eb; }
-.profile-details p:nth-child(2) { color: #d6e6e2; }
+.badge-item { font: italic 1rem/1.5 Georgia, serif; color: #d4e7ff; }
+.profile-details { color: #f7fbff; }
+.profile-details p:nth-child(2) { color: #d5e5fa; }
 .profile-btn {
     display: inline-flex; align-items: center; min-height: 44px;
     margin-top: .45rem; padding: .4rem 1rem; border-radius: 5px;
-    background: #f1dec4; color: #173e41 !important; font-weight: 600;
+    background: #dcecff; color: #193454 !important; font-weight: 600;
     text-decoration: none !important;
 }
 .profile-btn:hover { background: white; }
 .profile-btn:focus-visible { outline: 3px solid white; outline-offset: 3px; }
 h2.home-section-title {
-    color: #173e41; font-size: clamp(1.4rem, 2vw, 1.85rem); padding: 1rem 0 .65rem;
-    border-bottom: 2px solid #234d50;
+    color: #193454; font-size: clamp(1.4rem, 2vw, 1.85rem); padding: 1rem 0 .65rem;
+    border-bottom: 2px solid #294e80;
 }
 [class*="st-key-home-module-"] {
-    background: #fff; border-color: #d7e0dd; border-radius: 8px;
+    background: #fff; border-color: #d7e2ef; border-radius: 8px;
 }
-[class*="st-key-home-module-"]:focus-within { outline: 2px solid #458079; }
+[class*="st-key-home-module-"]:focus-within { outline: 2px solid #447ebf; }
 .st-key-home-hero button[kind="primary"] {
-    color: #153d43; background: #f1dec4; border-color: #f1dec4; min-height: 44px;
+    color: #173760; background: #dcecff; border-color: #dcecff; min-height: 44px;
 }
 .scroll-box {
     height: 480px; overflow-y: auto; padding: 0 1.25rem 1rem;
-    background: white; border: 1px solid #d3dfdc; border-radius: 12px;
+    background: white; border: 1px solid #d4deed; border-radius: 12px;
 }
 .scroll-box h3 {
     position: sticky; top: 0; background: white; padding: .75rem 0 .5rem;
-    color: #286361; font: bold 1.35rem Georgia, serif; border-bottom: 1px solid #cfddda;
+    color: #285991; font: bold 1.35rem Georgia, serif; border-bottom: 1px solid #d1dfef;
 }
-.paper-item { padding: .9rem 0; border-bottom: 1px solid #e6ecea; }
-.paper-title { font-size: 1.12rem; font-weight: 600; color: #203a42; line-height: 1.45; }
-.paper-authors { color: #53666a; font-size: .9rem; margin-top: .35rem; }
-.scroll-box .paper-link { color: #236763; font-size: .85rem; }
+.paper-item { padding: .9rem 0; border-bottom: 1px solid #e6ecf5; }
+.paper-title { font-size: 1.12rem; font-weight: 600; color: #203955; line-height: 1.45; }
+.paper-authors { color: #526580; font-size: .9rem; margin-top: .35rem; }
+.scroll-box .paper-link { color: #2258a1; font-size: .85rem; }

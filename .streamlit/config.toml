@@ -1,10 +1,10 @@
 [theme]
 base = "light"
-primaryColor = "#215c5a"
-backgroundColor = "#f8f9f6"
+primaryColor = "#245db4"
+backgroundColor = "#f7f9fd"
 # 👇 把这个颜色改浅，这样主页里的上传框、下拉菜单就会变回清爽的浅色！
-secondaryBackgroundColor = "#edf3ef"
-textColor = "#1a3439"
+secondaryBackgroundColor = "#ecf2fa"
+textColor = "#1c304b"
 font = "sans serif"
 
 [client]

@@ -32,28 +32,25 @@ def _fit(content: bytes, **options):
 
 
 st.title("Curve Fitting")
-intake, examples = st.columns([1.55, 1], gap="medium")
-with intake.container(key="fit-intake"):
+with st.container(key="fit-intake"):
     st.subheader("导入观测数据")
-    st.write("上传一个或多个 CSV。第一列为样本或时间索引，其余列为待分析特征。")
+    st.caption("支持多个 CSV 文件。第一列为样本或时间索引，其余列为分析特征。")
     uploaded = st.file_uploader("Upload CSV files", type=["csv"], accept_multiple_files=True,
                                 key="curve_fitting_upload_v4", label_visibility="collapsed")
-
-with examples.container(key="fit-examples"):
-    st.subheader("示例数据")
-    st.caption("静态观测 · 教育数据")
-    st.download_button(
-        "下载 7 科成绩 ZIP", data=(files("idopnetwork_app") / "data" / "education_example.zip").read_bytes(),
-        file_name="教育示例数据.zip", mime="application/zip", key="download_education_example", on_click="ignore",
-    )
-    st.caption("时间序列 · 12 导联 ECG")
-    st.download_button(
-        "下载 100 Hz ECG CSV", data=(files("idopnetwork_app") / "data" / "ecg_100hz.csv").read_bytes(),
-        file_name="ECG_100Hz_12通道.csv", mime="text/csv", key="download_ecg_example", on_click="ignore",
-    )
-    with st.expander("如何使用示例"):
-        st.write("教育数据已匿名化。解压 ZIP 后上传 CSV，选择 Quasi-dynamic 进行拟合。")
-        st.write("ECG 含 1000 个采样点。上传后选择 Dynamic 去噪，建网时选择 idopECG(4)，采样率保持 100 Hz。")
+    with st.expander("下载示例数据与使用说明"):
+        education, ecg = st.columns(2)
+        with education:
+            st.download_button(
+                "下载 7 科成绩 ZIP", data=(files("idopnetwork_app") / "data" / "education_example.zip").read_bytes(),
+                file_name="教育示例数据.zip", mime="application/zip", key="download_education_example", on_click="ignore",
+            )
+            st.caption("教育数据已匿名化。解压后上传 CSV，选择 Quasi-dynamic 进行拟合。")
+        with ecg:
+            st.download_button(
+                "下载 100 Hz ECG CSV", data=(files("idopnetwork_app") / "data" / "ecg_100hz.csv").read_bytes(),
+                file_name="ECG_100Hz_12通道.csv", mime="text/csv", key="download_ecg_example", on_click="ignore",
+            )
+            st.caption("12 导联、1000 个采样点。选择 Dynamic 去噪，建网时选择 idopECG(4)，采样率保持 100 Hz。")
 
 if not uploaded:
     st.session_state.pop("curve_fitting_run_v4", None)
