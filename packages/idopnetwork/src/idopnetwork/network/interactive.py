@@ -1433,6 +1433,10 @@ def _edge_curvature(
     reciprocal,
 ):
 
+    # Reversing the endpoints puts the same curve direction on the opposite side.
+    if reciprocal:
+        return float(RECIPROCAL_CURVATURE)
+
     integer = _stable_integer(
         f"{source}->{target}"
     )
@@ -1448,32 +1452,7 @@ def _edge_curvature(
     )
 
 
-    if reciprocal:
-
-        magnitude = float(
-            RECIPROCAL_CURVATURE
-        )
-
-
-    else:
-
-        magnitude = (
-
-            CURVATURE_BASE
-
-            +
-
-            CURVATURE_STEP
-
-            *
-
-            (
-                integer
-                %
-                4
-            )
-        )
-
+    magnitude = CURVATURE_BASE + CURVATURE_STEP * (integer % 4)
 
     return float(
         sign
