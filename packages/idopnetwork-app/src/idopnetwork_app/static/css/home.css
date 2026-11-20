@@ -21,12 +21,18 @@
     font-family: Georgia, "Songti SC", "Noto Serif CJK SC", serif;
 }
 h1.home-title {
-    color: #14365c; font-size: clamp(2.45rem, 5vw, 5.1rem);
+    color: #14365c; font-size: clamp(2.2rem, 4.6vw, 4.6rem);
     letter-spacing: -.045em; line-height: 1.08; margin: 0; padding: 0;
     border-bottom: 1px solid #b6cfea;
     overflow-wrap: anywhere;
 }
-.home-greeting { color: #3f6ea6; margin: 0 0 .65rem; font-weight: 600; overflow-wrap: anywhere; }
+.home-title-cn {
+    margin-left: .7em;
+    font-size: .38em;
+    font-weight: 600;
+    letter-spacing: .02em;
+    color: #2a5a8c;
+}
 .home-intro { color: #27496d; max-width: 38em; margin: .5rem 0; }
 /* 卷首网络示意图：透明底，直接落在浅蓝横幅上 */
 .st-key-home-hero-figure [data-testid="stImage"] { justify-content: center; }

@@ -31,8 +31,7 @@ st.html(f"<style>{home_css}</style>")
 col_hero1, col_hero2 = st.container(key="home-hero").columns([2.2, 1], gap="medium", vertical_alignment="center")
 with col_hero1:
     st.markdown(
-        "<p class='home-greeting'>idopNetwork 计算平台</p>"
-        "<h1 class='home-title'>idopNetwork</h1>",
+        "<h1 class='home-title'>idopNetwork<span class='home-title-cn'>计算平台</span></h1>",
         unsafe_allow_html=True,
     )
 
