@@ -5761,14 +5761,13 @@ def network_edges_from_adjacency(
 ):
     """把邻接矩阵转成 ``source`` / ``target`` / ``weight`` 边表。
 
-    约定与 :func:`idopnetwork.network.plot.plot_network` 一致：
-    ``adj_df.loc[source, target]`` 表示 ``source -> target`` 的权重。
-    本函数是静态图管线与新版交互式 HTML 之间的桥：池子里的 ``adj_df`` 先转成
+    约定：``adj_df.loc[source, target]`` 表示 ``source -> target`` 的权重。
+    本函数是邻接矩阵与交互式 HTML 网络图之间的桥：池子里的 ``adj_df`` 先转成
     边表，才能喂给 :func:`plot_network`。
 
     Args:
         adj_df: 邻接矩阵，index = source，columns = target。
-        target_node: 非空时只保留**指向**该节点的边，与静态图的口径一致。
+        target_node: 非空时只保留**指向**该节点的边。
         top_edges: 非空时按 ``|weight|`` 从大到小只保留前 N 条边。
 
     Returns:

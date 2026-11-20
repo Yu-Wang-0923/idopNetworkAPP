@@ -5,6 +5,5 @@ from idopnetwork.network.construction import (
 )
 from idopnetwork.network.plot import (
     plot_effect,
-    plot_network,
     plot_adjusted_matrix_heatmap,
 )
