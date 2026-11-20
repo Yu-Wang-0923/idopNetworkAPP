@@ -34,27 +34,31 @@ with col_hero1:
     greeting = f"欢迎回来，{escape(str(st.session_state['current_user']))}" if logged_in else "复杂系统在线计算平台"
     st.markdown(f"<p class='home-greeting'>{greeting}</p><h1 class='home-title'>idopNetwork</h1>", unsafe_allow_html=True)
 
-    with st.container(key="home-hero-figure"):
-        st.image(_HERO_FIGURE, width="stretch")
+    text_col, figure_col = st.columns([1.35, 1], gap="large", vertical_alignment="center")
 
-    st.markdown("""
-    <p class='home-intro'>
-        idopNetwork 是一套基于 <b>邬荣领教授</b> 提出的统计力学框架构建的复杂系统分析体系。
-        通过将静态的观测数据映射到高维拓扑空间，我们能够突破传统统计学的局限，实现对系统内部运作机理的深度还原。
-    </p>
-    """, unsafe_allow_html=True)
+    with text_col:
+        st.markdown("""
+        <p class='home-intro'>
+            idopNetwork 是一套基于 <b>邬荣领教授</b> 提出的统计力学框架构建的复杂系统分析体系。
+            通过将静态的观测数据映射到高维拓扑空间，我们能够突破传统统计学的局限，实现对系统内部运作机理的深度还原。
+        </p>
+        """, unsafe_allow_html=True)
 
-    st.markdown("""
-    <div class="idop-badges">
-        <div class="badge-item" title="将复杂数据转化为可解释的生物/物理逻辑">Informative</div>
-        <div class="badge-item" title="刻画系统随时间与环境变化的演化轨迹">Dynamic</div>
-        <div class="badge-item" title="覆盖从分子到表型的全尺度互作网络">Omnidirectional</div>
-        <div class="badge-item" title="生成针对单样本或个体的特异性精准分析">Personalized</div>
-    </div>
-    """, unsafe_allow_html=True)
+        st.markdown("""
+        <div class="idop-badges">
+            <div class="badge-item" title="将复杂数据转化为可解释的生物/物理逻辑">Informative</div>
+            <div class="badge-item" title="刻画系统随时间与环境变化的演化轨迹">Dynamic</div>
+            <div class="badge-item" title="覆盖从分子到表型的全尺度互作网络">Omnidirectional</div>
+            <div class="badge-item" title="生成针对单样本或个体的特异性精准分析">Personalized</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    if not logged_in and st.button("登录 / 注册", type="primary"):
-        show_auth_modal()
+        if not logged_in and st.button("登录 / 注册", type="primary"):
+            show_auth_modal()
+
+    with figure_col:
+        with st.container(key="home-hero-figure"):
+            st.image(_HERO_FIGURE, width="stretch")
 
 with col_hero2.container(key="home-profile"):
     st.image(_WU, width="stretch")
