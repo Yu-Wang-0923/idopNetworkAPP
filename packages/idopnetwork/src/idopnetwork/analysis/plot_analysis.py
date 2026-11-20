@@ -9,10 +9,9 @@
 
 兼容性
 ------
-``plot_glmy_barcode`` 仍接受 ``max_x``：给定它就作为对称半轴长（保留页面与
-M3 / Paper §3.2 自检既有的横轴控件语义），不给则由数据自动推算。
-````-1`` 与 ``None`` 都被识别为无穷哨兵``，因此新版 compute（``None``）与自检
-路径（``-1``）产出的 homology 都能直接绘制。
+``plot_glmy_barcode`` 仍接受 ``max_x``：给定它就作为对称半轴长（沿用原有页面的
+横轴控件语义），不给则由数据自动推算。``-1`` 与 ``None`` 都被识别为无穷哨兵，
+因此上游 compute（``None``）或旧数据（``-1``）产出的 homology 都能直接绘制。
 """
 from __future__ import annotations
 

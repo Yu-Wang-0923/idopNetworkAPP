@@ -13,7 +13,7 @@ A Python toolkit for complex systems data analysis, implementing:
 pip install idopnetwork
 ```
 
-For machine learning extras:
+For PyTorch-based clustering (FunClu) extras:
 
 ```bash
 pip install idopnetwork[ml]

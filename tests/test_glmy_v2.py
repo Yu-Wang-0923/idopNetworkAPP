@@ -119,7 +119,7 @@ def test_plot_glmy_barcode_accepts_legacy_max_x():
 
 
 def test_plot_glmy_barcode_accepts_legacy_minus_one_sentinel():
-    """M3 / Paper §3.2 自检路径产出的 homology 用 -1 表示无穷，也要能画。"""
+    """旧版产出的 homology 用 -1 表示无穷，也要能画。"""
     legacy = {
         key: [
             [

@@ -56,7 +56,7 @@ def setup_sidebar():
             st.caption("登录后可使用分析工具。")
 
 
-# ── 向核心库注入中文字体和数据路径 ─────────────────────────────────────
+# ── 向核心库注入中文字体 ─────────────────────────────────────────────
 import idopnetwork.curve_fitting.plot as cf_plot
 import idopnetwork.clustering.plot as cl_plot
 import idopnetwork.network.plot as nw_plot
@@ -64,6 +64,3 @@ import idopnetwork.network.plot as nw_plot
 cf_plot.font_prop = font_prop
 cl_plot.font_prop = font_prop
 nw_plot.font_prop = font_prop
-
-import idopnetwork.analysis.glmy_test as glmy_test
-glmy_test.DEFAULT_M3_CSV = str(files("idopnetwork_app.data") / "M3.csv")
