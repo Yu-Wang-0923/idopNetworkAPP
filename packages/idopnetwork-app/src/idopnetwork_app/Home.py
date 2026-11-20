@@ -8,6 +8,7 @@ from idopnetwork_app.auth import show_auth_modal
 
 _ICON = str(files("idopnetwork_app.static.images") / "TSA.png")
 _WU = str(files("idopnetwork_app.static.images") / "wu.jpg")
+_HERO_FIGURE = str(files("idopnetwork_app.static.images") / "idopn.png")
 
 # ==========================================
 # 1. 基础设置 (必须在第一行)
@@ -32,6 +33,10 @@ col_hero1, col_hero2 = st.container(key="home-hero").columns([2.2, 1], gap="medi
 with col_hero1:
     greeting = f"欢迎回来，{escape(str(st.session_state['current_user']))}" if logged_in else "复杂系统在线计算平台"
     st.markdown(f"<p class='home-greeting'>{greeting}</p><h1 class='home-title'>idopNetwork</h1>", unsafe_allow_html=True)
+
+    with st.container(key="home-hero-figure"):
+        st.image(_HERO_FIGURE, width="stretch")
+
     st.markdown("""
     <p class='home-intro'>
         idopNetwork 是一套基于 <b>邬荣领教授</b> 提出的统计力学框架构建的复杂系统分析体系。

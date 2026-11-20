@@ -26,6 +26,23 @@ h1.home-title {
 }
 .home-greeting { color: #bddaff; margin: 0 0 .65rem; font-weight: 600; overflow-wrap: anywhere; }
 .home-intro { color: #e2edfb; max-width: 38em; margin: .5rem 0; }
+/* 卷首网络示意图：白底卡片，避免直接压在深色横幅上 */
+.st-key-home-hero-figure {
+    max-width: min(100%, 30rem);
+    margin: .95rem 0 .6rem;
+    padding: clamp(.4rem, .9vw, .75rem);
+    background: #ffffff;
+    border: 1px solid #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 18px 38px #0a1b3055;
+}
+.st-key-home-hero-figure [data-testid="stImage"] { justify-content: center; }
+.st-key-home-hero-figure img {
+    display: block;
+    width: 100% !important;
+    height: auto;
+    border-radius: 8px;
+}
 .idop-badges {
     display: flex; gap: .4rem 1rem; flex-wrap: wrap;
     border-top: 1px solid #698ab0; padding-top: .9rem;
