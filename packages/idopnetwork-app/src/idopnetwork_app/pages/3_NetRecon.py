@@ -99,7 +99,6 @@ def _make_idop_model(
         max_interactions=int(max_interactions),
         adaptive_weights=False,
     )
-from idopnetwork.curve_fitting.plot import plot_curve_fitting
 from idopnetwork.network.plot import (
     plot_effect,
     plot_adjusted_matrix_heatmap,
@@ -937,27 +936,6 @@ with tab1:
 
                 # ========== Tab 1_2_1 Network ==========
                 with tab1_2_1:
-                    st.markdown("### Fitting vs Prediction")
-                    if isinstance(result["model"], DynamicIDOPRegressor):
-                        from idopnetwork_app.ecg_visualization import render_ecg_fitting
-                        render_ecg_fitting(result["model"].observed(), result["predicted_df"],
-                                           key="dynamic_prediction", fit_label="ODE reconstruction",
-                                           sampling_rate=result["model"].fs)
-                    else:
-                        fig = plot_curve_fitting(
-                            df_scatter=result["quasi_dynamic_df"],
-                            df_curve=result["predicted_df"],
-                            plot_scatter_type="scatter",
-                            show_curve=True,
-                            nrow=2,
-                            ncol=3,
-                            nsubfig=6,
-                            scatter_x="index",
-                            scatter_size=30,
-                            scatter_linewidth=1,
-                        )
-                        st.pyplot(fig)
-
                     st.markdown("### Interaction Network")
 
                     with st.form(key="single_network_form"):
