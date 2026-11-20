@@ -5,7 +5,7 @@ A Python toolkit for complex systems data analysis, implementing:
 - **Curve Fitting**: Power-law fitting `y = a·x^b` with data transformation and quasi-dynamic ranking
 - **Functional Clustering (FunClu)**: EM Gaussian mixture clustering with power-mean models
 - **Network Reconstruction (NetRecon)**: Legendre basis expansion + constrained sparse regression (IDOPRegressor)
-- **Network Analysis (NetAnal)**: GLMY persistent path homology and network depth analysis
+- **Network Analysis (NetAnal)**: GLMY persistent path homology
 
 ## Installation
 

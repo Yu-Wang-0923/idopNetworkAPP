@@ -79,7 +79,7 @@ with col_left:
         ("pages/3_NetRecon.py", "idop网络重构 (NetRecon)", "hub",
          "基于进化博弈论构建微分方程，通过带约束多任务稀疏回归，求解变量自身表达与交互效应，构建动态个性化复杂网络。"),
         ("pages/4_NetAnal.py", "idop网络解析 (NetAnal)", "insights",
-         "采用 GLMY 拓扑同调方法解析动态网络高阶结构，也可通过网络深度与“网络中位数”理论，刻画群体共性拓扑特征。"),
+         "采用 GLMY 拓扑同调方法解析动态网络高阶结构，追踪连通分量、环、腔等拓扑特征随过滤阈值的变化。"),
     ]
     for page, label, icon, description in modules:
         with st.container(key=f"home-module-{icon}", border=True):

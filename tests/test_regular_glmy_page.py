@@ -46,4 +46,5 @@ def test_netanal_reads_existing_netrecon_zip_into_new_glmy():
          patch('idopnetwork_app.utils.setup_sidebar'):
         app.run()
     assert not app.exception
+    assert [tab.label for tab in app.tabs] == ['Uploaded Data', 'GLMY Analysis']
     assert app.selectbox(key='regular_glmy_mode').value == 'all_edges_colored'
