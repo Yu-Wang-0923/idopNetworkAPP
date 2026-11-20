@@ -1,7 +1,6 @@
 
 
 import streamlit as st
-from html import escape
 from importlib.resources import files
 from idopnetwork_app.utils import _is_admin_user, load_css, setup_sidebar
 from idopnetwork_app.auth import show_auth_modal
@@ -31,10 +30,17 @@ st.html(f"<style>{home_css}</style>")
 # --- 首屏横幅区 ---
 col_hero1, col_hero2 = st.container(key="home-hero").columns([2.2, 1], gap="medium", vertical_alignment="center")
 with col_hero1:
-    greeting = f"欢迎回来，{escape(str(st.session_state['current_user']))}" if logged_in else "复杂系统在线计算平台"
-    st.markdown(f"<p class='home-greeting'>{greeting}</p><h1 class='home-title'>idopNetwork</h1>", unsafe_allow_html=True)
+    st.markdown(
+        "<p class='home-greeting'>idopNetwork 计算平台</p>"
+        "<h1 class='home-title'>idopNetwork</h1>",
+        unsafe_allow_html=True,
+    )
 
-    text_col, figure_col = st.columns([1.35, 1], gap="large", vertical_alignment="center")
+    figure_col, text_col = st.columns([1, 1.35], gap="large", vertical_alignment="center")
+
+    with figure_col:
+        with st.container(key="home-hero-figure"):
+            st.image(_HERO_FIGURE, width="stretch")
 
     with text_col:
         st.markdown("""
@@ -55,10 +61,6 @@ with col_hero1:
 
         if not logged_in and st.button("登录 / 注册", type="primary"):
             show_auth_modal()
-
-    with figure_col:
-        with st.container(key="home-hero-figure"):
-            st.image(_HERO_FIGURE, width="stretch")
 
 with col_hero2.container(key="home-profile"):
     st.image(_WU, width="stretch")
