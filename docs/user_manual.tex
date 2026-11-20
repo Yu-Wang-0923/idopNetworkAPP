@@ -614,15 +614,23 @@ y_j(\tau) = \alpha_j \;+\;
 
 \subsection{结果展示}
 
-完成后系统以折叠面板呈现：
+点击 \btn{Run IdopNetwork} 完成后，结果以 \tab{Network}、\tab{Effect Decomposition}、\tab{Adjacency Matrix} 三个子标签页呈现：
 
 \begin{itemize}[leftmargin=*]
-    \item \textbf{拟合质量} --- $R^2$ 散点图（每个目标变量的拟合优度）、MSE 等。
-    \item \textbf{网络图} --- 力导向布局可视化；节点大小反映度，边颜色和宽度反映效应强度与方向。
-    \item \textbf{邻接矩阵热图} --- 交互强度的矩阵热图，行列按网络模块排序。
-    \item \textbf{效应分解图} --- 每条边的多项式效应分解为各 Legendre 阶数的贡献。
-    \item \textbf{网络参数表} --- 所有配置参数与最终拟合指标汇总。
+    \item \textbf{交互式网络图}（\tab{Network}）---
+    Hub 同心环布局的交互式 HTML 画布：节点按功能模块排在同心环上，hub 位于内环并放大标签；边用颜色区分效应方向（正效应暖橙、负效应冷蓝），边宽反映效应强度。
+    先按 \param{Target node filter}（默认 ALL，或只看指向某个目标节点的入边）与 \param{Top edges for plot}（按 $|weight|$ 取前 $N$ 条，默认 60）确定输入边集，再点击 \btn{Run Network Plot} 或 \btn{Run Network + Degree Plot} 渲染。两个按钮输出同一张 HTML——in/out-degree 面板始终内嵌，并与弱边过滤严格同步；\btn{Clear Plot} 清空，\btn{Download interactive HTML} 下载单文件 HTML。
+    HTML 工具栏另提供节点 / 标签 / 边宽缩放、边透明度、弱边过滤滑杆、显示标签开关，以及 \btn{Fit}、\btn{恢复环形}、\btn{保存布局}、\btn{读取布局}、\btn{导出网络 PNG}；右侧度数面板可切换度量并导出 Degree CSV / SVG。
+    \item \textbf{效应分解图}（\tab{Effect Decomposition}）---
+    每个目标变量一张子图：橙色散点为 quasi-dynamic 观测值，蓝色粗线为模型预测，红色线为自效应（含截距），其余颜色分别对应各源变量的非自身效应；可设置子图列数与最大变量数（0 = 全部）。
+    \item \textbf{邻接矩阵}（\tab{Adjacency Matrix}）---
+    邻接矩阵表，以及可选的调整矩阵热图：非对角线用红蓝表示正负边权、对角线用灰度表示自身效应绝对值，可勾选显示数值与归一化。
 \end{itemize}
+
+\begin{infobox}[网络图为交互式 HTML]
+    该 HTML 自包含数据与交互脚本，但可视化库 vis-network 9 通过 CDN（unpkg）加载；
+    在完全离线或内网环境下需把该库改为本地引用，否则画布无法渲染。
+\end{infobox}
 
 \subsection{结果解读}
 
@@ -638,15 +646,18 @@ y_j(\tau) = \alpha_j \;+\;
 
 \subsection{导出}
 
-在 \tab{Export} 标签页下载网络导出 ZIP，包含：
+在 \tab{Export} 标签页下载单层网络导出 ZIP，包含：
 
 \begin{itemize}[leftmargin=*]
-    \item \file{from\_to.csv} --- 边表 (from, to, weight, type)
     \item \file{adjacency\_matrix.csv} --- 邻接矩阵（$N \times N$）
-    \item \file{params.csv} --- 网络构建参数
-    \item \file{effect/*.csv} --- 每条边的多项式效应分解
-    \item \file{network.png} --- 高分辨率网络图
+    \item \file{from\_to.csv} --- 边表 (from, to, weight, type)，含自环
+    \item \file{params.csv} --- 网络构建参数与拟合统计量
+    \item \file{effect/<target>.csv} --- 每个目标节点一个效应分解表（行=采样点，列=各源特征的效应贡献，不含截距）
+    \item \file{dynamic/*.csv} --- 仅 idopECG(4) 动态路线：\file{network.csv}、\file{reconstruction.csv} 等数值结果表
 \end{itemize}
+
+网络图不再打包为 \file{network.png}：交互式 HTML 内自带 \btn{导出网络 PNG} 按钮，需要静态图时在那里导出；
+HTML 本身用 \tab{Network} 子页的 \btn{Download interactive HTML} 单独下载，不进入 ZIP。
 
 % ===========================================================================
 \section{模块四：网络解析 (NetAnal)}
@@ -795,11 +806,12 @@ $\beta_3$ & 三维空腔数 & 四变量协同互作的高阶结构 \\
 
 \medskip
 \begin{infobox}[Q: NetRecon 的网络图中节点太多看不清？]
-    A: 建议先在 FunClu 中将大量特征聚类为 3--8 个功能模块，再对簇中心构建网络。也可以：
+    A: 先在 \tab{Network} 子页收窄显示范围，再从建模端考虑减少边：
     \begin{itemize}
-        \item 设置 \param{max\_interactions} 参数（如 30--50）限制图中边的数量
-        \item 增大 \param{alpha} 增强正则化强度
-        \item 增大 \param{cross\_weight\_ratio}（如 10），使跨变量连接更难被选中
+        \item 用 \param{Target node filter} 只保留指向某个目标节点的入边
+        \item 调小 \param{Top edges for plot}（默认 60，按 $|weight|$ 取前 $N$ 条）
+        \item 在 HTML 工具栏拖动「弱边过滤」滑杆隐藏弱边，并配合节点 / 标签缩放、边透明度改善可读性
+        \item 需要从建模端控制规模时，调小 \param{max\_interactions (Top-K)}；或先在 FunClu 中将大量特征聚类为 3--8 个功能模块，再对簇中心构建网络
     \end{itemize}
 \end{infobox}
 
@@ -893,10 +905,12 @@ S4 & 2.8 & 2.3 & 1.9 & 3.7 \\
 \subsubsection{模块间传递 ZIP}
 
 \begin{itemize}[leftmargin=*]
-    \item \textbf{Curve Fitting 导出}: \file{<filename>/quasi\_dynamic.csv}, \file{curve\_sample.csv}, \file{curve\_params.csv}
-    \item \textbf{FunClu 导出}: \file{labels.csv}, \file{cluster\_sizes.csv}, \file{cluster\_members/<cond>/}, \file{cluster\_centers/<cond>/}
-    \item \textbf{NetRecon 导出（单层）}: \file{<cond>/from\_to.csv}, \file{adjacency\_matrix.csv}, \file{params.csv}, \file{effect/}, \file{network.png}
-    \item \textbf{NetRecon 导出（多层）}: \file{inter-cluster/<cond>/from\_to.csv}, \file{intra-cluster/<cond>/<cond2>\_M<k>/from\_to.csv} 等多子目录
+    \item \textbf{Curve Fitting 导出}: \file{<filename>/quasi\_dynamic.csv}, \\
+    \file{curve\_sample.csv}, \file{curve\_params.csv}
+    \item \textbf{FunClu 导出}: \file{labels.csv}, \file{cluster\_sizes.csv}, \\
+    \file{cluster\_members/<cond>/}, \file{cluster\_centers/<cond>/}
+    \item \textbf{NetRecon 导出（单层）}: \file{adjacency\_matrix.csv}, \file{from\_to.csv}, \file{params.csv}, \file{effect/<target>.csv}（idopECG 动态路线另含 \file{dynamic/*.csv}）
+    \item \textbf{NetRecon 导出（多层）}: \file{metadata/}、\file{inter\_cluster/}、\file{intra\_cluster/} 三个顶层目录，网络文件再按条件 / 簇分子目录
 \end{itemize}
 
 \subsection{输出数据格式}
@@ -949,7 +963,8 @@ $\text{death} = -1$ 表示无限持久区间。通过 $\text{death} - \text{birt
 机器学习 & scikit-learn & KMeans / MiniBatchKMeans 聚类初始化 \\
 张量计算 & PyTorch（可选）  & FunClu EM 迭代加速（支持 GPU）\\
 优化求解 & CVXPY           & 网络重构的约束稀疏回归（CLARABEL/SCS）\\
-可视化   & Matplotlib + SimHei & 曲线图、网络图、条形码图（中文支持）\\
+可视化   & Matplotlib + SimHei & 曲线拟合图、热图、效应分解图、条形码图\\
+网络图   & vis-network 9（HTML） & 同心环布局、弱边过滤、度数面板\\
 认证     & JSON 文件存储   & 用户注册与登录（含密码哈希）\\
 包管理   & pyproject.toml  & 声明式依赖 + \texttt{pip install -e .} 开发安装\\
 \bottomrule
