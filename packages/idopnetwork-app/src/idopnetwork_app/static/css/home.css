@@ -9,29 +9,26 @@
 .profile-details { display: grid; justify-items: center; text-align: center; }
 .profile-details p { margin: 0; }
 .profile-details .profile-btn { white-space: nowrap; }
-/* 深色卷首与纸面正文 */
+/* 浅蓝卷首与纸面正文 */
 .st-key-home-hero {
     padding: clamp(1.25rem, 2.5vw, 2.75rem);
-    background-color: #173760;
-    background-image: repeating-radial-gradient(ellipse at 100% 30%, transparent 0 40px, #ffffff08 41px 42px, transparent 43px 65px);
+    background-color: #dcebf9;
+    background-image: linear-gradient(130deg, #e7f2fd 0%, #d4e7f9 52%, #c4dcf4 100%);
     border-radius: 16px;
+    box-shadow: 0 18px 40px #17376014;
 }
 .home-title, .home-section-title, .paper-title {
     font-family: Georgia, "Songti SC", "Noto Serif CJK SC", serif;
 }
 h1.home-title {
-    color: #f7fbff; font-size: clamp(2.45rem, 5vw, 5.1rem);
+    color: #14365c; font-size: clamp(2.45rem, 5vw, 5.1rem);
     letter-spacing: -.045em; line-height: 1.08; margin: 0; padding: 0;
+    border-bottom: 1px solid #b6cfea;
     overflow-wrap: anywhere;
 }
-.home-greeting { color: #bddaff; margin: 0 0 .65rem; font-weight: 600; overflow-wrap: anywhere; }
-.home-intro { color: #e2edfb; max-width: 38em; margin: .5rem 0; }
-/* 卷首网络示意图：极淡的半透明浅色衬底，帮助深色线条在深蓝横幅上保持可读 */
-.st-key-home-hero-figure {
-    padding: clamp(.35rem, .9vw, .7rem);
-    background: #ffffff17;
-    border-radius: 14px;
-}
+.home-greeting { color: #3f6ea6; margin: 0 0 .65rem; font-weight: 600; overflow-wrap: anywhere; }
+.home-intro { color: #27496d; max-width: 38em; margin: .5rem 0; }
+/* 卷首网络示意图：透明底，直接落在浅蓝横幅上 */
 .st-key-home-hero-figure [data-testid="stImage"] { justify-content: center; }
 .st-key-home-hero-figure img {
     display: block;
@@ -40,19 +37,20 @@ h1.home-title {
 }
 .idop-badges {
     display: flex; gap: .4rem 1rem; flex-wrap: wrap;
-    border-top: 1px solid #698ab0; padding-top: .9rem;
+    border-top: 1px solid #9dbde0; padding-top: .9rem;
 }
-.badge-item { font: italic 1rem/1.5 Georgia, serif; color: #d4e7ff; }
-.profile-details { color: #f7fbff; }
-.profile-details p:nth-child(2) { color: #d5e5fa; }
+.badge-item { font: italic 1rem/1.5 Georgia, serif; color: #3a6191; }
+.profile-details { color: #14365c; }
+.profile-details p:nth-child(2) { color: #456a97; }
 .profile-btn {
     display: inline-flex; align-items: center; min-height: 44px;
     margin-top: .45rem; padding: .4rem 1rem; border-radius: 5px;
-    background: #dcecff; color: #193454 !important; font-weight: 600;
+    background: #ffffff; border: 1px solid #b8d2ee;
+    color: #1b4a7a !important; font-weight: 600;
     text-decoration: none !important;
 }
-.profile-btn:hover { background: white; }
-.profile-btn:focus-visible { outline: 3px solid white; outline-offset: 3px; }
+.profile-btn:hover { background: #eef6ff; }
+.profile-btn:focus-visible { outline: 3px solid #1b4a7a; outline-offset: 3px; }
 h2.home-section-title {
     color: #193454; font-size: clamp(1.4rem, 2vw, 1.85rem); padding: 1rem 0 .65rem;
     border-bottom: 2px solid #294e80;
@@ -62,7 +60,7 @@ h2.home-section-title {
 }
 [class*="st-key-home-module-"]:focus-within { outline: 2px solid #447ebf; }
 .st-key-home-hero button[kind="primary"] {
-    color: #173760; background: #dcecff; border-color: #dcecff; min-height: 44px;
+    color: #ffffff; background: #173760; border-color: #173760; min-height: 44px;
 }
 .scroll-box {
     height: 480px; overflow-y: auto; padding: 0 1.25rem 1rem;
