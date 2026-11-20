@@ -26,7 +26,12 @@ h1.home-title {
 }
 .home-greeting { color: #bddaff; margin: 0 0 .65rem; font-weight: 600; overflow-wrap: anywhere; }
 .home-intro { color: #e2edfb; max-width: 38em; margin: .5rem 0; }
-/* 卷首网络示意图：透明底，直接浮在深色横幅上，无卡片 */
+/* 卷首网络示意图：极淡的半透明浅色衬底，帮助深色线条在深蓝横幅上保持可读 */
+.st-key-home-hero-figure {
+    padding: clamp(.35rem, .9vw, .7rem);
+    background: #ffffff17;
+    border-radius: 14px;
+}
 .st-key-home-hero-figure [data-testid="stImage"] { justify-content: center; }
 .st-key-home-hero-figure img {
     display: block;
