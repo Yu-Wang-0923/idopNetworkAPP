@@ -230,22 +230,19 @@ def _build_funclu_k_export_zip(
 
 
 # ========== Top-Level Tabs ==========
-tab1, tab2, tab3 = st.tabs(["Uploaded Data", "FunClu-K", "FunClu-BIC"])
+tab1, tab2, tab3 = st.tabs([t("funclu.tab.uploaded"), "FunClu-K", "FunClu-BIC"])
 
 # =====================================================================
 # TAB 1: Uploaded Data (File uploader & Data Overview)
 # =====================================================================
 with tab1:
     # ---------- 1. 文件上传（直接位于 Tab 1 顶级） ----------
-    st.markdown("## Data Initialization")
+    st.markdown(f"## {t('funclu.init.title')}")
     uploaded_file = st.file_uploader(
-        label="Please upload your file",
+        label=t("funclu.upload.label"),
         type=["zip"],
         accept_multiple_files=False,
-        help=(
-            "Upload the ZIP from Curve Fitting: Export Result → "
-            "Export ZIP → Download curve_fitting_export.zip (one file)."
-        ),
+        help=t("funclu.upload.help"),
         label_visibility="visible",
         max_upload_size=500,
     )
@@ -263,9 +260,9 @@ with tab1:
                 st.session_state.funclu_uploaded_zip_name = uploaded_file.name
                 # 当上传新数据时，清空之前的 EM 拟合结果
                 st.session_state.funclu_em_result = None 
-                st.success("✅ File loaded successfully!")
+                st.success(t("funclu.upload.ok"))
             except Exception as e:
-                st.error(f"读取 ZIP 失败：{e}")
+                st.error(t("funclu.upload.failed", error=e))
                 st.session_state.funclu_curve_sample = {}
                 st.session_state.funclu_quasi_dynamic = {}
                 st.session_state.funclu_uploaded_zip_name = None
@@ -366,7 +363,7 @@ with tab2:
     with tab2_1:
         curve_sample_dict = st.session_state.get("funclu_curve_sample", {})
         if not curve_sample_dict:
-            st.info("Please upload data in the 'Uploaded Data' tab first.")
+            st.info(t("funclu.need_upload"))
         else:
             cond_names = list(curve_sample_dict.keys())
             data_list = [curve_sample_dict[n] for n in cond_names]
@@ -585,7 +582,7 @@ with tab2:
         em = st.session_state.funclu_em_result
         
         if not curve_sample_dict:
-            st.info("Please upload data in the 'Uploaded Data' tab first.")
+            st.info(t("funclu.need_upload"))
         elif em is None:
             st.info("Please run EM Fitting in the adjacent tab first.")
         else:
@@ -636,7 +633,7 @@ with tab3:
     with bic_tab1:
         curve_sample_dict = st.session_state.get("funclu_curve_sample", {})
         if not curve_sample_dict:
-            st.info("Please upload data in the 'Uploaded Data' tab first.")
+            st.info(t("funclu.need_upload"))
         else:
             cond_names = list(curve_sample_dict.keys())
             data_list = [curve_sample_dict[n] for n in cond_names]
