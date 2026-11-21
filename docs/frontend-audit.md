@@ -176,8 +176,8 @@ Home 中文；Curve Fitting 中英混排（`导入观测数据` / `Fitting param
 - 兜底顺序：当前语言 → 默认语言（zh）→ 字面 key，缺词不会渲染成空白；
 - **模块名不翻译**（Curve Fitting / FunClu / NetRecon / NetAnal 是专有名词），侧栏导航与 h1 在两版里保持一致，这也是截图脚本能继续按英文名点击的前提。
 
-**已迁移**：首页全部文案（卷首标题/导语、两个区块标题、四张模块卡标题与描述、导师信息、页脚）、侧栏（欢迎语、退出、未登录提示、语言开关）、四个空状态引导、Curve Fitting 的区块标题与说明文字、登录提示，以及 FunClu 首屏（主标签页、数据初始化、上传标签与帮助、载入结果提示）。
+**已迁移**：首页全部文案（卷首标题/导语、两个区块标题、四张模块卡标题与描述、导师信息、页脚）、侧栏（欢迎语、退出、未登录提示、语言开关）、四个空状态引导、Curve Fitting 的区块标题与说明文字、登录提示，以及 FunClu 全页（标签页、数据概览、EM 拟合与绘图设置、FunClu-K 导出、BIC 扫描/建议/结果/导出，含表头与按钮）。
 
-**尚未迁移**：FunClu 的 Data Overview / EM Fitting / BIC 三个标签页内部文案，NetRecon 与 NetAnal 的页面内部文案（这几处目前本身就是英文，切到中文时保持英文）。另外 Streamlit 内置的上传控件文案（`Upload`、`500MB per file · ZIP`）不开放本地化。新增词条只需在 `STRINGS["zh"]` 与 `STRINGS["en"]` 各加一行，页面里用 `t("key")` 即可。
+**尚未迁移**：NetRecon 与 NetAnal 的页面内部文案（目前本身就是英文，切到中文时保持英文）。技术参数名（`k_min`、`tol`、`n_components` 等）与 LaTeX 公式标签不做翻译。另外 Streamlit 内置的上传控件文案（`Upload`、`500MB per file · ZIP`）不开放本地化。新增词条只需在 `STRINGS["zh"]` 与 `STRINGS["en"]` 各加一行，页面里用 `t("key")` 即可。
 
 **设计取舍**：Curve Fitting 的数据类型 tab 标签改成语言中立的 `Quasi-dynamic` / `Dynamic`，把中文解释移到 tab 下方的 caption —— 既缩短了长标签（审计遗留项），也避免切换语言时 tab 的 key 状态指向一个已不存在的标签。

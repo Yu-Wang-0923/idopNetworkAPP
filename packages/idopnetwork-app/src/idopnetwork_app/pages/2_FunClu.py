@@ -277,7 +277,7 @@ with tab1:
         )
     else:
         st.divider()
-        st.markdown("### Data Overview")
+        st.markdown("### " + t("funclu.overview"))
         cond_names = list(curve_sample_dict.keys())
         data_list = [curve_sample_dict[n] for n in cond_names]
 
@@ -290,40 +290,40 @@ with tab1:
             model = FunClu()
             X_list, times_list = model._prepare_data(data_list)
         except Exception as e:
-            st.error(f"⚠️ 数据准备失败 (Data preparation failed): {e}")
+            st.error(t("funclu.prepare_failed", error=e))
         else:
             # 🌟 创建数据概览的子标签页
             overview_tab1, overview_tab2, overview_tab3 = st.tabs([
-                "📊 Summary", 
-                "🏷️ Common Features", 
-                "👀 Data Preview"
+                t("funclu.tab.summary"), 
+                t("funclu.tab.features"), 
+                t("funclu.tab.preview")
             ])
 
             # --- 子标签页 1: Summary (核心指标与维度摘要) ---
             with overview_tab1:
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.metric("Conditions", model.n_conditions)
+                    st.metric(t("funclu.metric.conditions"), model.n_conditions)
                 with col2:
-                    st.metric("Common Features", model.n_features)
+                    st.metric(t("funclu.metric.features"), model.n_features)
                 with col3:
                     per_cond_str = ", ".join(str(d) for d in model.n_times_conditions)
                     st.metric(
-                        "Time Points (Total)",
+                        t("funclu.metric.timepoints"),
                         f"{sum(model.n_times_conditions)}",
                         delta=f"Per condition: {per_cond_str}",
                         delta_color="off",
                     )
                 
                 st.write("")
-                st.markdown("#### Per-Condition Summary")
+                st.markdown("#### " + t("funclu.per_condition"))
                 summary_df = pd.DataFrame([
                     {
-                        "Condition": n,
-                        "Time Points": int(model.n_times_conditions[i]),
-                        "Shape (Features × Times)": f"{X_list[i].shape[0]} × {X_list[i].shape[1]}",
-                        "Time Min": float(times_list[i].min()),
-                        "Time Max": float(times_list[i].max()),
+                        t("funclu.col.condition"): n,
+                        t("funclu.col.timepoints"): int(model.n_times_conditions[i]),
+                        t("funclu.col.shape"): f"{X_list[i].shape[0]} × {X_list[i].shape[1]}",
+                        t("funclu.col.time_min"): float(times_list[i].min()),
+                        t("funclu.col.time_max"): float(times_list[i].max()),
                     }
                     for i, n in enumerate(cond_names)
                 ])
@@ -331,8 +331,8 @@ with tab1:
 
             # --- 子标签页 2: Common Features (共有特征列表) ---
             with overview_tab2:
-                st.markdown(f"#### Shared Features Across All Conditions ({model.n_features})")
-                features_df = pd.DataFrame({"Feature Name": model.common_cols})
+                st.markdown("#### " + t("funclu.shared_features", n=model.n_features))
+                features_df = pd.DataFrame({t("funclu.col.feature"): model.common_cols})
                 # 给 dataframe 限制一下高度，防止特征太多拉得太长
                 st.dataframe(features_df, width="stretch", hide_index=True, height=300)
 
@@ -342,12 +342,12 @@ with tab1:
                 col_sel, col_empty = st.columns([1, 2])
                 with col_sel:
                     selected_cond = st.selectbox(
-                        "Select Condition to Preview:", 
+                        t("funclu.select_condition"), 
                         options=cond_names,
                         key="overview_preview_select"
                     )
                 
-                st.markdown(f"**Top 5 rows × 5 cols for `{selected_cond}`:**")
+                st.markdown("**" + t("funclu.preview_caption", cond=selected_cond) + "**")
                 st.dataframe(
                     curve_sample_dict[selected_cond].iloc[:5, :5],
                     width="stretch",
@@ -357,7 +357,7 @@ with tab1:
 # TAB 2: FunClu-K (EM Fitting & Export)
 # =====================================================================
 with tab2:
-    tab2_1, tab2_2 = st.tabs(["EM Fitting", "Export"])
+    tab2_1, tab2_2 = st.tabs([t("funclu.tab.em"), t("funclu.tab.export")])
 
     # ---------- EM Fitting ----------
     with tab2_1:
@@ -370,7 +370,7 @@ with tab2:
             n_features_max = min((d.shape[1] for d in data_list), default=2)
             k_upper = max(2, n_features_max)
 
-            with st.expander("FunClu parameter settings", expanded=True):
+            with st.expander(t("funclu.settings"), expanded=True):
                 with st.form(key="funclu_em_form"):
                     K_em = st.number_input(
                         "n_components (K)",
@@ -380,7 +380,7 @@ with tab2:
                         step=1,
                         key="funclu_em_K",
                     )
-                    submit_em = st.form_submit_button("Run EM Fitting")
+                    submit_em = st.form_submit_button(t("funclu.run_em"))
 
             if submit_em:
                 try:
@@ -394,7 +394,7 @@ with tab2:
                         for n in cond_names
                     ])
                 except Exception as e:
-                    st.error(f"EM 拟合失败：{e}")
+                    st.error(t("funclu.em_failed", error=e))
                     st.session_state.funclu_em_result = None
                 else:
                     st.session_state.funclu_em_result = {
@@ -402,10 +402,7 @@ with tab2:
                         "cond_names": cond_names,
                     }
                     st.success(
-                        f"Done. converged={em_model.converged}, "
-                        f"iters={em_model.n_iter_run}/{em_model.max_iter}, "
-                        f"log-lik={em_model.log_likelihood:.4g}, "
-                        f"BIC={em_model.bic:.4g}"
+                        t("funclu.em_done", c=em_model.converged, i=em_model.n_iter_run, m=em_model.max_iter, l=round(em_model.log_likelihood, 4), b=round(em_model.bic, 4))
                     )
 
             em = st.session_state.funclu_em_result
@@ -428,7 +425,7 @@ with tab2:
                         "weight": em_weights_np,
                     }
                 )
-                st.markdown("**Cluster sizes & weights (after EM)**")
+                st.markdown(t("funclu.cluster_sizes_weights"))
                 st.dataframe(em_sw_df, width="stretch")
 
                 # 参数表
@@ -463,13 +460,13 @@ with tab2:
                     st.markdown(r"**cov_params (phi, gamma)** — SAD1")
                     st.dataframe(pd.DataFrame(em_cov_rows), width="stretch")
 
-                st.markdown("**Cluster profiles**")
-                with st.expander("Cluster profiles plot settings", expanded=False):
+                st.markdown(t("funclu.cluster_profiles"))
+                with st.expander(t("funclu.plot_settings"), expanded=False):
                     with st.form(key="funclu_cluster_profiles_form"):
                         layout_col, member_col, scale_col = st.columns(3)
                         with layout_col:
                             em_profile_layout = st.selectbox(
-                                "Profile layout",
+                                t("funclu.profile_layout"),
                                 options=["per_cluster", "combined", "k_by_l", "l_by_k"],
                                 format_func={
                                     "per_cluster": "Per cluster: one 4x3 figure each (funclu_v4 style)",
@@ -480,61 +477,58 @@ with tab2:
                                 key="funclu_em_profile_layout",
                             )
                             em_n_cols = st.number_input(
-                                "Subplot cols",
+                                t("funclu.subplot_cols"),
                                 min_value=1,
                                 max_value=max(em_model.n_components, 1),
                                 value=min(3, em_model.n_components),
                                 step=1,
                                 key="funclu_em_ncols",
                                 help=(
-                                    "combined 布局每行放几个子图；per_cluster 拼图时"
-                                    "作为网格列数，行数按簇数自动推算。"
+                                    t("funclu.subplot_cols_help")
                                 ),
                             )
                         with member_col:
                             em_member_source = st.selectbox(
-                                "Member source",
+                                t("funclu.member_source"),
                                 ["curve", "qd_df"],
                                 index=0,
                                 key="funclu_em_member_src",
                                 help=(
-                                    "curve: 每个成员一条细线（基于 curve_sample）；"
-                                    "qd_df: 每个时间点 × 每成员的散点"
-                                    "（适合配 quasi_dynamic）。"
+                                    t("funclu.member_source_help")
                                 ),
                             )
                             em_show_members = st.checkbox(
-                                "Show members",
+                                t("funclu.show_members"),
                                 value=True,
                                 key="funclu_em_show_members",
                             )
                             em_show_mean = st.checkbox(
-                                "Show mean curve",
+                                t("funclu.show_mean"),
                                 value=True,
                                 key="funclu_em_show_mean",
                             )
                             em_show_ci = st.checkbox(
-                                "Show CI band (±1.96 SE)",
+                                t("funclu.show_ci"),
                                 value=False,
                                 key="funclu_em_show_ci",
                             )
                         with scale_col:
                             em_use_log_y = st.checkbox(
-                                "log-scale Y",
+                                t("funclu.log_y"),
                                 value=False,
                                 key="funclu_em_log_y",
                             )
                             em_use_log_x = st.checkbox(
-                                "log-scale X",
+                                t("funclu.log_x"),
                                 value=False,
                                 key="funclu_em_log_x",
                             )
                             em_show_legend = st.checkbox(
-                                "Show legend",
+                                t("funclu.show_legend"),
                                 value=True,
                                 key="funclu_em_show_legend",
                             )
-                        st.form_submit_button("Apply plot settings")
+                        st.form_submit_button(t("funclu.apply_plot"))
 
                 _profile_kwargs = dict(
                     data_scatter=[curve_sample_dict[n] for n in em_cond_names],
@@ -584,7 +578,7 @@ with tab2:
         if not curve_sample_dict:
             st.info(t("funclu.need_upload"))
         elif em is None:
-            st.info("Please run EM Fitting in the adjacent tab first.")
+            st.info(t("funclu.need_em"))
         else:
             em_model: FunClu = em["model"]
             em_cond_names = em["cond_names"]
@@ -598,24 +592,15 @@ with tab2:
                     quasi_dynamic_dict=quasi_dynamic_dict,
                 )
             except Exception as e:
-                st.error(f"FunClu-K export failed: {e}")
+                st.error(t("funclu.export_failed", error=e))
             else:
-                st.markdown("**Export contents**")
+                st.markdown(t("funclu.export_contents"))
                 st.write(
-                    "- `labels.csv`: feature-to-cluster labels.\n"
-                    "- `cluster_sizes.csv`: number of features in each cluster.\n"
-                    "- `cluster_members/<condition>/M*_curve_sample.csv`: "
-                    "all member curves for each cluster and condition.\n"
-                    "- `cluster_members/<condition>/M*_quasi_dynamic.csv`: "
-                    "member response variables for multi-layer NetRecon.\n"
-                    "- `cluster_centers/<condition>/cluster_center_curve_sample.csv`: "
-                    "cluster-center curves generated by `FunClu.get_cluster_curves()`.\n"
-                    "- `cluster_centers/<condition>/cluster_center_quasi_dynamic.csv`: "
-                    "cluster-level response variables aggregated from member quasi_dynamic."
+                    t("funclu.export_list")
                 )
 
                 st.download_button(
-                    label="Download FunClu-K export ZIP",
+                    label=t("funclu.download_zip"),
                     data=export_zip_bytes,
                     file_name="funclu_k_export.zip",
                     mime="application/zip",
@@ -627,7 +612,7 @@ with tab2:
 # TAB 3: FunClu-BIC
 # =====================================================================
 with tab3:
-    bic_tab1, bic_tab2 = st.tabs(["BIC Analysis", "Export"])
+    bic_tab1, bic_tab2 = st.tabs([t("funclu.tab.bic"), t("funclu.tab.export")])
 
     # ---------- BIC Analysis ----------
     with bic_tab1:
@@ -645,7 +630,7 @@ with tab3:
                 max(min_cluster_lower, int(np.ceil(0.03 * max(n_features, 1)))),
             )
 
-            with st.expander("BIC Scan Settings", expanded=True):
+            with st.expander(t("funclu.bic_settings"), expanded=True):
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     bic_k_min = st.slider(
@@ -667,7 +652,7 @@ with tab3:
                         value=1, step=1, key="bic_step",
                     )
 
-                with st.expander("Advanced Settings", expanded=True):
+                with st.expander(t("funclu.advanced"), expanded=True):
                     col_a1, col_a2, col_a3 = st.columns(3)
                     with col_a1:
                         bic_max_iter = st.slider(
@@ -692,8 +677,7 @@ with tab3:
                             step=1,
                             key="bic_random_starts",
                             help=(
-                                "Run each K with multiple consecutive random seeds "
-                                "and aggregate BIC/SI to reduce local-optimum noise."
+                                t("funclu.help.seeds")
                             ),
                         )
                     with col_b2:
@@ -703,8 +687,7 @@ with tab3:
                             index=0,
                             key="bic_seed_aggregation",
                             help=(
-                                "Median is more robust to occasional failed or poor "
-                                "local optima; mean is more sensitive to all runs."
+                                t("funclu.help.aggregation")
                             ),
                         )
                     with col_b3:
@@ -716,25 +699,20 @@ with tab3:
                             step=1,
                             key="bic_min_cluster_size",
                             help=(
-                                "K values with clusters smaller than this threshold "
-                                "are kept in the table but excluded from the primary "
-                                "BIC recommendation when possible."
+                                t("funclu.help.min_size")
                             ),
                         )
 
                 button_col1, button_col2 = st.columns([1, 1])
                 with button_col1:
                     try_default_best_k = st.button(
-                        "Try Default Best K",
+                        t("funclu.try_default"),
                         type="primary",
                         key="try_default_best_k_btn",
-                        help=(
-                            "Scan K from 2 to int(sqrt(n)), find checkmark-like "
-                            "local BIC minima, and select the leftmost candidate as Best K."
-                        ),
+                        help=t("funclu.help.scan"),
                     )
                 with button_col2:
-                    run_bic = st.button("Run BIC Analysis", type="primary", key="run_bic_btn")
+                    run_bic = st.button(t("funclu.run_bic"), type="primary", key="run_bic_btn")
 
             if run_bic or try_default_best_k:
                 if try_default_best_k:
@@ -810,12 +788,10 @@ with tab3:
                                 )
                             else:
                                 st.warning(
-                                    "No elbow-like local BIC minimum was found; "
-                                    "no Try Default best K will be marked. "
-                                    "Try Run BIC Analysis Function"
+                                    t("funclu.no_elbow")
                                 )
                     except Exception as e:
-                        st.error(f"BIC scan failed: {e}")
+                        st.error(t("funclu.bic_failed", error=e))
                         st.session_state["funclu_bic_result"] = None
                         st.session_state["funclu_bic_checkmark_ks"] = []
                         st.session_state["funclu_bic_default_best_k"] = None
@@ -850,8 +826,7 @@ with tab3:
                     elif eligible.empty:
                         best_row = raw_best_row
                         st.warning(
-                            "No K satisfies the minimum cluster-size constraint; "
-                            "showing the unconstrained BIC minimum instead."
+                            t("funclu.min_size_violated")
                         )
                     else:
                         best_row = eligible.loc[eligible["BIC"].idxmin()]
@@ -907,11 +882,11 @@ with tab3:
                         else str(best_row["converged"]) if best_row is not None else "N/A"
                     )
 
-                    st.markdown("### Best K Recommendation")
+                    st.markdown("### " + t("funclu.best_k"))
                     col_c1, col_c2, col_c3, col_c4, col_c5, col_c6 = st.columns(6)
                     with col_c1:
                         st.metric(
-                            "Recommended K",
+                            t("funclu.metric.recommended"),
                             f"K = {best_k_val}" if best_k_val is not None else "N/A",
                         )
                     with col_c2:
@@ -920,13 +895,13 @@ with tab3:
                             f"{best_row['BIC']:.4g}" if best_row is not None else "N/A",
                         )
                     with col_c3:
-                        st.metric("Raw BIC K", f"K = {raw_best_k_val}")
+                        st.metric(t("funclu.metric.raw_bic_k"), f"K = {raw_best_k_val}")
                     with col_c4:
-                        st.metric("SI @ Rec K", si_at_bic_label)
+                        st.metric(t("funclu.metric.si"), si_at_bic_label)
                     with col_c5:
-                        st.metric("Min Size", min_size_label, size_ok_label)
+                        st.metric(t("funclu.metric.min_size"), min_size_label, size_ok_label)
                     with col_c6:
-                        st.metric("Converged", converged_label)
+                        st.metric(t("funclu.metric.converged"), converged_label)
 
                     if use_default_best and checkmark_ks:
                         st.caption(
@@ -936,13 +911,11 @@ with tab3:
                         )
                     elif default_mode:
                         st.caption(
-                            "No elbow-like local BIC minimum was found; "
-                            "no Try Default best K will be marked. "
-                            "Try Run BIC Analysis Function"
+                            t("funclu.no_elbow")
                         )
-                    st.caption(f"Best K by SI among eligible rows: {best_si_label} ({best_si_value})")
+                    st.caption(t("funclu.best_si_caption", label=best_si_label, value=best_si_value))
 
-                    st.markdown("### BIC Elbow Plot")
+                    st.markdown("### " + t("funclu.elbow_plot"))
                     plot_bic_elbow(
                         bic_results=bic_result_df,
                         best_K=best_k_val,
@@ -950,9 +923,9 @@ with tab3:
                         auto_select_best=not default_mode,
                         show_in_streamlit=True,
                     )
-                    st.caption("此生成的结果和seed有关，不同的seed可能会导致不同的结果")
+                    st.caption(t("funclu.seed_note"))
 
-                    st.markdown("### Results Table")
+                    st.markdown("### " + t("funclu.results_table"))
                     display_df = bic_result_df.rename(columns={
                         "log_likelihood": "Log-Lik",
                         "n_iter_run": "Iters",
@@ -986,15 +959,15 @@ with tab3:
     with bic_tab2:
         bic_result_df = st.session_state.get("funclu_bic_result")
         if bic_result_df is None:
-            st.info("Run BIC Analysis first in the adjacent tab.")
+            st.info(t("funclu.need_bic"))
         else:
-            st.markdown("### Export BIC Results as CSV")
+            st.markdown("### " + t("funclu.export_csv"))
             st.dataframe(
                 bic_result_df, width="stretch", hide_index=True,
             )
             csv_data = bic_result_df.to_csv(index=False).encode("utf-8")
             st.download_button(
-                label="Download BIC results (CSV)",
+                label=t("funclu.download_bic"),
                 data=csv_data,
                 file_name="funclu_bic_results.csv",
                 mime="text/csv",
