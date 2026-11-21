@@ -151,6 +151,12 @@ STRINGS: dict[str, dict[str, str]] = {
             "时间序列（如 12 导联 ECG）→ 逐通道 SWT 平稳小波软阈值去噪；"
             "去噪后的波形可直接用于建网页的「Fourier + Legendre（动态 idop）」算法。"
         ),
+        "fitting.dynamic.note": "Dynamic 模式下导出沿用同一套三表契约，但含义为：quasi_dynamic = 原始波形，curve_sample = SWT 去噪后波形，curve_params = 每个通道的小波/层数/sigma/阈值诊断。",
+        "fitting.results.empty": "上传数据并点击 Run Fitting 后，结果会出现在这里。",
+        "fitting.status.quasi": "{files} 个文件 · 变换 {first} → {second} · {samples} 个采样点 · 去除前 {trim}%",
+        "fitting.status.dynamic": "{files} 个文件 · SWT {wavelet}，{level} 层，α={alpha}",
+        "fitting.results.for": "结果文件",
+        "fitting.download.zip": "下载拟合结果 ZIP",
         "fitting.transforms.hint": (
             "变换按顺序执行，None 跳过该步。Z_min_add1 把每列抬到最小值为 1；"
             "行按 log1p 之和排序、过滤出正索引，再按比例截去前几行。"
@@ -300,6 +306,12 @@ STRINGS: dict[str, dict[str, str]] = {
             "Time series (e.g. a 12-lead ECG) → per-channel SWT soft-threshold denoising; "
             "the denoised traces feed the dynamic idop construction directly."
         ),
+        "fitting.dynamic.note": "Dynamic mode keeps the same three-table export contract: quasi_dynamic = raw waveform, curve_sample = SWT-denoised waveform, curve_params = per-channel wavelet/level/sigma/threshold diagnostics.",
+        "fitting.results.empty": "Results appear here after you upload data and click Run Fitting.",
+        "fitting.status.quasi": "{files} file(s) · {first} → {second} · {samples} samples · first {trim}% removed",
+        "fitting.status.dynamic": "{files} file(s) · SWT {wavelet}, {level} levels, α={alpha}",
+        "fitting.results.for": "Results for",
+        "fitting.download.zip": "Download fitting results ZIP",
         "fitting.transforms.hint": (
             "Transforms run in order; None skips a step. Z_min_add1 shifts each column to a minimum of 1. "
             "Rows are sorted by log1p of their sums, filtered to positive indices, then trimmed."

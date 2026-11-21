@@ -65,7 +65,12 @@ footer, [data-testid="stSidebarNav"] { display: none; }
 [data-testid="stForm"], [data-testid="stExpander"] details {
     background: #fff;
     border: 1px solid var(--workspace-line);
-    border-radius: 10px;
+    border-radius: 12px;
+}
+/* Both work cards share one padding/radius so their inner left axis lines up. */
+[data-testid="stForm"] { padding: 1.5rem; }
+@media (max-width: 640px) {
+    [data-testid="stForm"] { padding: 1rem; }
 }
 [data-testid="stFileUploaderDropzone"] {
     border: 1px dashed #93b3da;
@@ -110,13 +115,57 @@ button:focus-visible, .stPageLink a:focus-visible {
 
 .st-key-fit-intake {
     background: white;
-    padding: clamp(1rem, 2vw, 1.6rem);
+    padding: 1.5rem;
     border: 1px solid var(--workspace-line);
-    border-top: 1px solid var(--workspace-accent);
     border-radius: 12px;
     gap: .55rem;
+    /* Break the seam with the h1 rule instead of stacking two borders on one gap. */
+    margin-top: 2rem;
+    margin-bottom: 1.25rem;
 }
-.st-key-fit-intake h3 { color: var(--workspace-ink); padding: 0; }
+@media (max-width: 640px) {
+    .st-key-fit-intake { padding: 1rem; margin-top: 1.25rem; }
+}
+/* Card title: one step below the section heading so the two never read as siblings. */
+.st-key-fit-intake [data-testid="stMarkdownContainer"] h2 {
+    color: var(--workspace-ink);
+    font-size: 1.2rem;
+    font-weight: 650;
+    line-height: 1.3;
+    margin: 0 0 .15rem;
+    padding: 0;
+}
+
+/* Settings card: the mode control and the parameter fields share one card, so the section is
+   not split into heading + tab strip + caption + second card. */
+.st-key-fit-settings {
+    background: #fff;
+    border: 1px solid var(--workspace-line);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-top: .5rem;
+    gap: .4rem;
+}
+.st-key-fit-settings [data-testid="stForm"] {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    margin-top: .35rem;
+}
+.st-key-fit-settings button[kind="primary"] { min-height: 44px; }
+@media (max-width: 640px) {
+    .st-key-fit-settings { padding: 1rem; }
+}
+
+/* Results slot that exists before the first run, so the outcome has a place on the page. */
+.st-key-fit-results-empty {
+    border: 1px dashed #bacde3;
+    border-radius: 12px;
+    background: #fbfdff;
+    padding: 1.5rem;
+    margin-top: 1rem;
+}
+.st-key-fit-results-empty [data-testid="stMarkdownContainer"] h2 { margin-top: 0; }
 .st-key-fit-intake [data-testid="stExpander"] details { border: 0; }
 .st-key-fit-intake summary { color: var(--workspace-accent); }
 

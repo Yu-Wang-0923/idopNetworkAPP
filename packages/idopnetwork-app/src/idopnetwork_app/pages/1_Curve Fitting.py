@@ -62,75 +62,77 @@ if len(names) != len(set(names)):
     st.error("上传文件名不能重复，请重命名后重试。")
     st.stop()
 
-MODE_TABS = ['Quasi-dynamic', 'Dynamic']
 st.markdown(f"## {t('fitting.settings.title')}")
-mode_tabs = st.tabs(
-    MODE_TABS,
-    key="fit_data_mode_tabs",
-    default=MODE_TABS[0],
-    on_change="rerun",
-)
-data_mode = DATA_MODE_QUASI if mode_tabs[0].open or not mode_tabs[1].open else DATA_MODE_DYNAMIC
-active_tab = mode_tabs[0] if data_mode == DATA_MODE_QUASI else mode_tabs[1]
+MODE_OPTIONS = [DATA_MODE_QUASI, DATA_MODE_DYNAMIC]
+MODE_LABELS = {DATA_MODE_QUASI: "Quasi-dynamic", DATA_MODE_DYNAMIC: "Dynamic"}
 mode_help = {
     DATA_MODE_QUASI: t("fitting.mode.quasi"),
     DATA_MODE_DYNAMIC: t("fitting.mode.dynamic"),
 }
-with active_tab:
+
+with st.container(key="fit-settings"):
+    data_mode = st.segmented_control(
+        "Data type",
+        options=MODE_OPTIONS,
+        format_func=lambda mode: MODE_LABELS[mode],
+        default=DATA_MODE_QUASI,
+        required=True,
+        key="fit_data_mode",
+        label_visibility="collapsed",
+    ) or DATA_MODE_QUASI
     st.caption(mode_help[data_mode])
 
-signature = (data_mode,) + tuple(
-    (file.name, sha256(file.getvalue()).hexdigest()) for file in uploaded
-)
-previous = st.session_state.get("curve_fitting_run_v4")
-if previous is not None and previous["signature"] != signature:
-    st.session_state.pop("curve_fitting_run_v4", None)
+    signature = (data_mode,) + tuple(
+        (file.name, sha256(file.getvalue()).hexdigest()) for file in uploaded
+    )
+    previous = st.session_state.get("curve_fitting_run_v4")
+    if previous is not None and previous["signature"] != signature:
+        st.session_state.pop("curve_fitting_run_v4", None)
 
-with active_tab, st.form("curve_fitting_parameters"):
-    if data_mode == DATA_MODE_DYNAMIC:
-        st.markdown("**SWT denoise parameters**")
-        swt_left, swt_mid, swt_right = st.columns(3)
-        swt_wavelet = swt_left.selectbox(
-            "Wavelet", ["rbio3.9", "db4", "sym8", "coif3", "bior3.9"],
-            index=0, key="fit_swt_wavelet",
-            help="SWT 小波基；ECG 常用 rbio3.9。",
-        )
-        swt_level = swt_mid.number_input(
-            "SWT level", min_value=1, max_value=10, value=2, step=1,
-            key="fit_swt_level",
-            help="分解层数上限；实际取 min(level, swt_max_level(N))。",
-        )
-        swt_alpha = swt_right.number_input(
-            "Threshold alpha", min_value=0.0, max_value=5.0, value=0.5,
-            step=0.05, format="%.2f", key="fit_swt_alpha",
-            help="阈值系数：threshold = alpha · sigma · sqrt(2 log N)，soft 阈值，"
-                 "sigma 由最细层细节系数的 MAD/0.6745 估计。",
-        )
-        st.caption(
-            "Dynamic 模式下导出沿用同一套三表契约，但含义为："
-            "quasi_dynamic = 原始波形，curve_sample = SWT 去噪后波形，"
-            "curve_params = 每个通道的小波/层数/sigma/阈值诊断。"
-        )
-        first_transform = "Z_min_add1"
-        second_transform = "Log10_1p"
-        n_samples = 30
-        trim_percent = 1.0
-    else:
-        st.markdown("**Fitting parameters**")
-        left, right = st.columns(2)
-        methods = ["None", "Z_min_add1", "Log10_1p", "Minmax_0_1"]
-        first_transform = left.selectbox("First transform", methods, index=1,
-                                         key="fit_first_transform")
-        second_transform = right.selectbox("Second transform", methods, index=2,
-                                            key="fit_second_transform")
-        n_samples = left.number_input("Sample points", min_value=2, max_value=10000,
-                                      value=30, step=1, key="fit_n_samples")
-        trim_percent = right.number_input("Remove first rows (%)", min_value=0.0,
-                                           max_value=99.0, value=1.0, step=0.5,
-                                           key="fit_trim_percent")
-        st.caption(t("fitting.transforms.hint"))
-        swt_wavelet, swt_level, swt_alpha = "rbio3.9", 2, 0.5
-    submitted = st.form_submit_button("Run Fitting", type="primary")
+    with st.form("curve_fitting_parameters"):
+        fields, action = st.columns([2.5, 1], gap="large", vertical_alignment="bottom")
+        with fields:
+            if data_mode == DATA_MODE_DYNAMIC:
+                swt_cols = st.columns(3, gap="medium")
+                swt_wavelet = swt_cols[0].selectbox(
+                    "Wavelet", ["rbio3.9", "db4", "sym8", "coif3", "bior3.9"],
+                    index=0, key="fit_swt_wavelet",
+                    help="SWT 小波基；ECG 常用 rbio3.9。",
+                )
+                swt_level = swt_cols[1].number_input(
+                    "SWT level", min_value=1, max_value=10, value=2, step=1,
+                    key="fit_swt_level",
+                    help="分解层数上限；实际取 min(level, swt_max_level(N))。",
+                )
+                swt_alpha = swt_cols[2].number_input(
+                    "Threshold alpha", min_value=0.0, max_value=5.0, value=0.5,
+                    step=0.05, format="%.2f", key="fit_swt_alpha",
+                    help="阈值系数：threshold = alpha · sigma · sqrt(2 log N)，soft 阈值，"
+                         "sigma 由最细层细节系数的 MAD/0.6745 估计。",
+                )
+                first_transform = "Z_min_add1"
+                second_transform = "Log10_1p"
+                n_samples = 30
+                trim_percent = 1.0
+            else:
+                methods = ["None", "Z_min_add1", "Log10_1p", "Minmax_0_1"]
+                transform_row = st.columns(2, gap="medium")
+                first_transform = transform_row[0].selectbox(
+                    "First transform", methods, index=1, key="fit_first_transform")
+                second_transform = transform_row[1].selectbox(
+                    "Second transform", methods, index=2, key="fit_second_transform")
+                numeric_row = st.columns(2, gap="medium")
+                n_samples = numeric_row[0].number_input(
+                    "Sample points", min_value=2, max_value=10000, value=30, step=1,
+                    key="fit_n_samples")
+                trim_percent = numeric_row[1].number_input(
+                    "Remove first rows (%)", min_value=0.0, max_value=99.0, value=1.0,
+                    step=0.5, key="fit_trim_percent")
+                swt_wavelet, swt_level, swt_alpha = "rbio3.9", 2, 0.5
+        with action:
+            submitted = st.form_submit_button("Run Fitting", type="primary", width="stretch")
+        st.caption(t("fitting.dynamic.note") if data_mode == DATA_MODE_DYNAMIC
+                   else t("fitting.transforms.hint"))
 
 if submitted:
     options = dict(
@@ -153,7 +155,12 @@ if submitted:
 
 run = st.session_state.get("curve_fitting_run_v4")
 if run is None:
+    st.divider()
+    with st.container(key="fit-results-empty"):
+        st.markdown(f"## {t('fitting.results.title')}")
+        st.caption(t("fitting.results.empty"))
     st.stop()
+
 st.divider()
 st.markdown(f"## {t('fitting.results.title')}")
 for name, error in run["errors"].items():
@@ -162,33 +169,30 @@ results = run["results"]
 if not results:
     st.stop()
 used = run["options"]
-if used.get("data_mode") == DATA_MODE_DYNAMIC:
-    st.caption(
-        f"Displayed results: Dynamic (SWT) — wavelet `{used.get('swt_wavelet')}`, "
-        f"level {used.get('swt_level')}, alpha {used.get('swt_alpha')}。"
-        "quasi_dynamic = 原始波形，curve_sample = 去噪波形。"
-        "After changing parameters, click Run Fitting to update results."
-    )
+is_dynamic = used.get("data_mode") == DATA_MODE_DYNAMIC
+if is_dynamic:
+    st.caption(t("fitting.status.dynamic", files=len(results),
+                 wavelet=used.get("swt_wavelet"), level=used.get("swt_level"),
+                 alpha=used.get("swt_alpha")))
 else:
-    st.caption(f"Displayed results: {used['first_transform']} → {used['second_transform']}; "
-               f"{used['n_samples']} sample points; remove first {used['trim_percent']:g}%. "
-               "After changing parameters, click Run Fitting to update results.")
-
-if len(results) == len(uploaded):
-    st.success(f"Fitting complete: {len(results)} file(s).")
-else:
+    st.caption(t("fitting.status.quasi", files=len(results),
+                 first=used["first_transform"], second=used["second_transform"],
+                 samples=used["n_samples"], trim=f"{used['trim_percent']:g}"))
+if len(results) != len(uploaded):
     st.warning(f"{len(results)} / {len(uploaded)} files fitted. Downloads contain successful files only.")
+
+pick_col, export_col = st.columns([2.2, 1], gap="medium", vertical_alignment="bottom")
+selected = pick_col.selectbox(t("fitting.results.for"), list(results))
 try:
-    st.download_button("Download fitting results ZIP", data=build_fitting_export(results),
-                       file_name="curve_fitting_export.zip", mime="application/zip")
+    export_col.download_button(t("fitting.download.zip"), data=build_fitting_export(results),
+                               file_name="curve_fitting_export.zip", mime="application/zip",
+                               width="stretch")
 except ValueError as exc:
     st.error(str(exc))
 
-selected = st.selectbox("Results for", list(results))
 result = results[selected]
 quasi, params, samples = (result[k] for k in ("quasi_dynamic", "curve_params", "curve_sample"))
 valid = np.isfinite(samples.to_numpy(float)).all(axis=0)
-is_dynamic = used.get("data_mode") == DATA_MODE_DYNAMIC
 cols = st.columns(3)
 cols[0].metric(
     "Features denoised" if is_dynamic else "Features fitted",
@@ -207,13 +211,6 @@ plot_tab, params_tab, samples_tab, quasi_tab = st.tabs(
     ["Curve Fitting Plot", "Curve Parameters", "Curve Samples", "Quasi-dynamic Data"]
 )
 with plot_tab:
-    selected_features = st.multiselect(
-        "Features to plot",
-        options=list(quasi.columns),
-        default=list(quasi.columns[:6]),
-        key=f"fit_features_{selected}_{sha256(repr(list(quasi.columns)).encode()).hexdigest()[:12]}",
-        help="默认只绘制前 6 个 Feature；可自行增减，超过每页容量时分页显示。",
-    )
     if is_dynamic:
         per_page = 6
         ecg_sampling_rate = st.number_input("ECG 采样率 (Hz)", min_value=1.0, value=100.0,
@@ -230,10 +227,17 @@ with plot_tab:
             curve_color = c3.color_picker("Curve Color", "#D62728")
             background = c3.color_picker("Subfig Background Color", "#FFFFFF")
         per_page = int(nrow * ncol)
+    pick_features, pick_page = st.columns([2.6, 1], gap="medium", vertical_alignment="bottom")
+    selected_features = pick_features.multiselect(
+        "Features to plot",
+        options=list(quasi.columns),
+        default=list(quasi.columns[:6]),
+        key=f"fit_features_{selected}_{sha256(repr(list(quasi.columns)).encode()).hexdigest()[:12]}",
+        help="默认只绘制前 6 个 Feature；可自行增减，超过每页容量时分页显示。",
+    )
     pages = max(1, (len(selected_features) + per_page - 1) // per_page)
-    page = st.selectbox("Feature page", range(1, pages + 1), key=f"fit_page_{selected}_{per_page}")
+    page = pick_page.selectbox("Feature page", range(1, pages + 1), key=f"fit_page_{selected}_{per_page}")
     features = selected_features[(page - 1) * per_page:page * per_page]
-    st.caption(f"显示 {len(features)} / {len(quasi.columns)} 个 Feature；默认选择前 6 个。")
     if features:
         if is_dynamic:
             from idopnetwork_app.ecg_visualization import render_ecg_fitting
@@ -251,6 +255,7 @@ with plot_tab:
             plt.close(fig)
     else:
         st.info("请选择至少一个 Feature 以显示拟合图。")
+    st.caption(f"显示 {len(features)} / {len(quasi.columns)} 个 Feature；默认选择前 6 个。")
 
 for tab, table, suffix in (
     (params_tab, params, "params"),

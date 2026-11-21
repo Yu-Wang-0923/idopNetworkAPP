@@ -181,3 +181,28 @@ Home 中文；Curve Fitting 中英混排（`导入观测数据` / `Fitting param
 **尚未迁移**：NetRecon 与 NetAnal 的页面内部文案（目前本身就是英文，切到中文时保持英文）。技术参数名（`k_min`、`tol`、`n_components` 等）与 LaTeX 公式标签不做翻译。另外 Streamlit 内置的上传控件文案（`Upload`、`500MB per file · ZIP`）不开放本地化。新增词条只需在 `STRINGS["zh"]` 与 `STRINGS["en"]` 各加一行，页面里用 `t("key")` 即可。
 
 **设计取舍**：Curve Fitting 的数据类型 tab 标签改成语言中立的 `Quasi-dynamic` / `Dynamic`，把中文解释移到 tab 下方的 caption —— 既缩短了长标签（审计遗留项），也避免切换语言时 tab 的 key 状态指向一个已不存在的标签。
+
+---
+
+## Curve Fitting 布局改造（方案 A）
+
+诊断来自三档宽度的实测几何 + 一次独立评审，改造后复测同一组数字：
+
+| 指标 | 改前 | 改后 |
+|---|---|---|
+| h1 → 上传卡间距 | **0 px**（h1 下边框与卡片 accent 顶边叠缝） | **32 px** |
+| 上传卡 → 分析设置 | 19 px | **39 px** |
+| 设置区结构 | h2 + tab 条 + 说明 + 卡片 + 重复的「Fitting parameters」 | 一张设置卡：分段控件 + 一行说明 + 字段 + Run |
+| 字段网格 | 两列各 466（宽屏过宽） | 两行两列各约 316，左轴与卡片对齐（x=405） |
+| Run 按钮 | 90×40，孤立在卡内左下 | 右栏 44px 高，与末行字段对齐 |
+| 结果区图表起点 | **1695 px** | **1379 px**（−316） |
+| 页面总高（3 文件） | 2309 px | **2031 px**（−278） |
+| 未运行时的结果区 | 直接 `st.stop()`，页面戛然而止 | 虚线结果槽 + 一行说明 |
+| 390 下字段顺序 | 1-3-2-4（按列展开） | 1-2-3-4（按行重排） |
+
+结果区删掉的三块重复信息：绿色「Fitting complete」通栏、`Displayed results: …` 参数回显、占满 980px 的 `Results for` 单行下拉；现在压成一行状态 + 选择/下载并排。
+
+**文件**：`pages/1_Curve Fitting.py`、`static/css/custom_style.css`、`i18n.py`（6 个新词条）。
+**回归**：`pytest` 114 passed；`impeccable detect --scope layout` 0 findings。
+
+**未解决（R-2，下一轮）**：390 宽下图表仍是 358×145、6 子图不可读；3 张 metric 竖排堆叠约 360px；结果 tab 条被裁切无滚动提示。这三项都要求图表按容器宽度自适应（改 `plot_curve_fitting` 的 figsize/列数）与移动端媒体查询，单独一轮处理。
