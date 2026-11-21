@@ -31,6 +31,15 @@ def _fit(content: bytes, **options):
     return fit_uploaded_csv(content, **options)
 
 
+def _compact_layout() -> bool:
+    """Phones and tablets get one plot per row and a single-line metric row."""
+    try:
+        ua = st.context.headers.get("User-Agent", "")
+    except Exception:
+        return False
+    return any(token in ua for token in ("Android", "iPhone", "iPad", "Mobile"))
+
+
 st.title("Curve Fitting")
 with st.container(key="fit-intake"):
     st.markdown(f"## {t('fitting.intake.title')}")
@@ -193,17 +202,22 @@ except ValueError as exc:
 result = results[selected]
 quasi, params, samples = (result[k] for k in ("quasi_dynamic", "curve_params", "curve_sample"))
 valid = np.isfinite(samples.to_numpy(float)).all(axis=0)
-cols = st.columns(3)
-cols[0].metric(
-    "Features denoised" if is_dynamic else "Features fitted",
-    f"{int(valid.sum())} / {len(valid)}", border=True,
-)
-cols[1].metric(
-    "Time points" if is_dynamic else "Quasi-dynamic rows", len(quasi), border=True
-)
-cols[2].metric(
-    "Annotated samples" if is_dynamic else "Sample points", len(samples), border=True
-)
+compact = _compact_layout()
+if compact:
+    st.caption(t("fitting.metrics.compact", fitted=f"{int(valid.sum())} / {len(valid)}",
+                 rows=len(quasi), samples=len(samples)))
+else:
+    cols = st.columns(3)
+    cols[0].metric(
+        "Features denoised" if is_dynamic else "Features fitted",
+        f"{int(valid.sum())} / {len(valid)}", border=True,
+    )
+    cols[1].metric(
+        "Time points" if is_dynamic else "Quasi-dynamic rows", len(quasi), border=True
+    )
+    cols[2].metric(
+        "Annotated samples" if is_dynamic else "Sample points", len(samples), border=True
+    )
 if not valid.all():
     st.warning("Some features have insufficient positive observations. Their parameters and samples contain NaN and will be excluded from clustering.")
 
@@ -212,14 +226,16 @@ plot_tab, params_tab, samples_tab, quasi_tab = st.tabs(
 )
 with plot_tab:
     if is_dynamic:
-        per_page = 6
+        per_page = 2 if compact else 6
         ecg_sampling_rate = st.number_input("ECG 采样率 (Hz)", min_value=1.0, value=100.0,
                                             help="有 time 时间索引时直接使用该时间；否则按此采样率生成秒单位横轴。")
     else:
+        nrow, ncol = 2, (1 if compact else 3)
         with st.expander("Plot settings", expanded=False):
             c1, c2, c3 = st.columns(3)
-            nrow = c1.number_input("Rows", min_value=1, max_value=10, value=2)
-            ncol = c1.number_input("Cols", min_value=1, max_value=10, value=3)
+            if not compact:
+                nrow = c1.number_input("Rows", min_value=1, max_value=10, value=2)
+                ncol = c1.number_input("Cols", min_value=1, max_value=10, value=3)
             plot_type = c2.selectbox("Plot Type", ["scatter", "line"])
             scatter_size = c2.number_input("Scatter Size", min_value=1, max_value=1000, value=100)
             linewidth = c2.number_input("Line Size", min_value=1, max_value=10, value=1)
@@ -249,7 +265,7 @@ with plot_tab:
                 plot_scatter_type=plot_type, show_curve=True, scatter_x="index",
                 nrow=int(nrow), ncol=int(ncol), nsubfig=per_page, scatter_size=scatter_size,
                 scatter_linewidth=linewidth, color_scatter=scatter_color, color_curve=curve_color,
-                subfig_background_color=background,
+                subfig_background_color=background, cell_height=(1.8 if compact else 2.0),
             )
             st.pyplot(fig)
             plt.close(fig)

@@ -19,6 +19,7 @@ def plot_curve_fitting(
     nrow=4,
     ncol=3,
     nsubfig=4,
+    cell_height=1.5,   # 单个子图的基准高度（英寸），下游页面可按容器宽度调整纵横比
     scatter_x="sequence",
     scatter_size=100,
     scatter_linewidth=2,
@@ -50,8 +51,8 @@ def plot_curve_fitting(
     })
 
     GOLDEN_RATIO = 1.618  # 黄金分割比
-    base_height = 1.5     # 略微调大单行基准高度，让空间更充裕
-    base_width = base_height * GOLDEN_RATIO 
+    base_height = cell_height
+    base_width = 1.5 * GOLDEN_RATIO
     
     selected_cols = df_scatter.columns.tolist()
     fig, axes = plt.subplots(

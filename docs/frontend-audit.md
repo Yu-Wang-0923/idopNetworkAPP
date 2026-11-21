@@ -206,3 +206,18 @@ Home 中文；Curve Fitting 中英混排（`导入观测数据` / `Fitting param
 **回归**：`pytest` 114 passed；`impeccable detect --scope layout` 0 findings。
 
 **未解决（R-2，下一轮）**：390 宽下图表仍是 358×145、6 子图不可读；3 张 metric 竖排堆叠约 360px；结果 tab 条被裁切无滚动提示。这三项都要求图表按容器宽度自适应（改 `plot_curve_fitting` 的 figsize/列数）与移动端媒体查询，单独一轮处理。
+## R-2 图表自适应
+
+上一轮遗留的移动端问题，这一轮处理。核心是**按设备能力切换图表网格**，而不是等比例缩小：
+
+| 项 | 前 | 后 |
+|---|---|---|
+| 桌面图表 | 980×398（2×3 子图，每格约 170 高） | **948×516**（cell_height 1.5 → 2.0） |
+| 移动端图表 | 358×145，2×3 子图不可读 | **358×536，1 列 2 行**，每格约 250 高 |
+| 移动端指标 | 3 张 metric 竖排 360px | 一行紧凑状态「32 / 32 特征 · 5 行 · 30 个采样点」 |
+| 移动端图表起点 | 2361px | **1939px** |
+| 结果 tab 条 | 裁切且不可滚 | `overflow-x: auto`，可横向滑动 |
+
+实现：`st.context.headers` 读 User-Agent，命中 `Android/iPhone/iPad/Mobile` 时走紧凑分支（每页 2 张图、1 列；指标压成一行）。`plot_curve_fitting` 新增 `cell_height` 参数（默认 1.5，行为不变），页面按模式传 1.8 / 2.0。
+
+注意：**库模块改动需要重启 Streamlit 进程**才生效（`runOnSave` 只重跑页面脚本，不重载已导入的 `idopnetwork` 包）。这一轮重启过一次服务。
