@@ -32,6 +32,8 @@ h1.home-title {
     font-weight: 600;
     letter-spacing: .02em;
     color: #2a5a8c;
+    display: inline-block;
+    white-space: nowrap;
 }
 .home-intro { color: #27496d; max-width: 38em; margin: .5rem 0; }
 /* 卷首网络示意图：透明底，直接落在浅蓝横幅上 */

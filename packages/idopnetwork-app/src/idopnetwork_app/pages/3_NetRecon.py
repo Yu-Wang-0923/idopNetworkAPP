@@ -104,6 +104,7 @@ from idopnetwork.network.plot import (
     plot_adjusted_matrix_heatmap,
 )
 from idopnetwork_app.utils import font_prop, load_css, setup_sidebar, upload_guidance
+from idopnetwork_app.i18n import t
 
 import streamlit.components.v1 as components
 
@@ -188,7 +189,7 @@ setup_sidebar()
 
 # ========== 登录门禁 ==========
 if not st.session_state.get("logged_in", False):
-    st.warning("请先返回首页登录后使用。")
+    st.warning(t("auth.login_required"))
     st.stop()
 
 # ========== 页面标题 ==========
@@ -670,7 +671,7 @@ with tab1:
         if not common_conditions:
             upload_guidance(
                 "pages/1_Curve Fitting.py", "Curve Fitting", "curve_fitting_export.zip",
-                "在 Curve Fitting 页上传观测数据，点击 Run Fitting 完成拟合",
+                t("netrecon.single.step1"),
             )
         else:
             default_condition = common_conditions[0]
@@ -1168,7 +1169,7 @@ with tab2:
         if not centers:
             upload_guidance(
                 "pages/2_FunClu.py", "FunClu", "funclu_k_export.zip",
-                "在 FunClu 页的 FunClu-K 标签完成聚类并导出",
+                t("netrecon.multi.step1"),
             )
         else:
             condition_names = list(centers.keys())

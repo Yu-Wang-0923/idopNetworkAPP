@@ -7,6 +7,7 @@ import matplotlib.font_manager as fm
 import matplotlib.pyplot as plt
 import streamlit as st
 from streamlit.errors import StreamlitPageNotFoundError
+from idopnetwork_app.i18n import language_switch, t
 
 # ── 静态资源访问（通过 importlib.resources） ──────────────────────────────
 _STATIC = files("idopnetwork_app.static")
@@ -36,17 +37,18 @@ def upload_guidance(source_page: str, source_label: str, file_name: str, first_s
     """Empty state for a page driven by an upstream export: what it needs, where it comes from."""
     slug = "".join(ch if ch.isalnum() else "-" for ch in file_name)
     with st.container(key=f"upload-guidance-{slug}"):
-        st.markdown(f"**这一步需要 `{file_name}`**")
+        st.markdown(t("guidance.title", file=file_name))
         st.markdown(
             f"1. {first_step}\n"
-            f"2. 在该页下载 `{file_name}`\n"
-            "3. 回到本页，把它拖进上面的上传框"
+            f"2. {t('guidance.step2', file=file_name)}\n"
+            f"3. {t('guidance.step3')}"
         )
+        go = t("guidance.go", label=source_label)
         try:
-            st.page_link(source_page, label=f"去 {source_label} →")
+            st.page_link(source_page, label=go)
         except StreamlitPageNotFoundError:
             # A single page executed on its own (tests, direct run) has no page registry to link into.
-            st.caption(f"去 {source_label}")
+            st.caption(go)
 
 
 def setup_sidebar():
@@ -55,6 +57,8 @@ def setup_sidebar():
         with st.container(key="platform-brand", horizontal_alignment="center", gap=None):
             st.image(str(IMAGES_DIR / "TSA.png"), width=112)
             st.markdown("**idopNetwork**")
+
+        language_switch()
 
         if st.session_state.get("logged_in", False):
             st.page_link("Home.py", label="Home", icon=":material/home:")
@@ -65,13 +69,13 @@ def setup_sidebar():
 
             st.divider()
             user = escape(str(st.session_state["current_user"]))
-            st.markdown(f"<p class='sidebar-user'>欢迎，{user}</p>", unsafe_allow_html=True)
-            if st.button("退出登录", key="logout_btn_final"):
+            st.markdown(f"<p class='sidebar-user'>{t('sidebar.welcome', user=user)}</p>", unsafe_allow_html=True)
+            if st.button(t("sidebar.logout"), key="logout_btn_final"):
                 st.session_state["logged_in"] = False
                 st.rerun()
         else:
-            st.page_link("Home.py", label="返回首页登录", icon=":material/login:")
-            st.caption("登录后可使用分析工具。")
+            st.page_link("Home.py", label=t("sidebar.back_home"), icon=":material/login:")
+            st.caption(t("sidebar.caption"))
 
 
 # ── 向核心库注入中文字体 ─────────────────────────────────────────────

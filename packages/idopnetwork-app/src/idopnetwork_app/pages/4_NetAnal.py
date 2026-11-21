@@ -16,6 +16,7 @@ st.set_page_config(
 )
 # ========== 加载 CSS ==========
 from idopnetwork_app.utils import load_css, setup_sidebar, upload_guidance
+from idopnetwork_app.i18n import t
 from idopnetwork.analysis.network_analysis import (
     list_from_to_members,
     member_display_label,
@@ -28,7 +29,7 @@ setup_sidebar()
 
 # ========== 登录门禁 ==========
 if not st.session_state.get("logged_in", False):
-    st.warning("请先返回首页登录后使用。")
+    st.warning(t("auth.login_required"))
     st.stop()
 
 st.title("Network Analysis")
@@ -76,7 +77,7 @@ with tab1_1:
     if zip_bytes is None:
         upload_guidance(
             "pages/3_NetRecon.py", "NetRecon", "single_layer_idopnetwork_export.zip",
-            "在 NetRecon 页完成网络构建（单层，或多层），两种导出都可上传",
+            t("netanal.step1"),
         )
     else:
         labels = [member_display_label(m) for m in members]

@@ -9,12 +9,12 @@ import streamlit as st
 from idopnetwork.curve_fitting.plot import plot_curve_fitting, plot_curve_fitting_compare
 from idopnetwork_app.curve_fitting_workflow import (
     DATA_MODE_DYNAMIC,
-    DATA_MODE_LABELS,
     DATA_MODE_QUASI,
     build_fitting_export,
     fit_uploaded_csv,
 )
 from idopnetwork_app.utils import load_css, setup_sidebar
+from idopnetwork_app.i18n import t
 
 _ICON = str(files("idopnetwork_app.static.images") / "TSA.png")
 st.set_page_config(page_title="Curve Fitting", page_icon=_ICON, layout="wide",
@@ -22,7 +22,7 @@ st.set_page_config(page_title="Curve Fitting", page_icon=_ICON, layout="wide",
 load_css()
 setup_sidebar()
 if not st.session_state.get("logged_in", False):
-    st.warning("请先返回首页登录后使用。")
+    st.warning(t("auth.login_required"))
     st.stop()
 
 
@@ -33,24 +33,24 @@ def _fit(content: bytes, **options):
 
 st.title("Curve Fitting")
 with st.container(key="fit-intake"):
-    st.subheader("导入观测数据")
-    st.caption("支持多个 CSV 文件。第一列为样本或时间索引，其余列为分析特征。")
+    st.subheader(t("fitting.intake.title"))
+    st.caption(t("fitting.intake.caption"))
     uploaded = st.file_uploader("Upload CSV files", type=["csv"], accept_multiple_files=True,
                                 key="curve_fitting_upload_v4", label_visibility="collapsed")
-    with st.expander("下载示例数据与使用说明"):
+    with st.expander(t("fitting.example.expander")):
         education, ecg = st.columns(2)
         with education:
             st.download_button(
                 "下载 7 科成绩 ZIP", data=(files("idopnetwork_app") / "data" / "education_example.zip").read_bytes(),
                 file_name="教育示例数据.zip", mime="application/zip", key="download_education_example", on_click="ignore",
             )
-            st.caption("教育数据已匿名化。解压后上传 CSV，选择 Quasi-dynamic 进行拟合。")
+            st.caption(t("fitting.example.education"))
         with ecg:
             st.download_button(
                 "下载 100 Hz ECG CSV", data=(files("idopnetwork_app") / "data" / "ecg_100hz.csv").read_bytes(),
                 file_name="ECG_100Hz_12通道.csv", mime="text/csv", key="download_ecg_example", on_click="ignore",
             )
-            st.caption("12 导联、1000 个采样点。选择 Dynamic 去噪，建网时选择 idopECG(4)，采样率保持 100 Hz。")
+            st.caption(t("fitting.example.ecg"))
 
 if not uploaded:
     st.session_state.pop("curve_fitting_run_v4", None)
@@ -62,19 +62,19 @@ if len(names) != len(set(names)):
     st.error("上传文件名不能重复，请重命名后重试。")
     st.stop()
 
-st.subheader("分析设置")
+MODE_TABS = ['Quasi-dynamic', 'Dynamic']
+st.subheader(t("fitting.settings.title"))
 mode_tabs = st.tabs(
-    [DATA_MODE_LABELS[DATA_MODE_QUASI], DATA_MODE_LABELS[DATA_MODE_DYNAMIC]],
+    MODE_TABS,
     key="fit_data_mode_tabs",
-    default=DATA_MODE_LABELS[DATA_MODE_QUASI],
+    default=MODE_TABS[0],
     on_change="rerun",
 )
 data_mode = DATA_MODE_QUASI if mode_tabs[0].open or not mode_tabs[1].open else DATA_MODE_DYNAMIC
 active_tab = mode_tabs[0] if data_mode == DATA_MODE_QUASI else mode_tabs[1]
 mode_help = {
-    DATA_MODE_QUASI: "静态数据 → 列变换 → 按行和排序成拟动态序列 → 幂律拟合。",
-    DATA_MODE_DYNAMIC: "时间序列（如 12 导联 ECG）→ 逐通道 SWT 平稳小波软阈值去噪；"
-                       "去噪后的波形可直接用于建网页的「Fourier + Legendre（动态 idop）」算法。",
+    DATA_MODE_QUASI: t("fitting.mode.quasi"),
+    DATA_MODE_DYNAMIC: t("fitting.mode.dynamic"),
 }
 with active_tab:
     st.caption(mode_help[data_mode])
@@ -128,8 +128,7 @@ with active_tab, st.form("curve_fitting_parameters"):
         trim_percent = right.number_input("Remove first rows (%)", min_value=0.0,
                                            max_value=99.0, value=1.0, step=0.5,
                                            key="fit_trim_percent")
-        st.caption("Transforms run in order; None skips a step. Z_min_add1 shifts each column to a minimum of 1. "
-                   "Rows are sorted by log1p of their sums, filtered to positive indices, then trimmed.")
+        st.caption(t("fitting.transforms.hint"))
         swt_wavelet, swt_level, swt_alpha = "rbio3.9", 2, 0.5
     submitted = st.form_submit_button("Run Fitting", type="primary")
 

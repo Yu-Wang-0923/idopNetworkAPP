@@ -2,6 +2,7 @@
 
 import streamlit as st
 from importlib.resources import files
+from idopnetwork_app.i18n import t
 from idopnetwork_app.utils import _is_admin_user, load_css, setup_sidebar
 from idopnetwork_app.auth import show_auth_modal
 
@@ -31,7 +32,7 @@ st.html(f"<style>{home_css}</style>")
 col_hero1, col_hero2 = st.container(key="home-hero").columns([2.2, 1], gap="medium", vertical_alignment="center")
 with col_hero1:
     st.markdown(
-        "<h1 class='home-title'>idopNetwork<span class='home-title-cn'>计算平台</span></h1>",
+        f"<h1 class='home-title'>idopNetwork<span class='home-title-cn'>{t('home.hero.suffix')}</span></h1>",
         unsafe_allow_html=True,
     )
 
@@ -42,12 +43,10 @@ with col_hero1:
             st.image(_HERO_FIGURE, width="stretch")
 
     with text_col:
-        st.markdown("""
-        <p class='home-intro'>
-            idopNetwork 是一套基于 <b>邬荣领教授</b> 提出的统计力学框架构建的复杂系统分析体系。
-            通过将静态的观测数据映射到高维拓扑空间，我们能够突破传统统计学的局限，实现对系统内部运作机理的深度还原。
-        </p>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f"<p class='home-intro'>{t('home.hero.intro')}</p>",
+            unsafe_allow_html=True,
+        )
 
         st.markdown("""
         <div class="idop-badges">
@@ -58,17 +57,17 @@ with col_hero1:
         </div>
         """, unsafe_allow_html=True)
 
-        if not logged_in and st.button("登录 / 注册", type="primary"):
+        if not logged_in and st.button(t("home.login"), type="primary"):
             show_auth_modal()
 
 with col_hero2.container(key="home-profile"):
     st.image(_WU, width="stretch")
-    st.markdown("""
+    st.markdown(f"""
     <div class="profile-details">
-    <p><strong>邬荣领 教授</strong></p>
-    <p>BIMSA 副院长 / 首席科学家</p>
+    <p><strong>{t('home.profile.name')}</strong></p>
+    <p>{t('home.profile.role')}</p>
     <a href="https://www.bimsa.cn/zh-CN/detail/ronglingwu.html"
-       target="_blank" rel="noopener noreferrer" class="profile-btn">查看个人主页 &rarr;</a>
+       target="_blank" rel="noopener noreferrer" class="profile-btn">{t('home.profile.link')} &rarr;</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -80,27 +79,23 @@ if not logged_in:
 col_left, col_right = st.columns([1.15, 1], gap="large")
 
 with col_left:
-    st.markdown("<h2 class='home-section-title'>核心计算模块</h2>", unsafe_allow_html=True)
+    st.markdown(f"<h2 class='home-section-title'>{t('home.section.modules')}</h2>", unsafe_allow_html=True)
     modules = [
-        ("pages/1_Curve Fitting.py", "曲线拟合 (Curve Fitting)", "timeline",
-         "基于生态位理论与异速生长定律，实现静态数据的拟动态幂律曲线转化，为后续微分方程的构建提供底层数学基础。"),
-        ("pages/2_FunClu.py", "功能聚类 (FunClu)", "category",
-         "通过多元高斯混合模型实现功能模块聚类，降低高维网络解析复杂度。"),
-        ("pages/3_NetRecon.py", "idop网络重构 (NetRecon)", "hub",
-         "基于进化博弈论构建微分方程，通过带约束多任务稀疏回归，求解变量自身表达与交互效应，构建动态个性化复杂网络。"),
-        ("pages/4_NetAnal.py", "idop网络解析 (NetAnal)", "insights",
-         "采用 GLMY 拓扑同调方法解析动态网络高阶结构，追踪连通分量、环、腔等拓扑特征随过滤阈值的变化。"),
+        ("pages/1_Curve Fitting.py", "curve_fitting", "timeline"),
+        ("pages/2_FunClu.py", "funclu", "category"),
+        ("pages/3_NetRecon.py", "netrecon", "hub"),
+        ("pages/4_NetAnal.py", "netanal", "insights"),
     ]
-    for page, label, icon, description in modules:
+    for page, key, icon in modules:
         with st.container(key=f"home-module-{icon}", border=True):
             heading, entry = st.columns([4, 1], vertical_alignment="center")
-            heading.markdown(f"**:material/{icon}: {label}**")
+            heading.markdown(f"**:material/{icon}: {t(f'home.module.{key}.title')}**")
             # Native page navigation preserves the authenticated session.
-            entry.page_link(page, label="进入 →", width="stretch")
-            st.caption(description)
+            entry.page_link(page, label=t("home.module.entry"), width="stretch")
+            st.caption(t(f"home.module.{key}.desc"))
 
 with col_right:
-    st.markdown("<h2 class='home-section-title'>代表性学术成果</h2>", unsafe_allow_html=True)
+    st.markdown(f"<h2 class='home-section-title'>{t('home.section.papers')}</h2>", unsafe_allow_html=True)
     
     # 这里就是你那长长的 46 篇论文列表
     papers_html = """
@@ -177,10 +172,8 @@ with col_right:
 
 # --- 原有的底部版权 ---
 st.markdown(
-    """<div style="text-align:center; color:#4a5f7d; font-size:0.9rem; margin: 3rem 0;">
-        复杂系统拓扑统计理论及应用北京市重点实验室 
-            北京雁栖湖应用数学研究院 
-                 idopNetwork v2.0
+    f"""<div style="text-align:center; color:#4a5f7d; font-size:0.9rem; margin: 3rem 0;">
+        {t('home.footer')}
     </div>""", unsafe_allow_html=True
 )
 
@@ -188,7 +181,7 @@ st.markdown(
 # 只有当你用 admin 账号登录时才显示
 if _is_admin_user():
     st.divider()
-    st.subheader("🛠️ 注册人员信息后台")
+    st.subheader(t("home.admin.title"))
     from idopnetwork_app.auth import load_users
     import pandas as pd
 

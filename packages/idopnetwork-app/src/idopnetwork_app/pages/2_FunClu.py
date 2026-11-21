@@ -28,6 +28,7 @@ from idopnetwork.clustering.plot import (
     stitch_cluster_figures,
 )
 from idopnetwork_app.utils import load_css, setup_sidebar, upload_guidance
+from idopnetwork_app.i18n import t
 
 # 🌟 一键加载 CSS 和侧边栏
 load_css()
@@ -35,7 +36,7 @@ setup_sidebar()
 
 # ========== 登录门禁 ==========
 if not st.session_state.get("logged_in", False):
-    st.warning("请先返回首页登录后使用。")
+    st.warning(t("auth.login_required"))
     st.stop()
 
 st.title("Functional Clustering")
@@ -275,7 +276,7 @@ with tab1:
     if not curve_sample_dict:
         upload_guidance(
             "pages/1_Curve Fitting.py", "Curve Fitting", "curve_fitting_export.zip",
-            "在 Curve Fitting 页上传观测数据，点击 Run Fitting 完成拟合",
+            t("funclu.need.step1"),
         )
     else:
         st.divider()
