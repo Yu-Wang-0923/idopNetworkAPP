@@ -17,3 +17,9 @@ Thumbs.db
 
 # Sensitive data (keep out of repo)
 backend/users.json
+
+# Runtime output written by tests and GLMY scripts
+output/
+
+# Local scratch area (screenshots, logs, throwaway scripts)
+scratch/

@@ -97,7 +97,7 @@ class V4Tests(unittest.TestCase):
         model = FunClu(2, max_iter=10, use_minibatch_kmeans=False).fit(
             self.samples, parameter_data=self.params)
         page = ROOT / 'packages/idopnetwork-app/src/idopnetwork_app/pages/2_FunClu.py'
-        tree = ast.parse(page.read_text())
+        tree = ast.parse(page.read_text(encoding='utf-8'))
         function = next(n for n in tree.body if isinstance(n, ast.FunctionDef)
                         and n.name == '_build_funclu_k_export_zip')
         scope = dict(FunClu=FunClu, pd=pd, np=np, io=io, zipfile=zipfile)
