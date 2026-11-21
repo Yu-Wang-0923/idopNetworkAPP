@@ -18,7 +18,7 @@ def upload(name, frame):
 
 class CurveFittingPageTests(unittest.TestCase):
     def test_many_features_default_to_six_and_can_be_selected_or_cleared(self):
-        from idopnetwork.curve_fitting.plot import plot_curve_fitting
+        from idopnetwork_app.charts.curve_fitting_html import render as render_chart
 
         frame = pd.DataFrame({f'feature_{i}': [x * (i + 1) for x in range(1, 21)]
                               for i in range(12)})
@@ -26,15 +26,17 @@ class CurveFittingPageTests(unittest.TestCase):
         app.session_state['logged_in'] = True
         with patch('streamlit.file_uploader', return_value=[upload('many.csv', frame)]), \
              patch('idopnetwork_app.utils.setup_sidebar'), \
-             patch('idopnetwork.curve_fitting.plot.plot_curve_fitting', wraps=plot_curve_fitting) as draw:
+             patch('idopnetwork_app.charts.curve_fitting_html.render', wraps=render_chart) as draw:
             app.run()
             app.button[0].click().run()
             self.assertFalse(app.exception)
             self.assertEqual(app.multiselect[0].value, list(frame.columns[:6]))
-            self.assertEqual(list(draw.call_args.kwargs['df_scatter'].columns), list(frame.columns[:6]))
+            names = [panel['name'] for panel in draw.call_args.args[0]]
+            self.assertEqual(names, list(frame.columns[:6]))
             app.multiselect[0].set_value(['feature_10', 'feature_11']).run()
             self.assertFalse(app.exception)
-            self.assertEqual(list(draw.call_args.kwargs['df_scatter'].columns), ['feature_10', 'feature_11'])
+            names = [panel['name'] for panel in draw.call_args.args[0]]
+            self.assertEqual(names, ['feature_10', 'feature_11'])
             draw.reset_mock()
             app.multiselect[0].set_value([]).run()
             self.assertFalse(app.exception)
