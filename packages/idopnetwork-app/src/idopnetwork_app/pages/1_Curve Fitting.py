@@ -232,54 +232,10 @@ with plot_tab:
         ecg_sampling_rate = st.number_input("ECG 采样率 (Hz)", min_value=1.0, value=100.0,
                                             help="有 time 时间索引时直接使用该时间；否则按此采样率生成秒单位横轴。")
     else:
-        nrow, ncol = 3, (1 if compact else 4)
-        with st.expander("Plot settings", expanded=False):
-            c1, c2, c3 = st.columns(3)
-            if not compact:
-                nrow = c1.number_input("Rows", min_value=1, max_value=10, value=3)
-                ncol = c1.number_input("Cols", min_value=1, max_value=8, value=4)
-            cell_width = c2.number_input("Subplot width (mm)", min_value=10.0, max_value=120.0,
-                                         value=41.0, step=1.0)
-            cell_height = c2.number_input("Subplot height (mm)", min_value=10.0, max_value=120.0,
-                                          value=25.0, step=1.0)
-            gap_x = c3.number_input("Column gap (mm)", min_value=0.0, max_value=30.0,
-                                    value=0.0, step=0.5)
-            gap_y = c3.number_input("Row gap (mm)", min_value=0.0, max_value=30.0,
-                                    value=5.0, step=0.5)
-            c4, c5, c6 = st.columns(3)
-            x_tick_count = c4.number_input("X ticks", min_value=2, max_value=8, value=3)
-            y_tick_count = c5.number_input("Y ticks", min_value=2, max_value=8, value=2)
-            share_y = c6.checkbox("Share Y axis", value=True)
-            c7, c8 = st.columns(2)
-            margin_x_left = c7.number_input("X margin left (%)", min_value=0, max_value=80, value=20)
-            margin_x_right = c8.number_input("X margin right (%)", min_value=0, max_value=80, value=20)
-            c9, c10 = st.columns(2)
-            margin_y_bottom = c9.number_input("Y margin bottom (%)", min_value=0, max_value=80, value=30)
-            margin_y_top = c10.number_input("Y margin top (%)", min_value=0, max_value=80, value=10)
-            c11, c12, c13 = st.columns(3)
-            marker_size = c11.number_input("Marker size (pt)", min_value=1.0, max_value=10.0,
-                                           value=6.5, step=0.5)
-            line_width = c12.number_input("Curve width (pt)", min_value=0.5, max_value=4.0,
-                                          value=1.5, step=0.25)
-            scatter_color = c11.color_picker("Data Color", "#1F77B4")
-            curve_color = c12.color_picker("Curve Color", "#D62728")
-            with st.expander("Typography & axis titles", expanded=False):
-                d1, d2, d3 = st.columns(3)
-                font_options = {
-                    "Times": "Times New Roman, Times, serif",
-                    "Helvetica / Arial": "Helvetica, Arial, sans-serif",
-                    "System sans": "-apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif",
-                }
-                font_label = d1.selectbox("Font", list(font_options), index=0)
-                font_size = d2.number_input("Font size (pt)", min_value=4.0, max_value=14.0,
-                                            value=11.0, step=0.5)
-                show_letters = d3.checkbox("Panel letters", value=True)
-                show_grid = d3.checkbox("Grid lines", value=False)
-                x_label = d1.text_input("X axis label", value="拟动态时间")
-                y_label = d2.text_input("Y axis label", value="变换后的观测值")
-                x_title_offset = d1.number_input("X title offset (pt)", min_value=0, max_value=30, value=10)
-                y_title_offset = d2.number_input("Y title offset (pt)", min_value=0, max_value=40, value=0)
-        per_page = int(nrow * ncol)
+        # The publication panel lives inside the chart component, so the figure
+        # is configured there; the page only decides which features are drawn.
+        nrow, ncol = 3, 4
+        per_page = 12
     pick_features, pick_page = st.columns([2.6, 1], gap="medium", vertical_alignment="bottom")
     selected_features = pick_features.multiselect(
         "Features to plot",
@@ -300,23 +256,7 @@ with plot_tab:
             panels = curve_fitting_html.build_panels(
                 quasi.loc[:, features], samples.loc[:, features], features
             )
-            chart_html = curve_fitting_html.render(
-                panels,
-                rows=int(nrow), cols=int(ncol),
-                cell_w_mm=float(cell_width), cell_h_mm=float(cell_height),
-                gap_x_mm=float(gap_x), gap_y_mm=float(gap_y),
-                x_ticks=int(x_tick_count), y_ticks=int(y_tick_count), share_y=bool(share_y),
-                margin_xl=float(margin_x_left), margin_xr=float(margin_x_right),
-                margin_yb=float(margin_y_bottom), margin_yt=float(margin_y_top),
-                font_family=font_options[font_label], font_size=float(font_size),
-                show_letters=bool(show_letters), show_grid=bool(show_grid),
-                x_label=x_label, y_label=y_label,
-                x_title_offset=float(x_title_offset), y_title_offset=float(y_title_offset),
-                marker_size=float(marker_size), line_width=float(line_width),
-                data_color=scatter_color, curve_color=curve_color,
-            )
-            chart_mm = float(cell_height) * int(nrow) + float(gap_y) * (int(nrow) - 1) + 34
-            components.html(chart_html, height=int(chart_mm * 3.7795) + 96, scrolling=True)
+            components.html(curve_fitting_html.render(panels), height=980, scrolling=True)
     else:
         st.info("请选择至少一个 Feature 以显示拟合图。")
     st.caption(f"显示 {len(features)} / {len(quasi.columns)} 个 Feature；默认选择前 6 个。")

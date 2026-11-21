@@ -1,9 +1,8 @@
-"""HTML/SVG renderer for the Curve Fitting figure.
+"""HTML/SVG renderer for the Curve Fitting figure, with its own publication panel.
 
-Port of the approved v8 prototype: authored in points so exports carry an exact
-physical size, with tight (content-measured) canvas whitespace. Parameters map
-one-to-one onto matplotlib concepts (figsize, GridSpec, sharey, MaxNLocator,
-set_xlim/set_ylim).
+The collapsible panel (canvas/subplot sizes, ticks, shared Y, four-sided margins,
+typography, axis titles, marker/line styling, SVG/PNG export) lives inside the
+component, so the figure stays in sync without a server round-trip.
 """
 from __future__ import annotations
 
@@ -20,38 +19,131 @@ TEMPLATE = r"""<!DOCTYPE html>
   *{box-sizing:border-box}
   body{margin:0;background:#f4f6fa;color:#1c304b;
        font:13px/1.45 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
-  .page{max-width:1100px;margin:0 auto;padding:14px 16px 18px}
+  .page{display:grid;grid-template-columns:268px minmax(0,1fr);gap:18px;max-width:1240px;margin:0 auto;padding:10px 12px}
+  aside{background:#fff;border:1px solid #d4dfed;border-radius:8px;padding:10px 12px;height:max-content}
+  aside > h2{margin:2px 0 6px;font:600 .78rem/1.3 Georgia,"Songti SC",serif;color:#193454;
+              text-transform:uppercase;letter-spacing:.04em}
+  details{border-top:1px solid #e6eef7;padding:2px 0}
+  details:first-of-type{border-top:0}
+  summary{cursor:pointer;list-style:none;padding:7px 0 5px;font-size:.72rem;font-weight:600;
+          color:#4a5f7d;text-transform:uppercase;letter-spacing:.04em;display:flex;
+          justify-content:space-between;align-items:center}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:"+";color:#9dbde0;font-size:.9rem;line-height:1}
+  details[open] > summary::after{content:"−"}
+  .body{padding-bottom:6px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0}
+  .row span{color:#374e69;font-size:.73rem}
+  .row input[type=number]{width:56px}
+  .row input[type=text]{width:108px}
+  .pair{display:flex;gap:6px;align-items:center}
+  input,select{border:1px solid #bacde3;border-radius:4px;color:#1c304b;font-size:.73rem;
+               padding:2px 4px;background:#fff}
+  input[type=color]{width:30px;height:20px;padding:0}
+  input[type=checkbox]{accent-color:#245db4}
+  .btn{display:block;width:100%;margin-top:7px;padding:7px 9px;border:1px solid #bacde3;
+       border-radius:5px;background:#fff;color:#1c304b;font-size:.75rem;cursor:pointer}
+  .btn:hover{background:#ecf3fc}
+  .btn.primary{background:#245db4;border-color:#245db4;color:#fff}
+  .btn.primary:hover{background:#1d4d95}
   main{min-width:0}
-  .chart-tools{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin:0 0 8px;font-size:.74rem;color:#4a5f7d}
-  .chart-tools select{border:1px solid #bacde3;border-radius:4px;padding:2px 4px;font-size:.74rem;color:#1c304b;background:#fff}
-  .chart-tools button{border:1px solid #bacde3;border-radius:5px;background:#fff;color:#1c304b;padding:5px 9px;font-size:.74rem;cursor:pointer}
-  .chart-tools button:hover{background:#f1f6fd}
   .figure{background:#fff;border:1px solid #d4dfed;border-radius:6px;padding:14px;overflow:auto}
   #stage{position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none}
   .meta{margin-top:8px;color:#4a5f7d;font-size:.71rem}
   .note{margin-top:9px;padding:7px 9px;border-left:2px solid #245db4;background:#f1f6fd;
         color:#374e69;font-size:.71rem}
+  @media (max-width:900px){.wrap{grid-template-columns:1fr;padding:12px}aside{order:2}}
 </style>
 </head>
 <body>
 <div class="page">
+  <aside>
+    <h2>Publication</h2>
+
+    <details open>
+      <summary>画布与子图</summary>
+      <div class="body">
+        <div class="row"><span>子图宽 mm</span><input id="cellw" type="number" min="10" max="120" step="1" value="41"></div>
+        <div class="row"><span>子图高 mm</span><input id="cellh" type="number" min="10" max="120" step="1" value="25"></div>
+        <div class="row"><span>列间距 mm</span><input id="gapx" type="number" min="0" max="30" step="0.5" value="0"></div>
+        <div class="row"><span>行间距 mm</span><input id="gapy" type="number" min="0" max="30" step="0.5" value="5"></div>
+        <div class="row"><span>外边距 pt</span><input id="edgepad" type="number" min="0" max="12" step="0.5" value="1.5"></div>
+        <div class="row"><span>自适应留白</span><input id="autocrop" type="checkbox" checked></div>
+        <div class="row"><span>Rows × Cols</span>
+          <span><input id="rows" type="number" min="1" max="10" value="3">
+          <input id="cols" type="number" min="1" max="8" value="4"></span>
+        </div>
+      </div>
+    </details>
+
+    <details open>
+      <summary>刻度与范围</summary>
+      <div class="body">
+        <div class="row"><span>X 刻度数</span><input id="xnt" type="number" min="2" max="8" value="3"></div>
+        <div class="row"><span>Y 刻度数</span><input id="ynt" type="number" min="2" max="8" value="2"></div>
+        <div class="row"><span>共享 Y 轴</span><input id="sharey" type="checkbox" checked></div>
+        <div class="row"><span>X 左 / 右 边距 %</span>
+          <span class="pair"><input id="mxl" type="number" min="0" max="80" step="1" value="20">
+          <input id="mxr" type="number" min="0" max="80" step="1" value="20"></span>
+        </div>
+        <div class="row"><span>Y 下 / 上 边距 %</span>
+          <span class="pair"><input id="myb" type="number" min="0" max="80" step="1" value="30">
+          <input id="myt" type="number" min="0" max="80" step="1" value="10"></span>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>排版与轴标题</summary>
+      <div class="body">
+        <div class="row"><span>字体</span>
+          <select id="font">
+            <option value="Times New Roman, Times, serif" selected>Times</option>
+            <option value="Helvetica, Arial, sans-serif">Helvetica / Arial</option>
+            <option value="-apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif">系统 sans</option>
+          </select>
+        </div>
+        <div class="row"><span>字号 pt</span><input id="fsize" type="number" min="4" max="14" step="0.5" value="11"></div>
+        <div class="row"><span>面板字母</span><input id="letters" type="checkbox" checked></div>
+        <div class="row"><span>网格线</span><input id="grid" type="checkbox"></div>
+        <div class="row"><span>横轴标签</span><input id="xlabel" type="text" value="拟动态时间"></div>
+        <div class="row"><span>纵轴标签</span><input id="ylabel" type="text" value="变换后的观测值"></div>
+        <div class="row"><span>X 标题距子图 pt</span><input id="xoff" type="number" min="0" max="30" step="1" value="10"></div>
+        <div class="row"><span>Y 标题距子图 pt</span><input id="yoff" type="number" min="0" max="40" step="1" value="0"></div>
+      </div>
+    </details>
+
+    <details>
+      <summary>图元</summary>
+      <div class="body">
+        <div class="row"><span>标记大小 pt</span><input id="msize" type="number" min="1" max="10" step="0.5" value="6.5"></div>
+        <div class="row"><span>拟合线宽 pt</span><input id="lw" type="number" min="0.5" max="4" step="0.25" value="1.5"></div>
+        <div class="row"><span>点色</span><input id="dcolor" type="color" value="#1f77b4"></div>
+        <div class="row"><span>线色</span><input id="ccolor" type="color" value="#d62728"></div>
+      </div>
+    </details>
+
+    <details>
+      <summary>导出</summary>
+      <div class="body">
+        <div class="row"><span>PNG dpi</span>
+          <select id="dpi"><option>300</option><option selected>600</option></select>
+        </div>
+        <button class="btn primary" id="svg">导出 SVG（物理尺寸）</button>
+        <button class="btn" id="png">导出 PNG（按 dpi）</button>
+        <div class="note">PDF/EPS 由服务端 matplotlib 渲染（fonttype 42 字体嵌入）；这些参数一一对应 figsize / gridspec / wspace / hspace / set_xlim / set_ylim。</div>
+      </div>
+    </details>
+  </aside>
 
   <main>
     <div id="stage" aria-hidden="true"></div>
-    <div class="chart-tools">
-      <span class="dpi">PNG dpi
-        <select id="dpi"><option>300</option><option selected>600</option></select>
-      </span>
-      <button id="svg">__SVG_LABEL__</button>
-      <button id="png">__PNG_LABEL__</button>
-    </div>
     <div class="figure" id="figure"></div>
     <p class="meta" id="meta"></p>
   </main>
 </div>
 <script>
 const DATA = __DATA__;
-const S = __SETTINGS__;
 const NS = "http://www.w3.org/2000/svg";
 const PT_PER_MM = 72 / 25.4;
 const el = (n, a = {}) => { const e = document.createElementNS(NS, n);
@@ -73,7 +165,37 @@ function niceTicks(lo, hi, count) {
   return out;
 }
 
-function settings() { return S; }
+function settings() {
+  return {
+    cellWmm: Math.max(10, +$("cellw").value || 41),
+    cellHmm: Math.max(10, +$("cellh").value || 25),
+    gapXmm: Math.max(0, +$("gapx").value || 0),
+    gapYmm: Math.max(0, +$("gapy").value || 0),
+    edgePad: Math.max(0, Math.min(12, +$("edgepad").value || 0)),
+    autocrop: $("autocrop").checked,
+    rows: Math.max(1, Math.min(10, +$("rows").value || 3)),
+    cols: Math.max(1, Math.min(8, +$("cols").value || 4)),
+    xnt: Math.max(2, Math.min(8, +$("xnt").value || 3)),
+    ynt: Math.max(2, Math.min(8, +$("ynt").value || 2)),
+    sharey: $("sharey").checked,
+    mxl: Math.max(0, +$("mxl").value || 0) / 100,
+    mxr: Math.max(0, +$("mxr").value || 0) / 100,
+    myb: Math.max(0, +$("myb").value || 0) / 100,
+    myt: Math.max(0, +$("myt").value || 0) / 100,
+    font: $("font").value,
+    fsize: Math.max(4, Math.min(14, +$("fsize").value || 11)),
+    letters: $("letters").checked,
+    grid: $("grid").checked,
+    xlabel: $("xlabel").value.trim(),
+    ylabel: $("ylabel").value.trim(),
+    xoff: Math.max(0, +$("xoff").value || 0),
+    yoff: Math.max(0, +$("yoff").value || 0),
+    msize: Math.max(1, Math.min(10, +$("msize").value || 6.5)),
+    lw: Math.max(0.5, Math.min(4, +$("lw").value || 1.5)),
+    dcolor: $("dcolor").value,
+    ccolor: $("ccolor").value,
+  };
+}
 
 const range = arr => arr.reduce((a, v) => [Math.min(a[0], v), Math.max(a[1], v)],
                                 [Infinity, -Infinity]);
@@ -96,7 +218,6 @@ function buildSvg() {
   const H = pad.t + pad.b + s.rows * cellH + (s.rows - 1) * gapY + titleRoom;
 
   const cells = DATA.panels.slice(0, s.rows * s.cols);
-  const lastRow = Math.max(0, Math.ceil(cells.length / s.cols) - 1);
 
   let xlo = Infinity, xhi = -Infinity, shared = [Infinity, -Infinity];
   const per = [];
@@ -156,7 +277,7 @@ function buildSvg() {
       const px = x(v);
       svg.appendChild(el("line", {x1: px, x2: px, y1: oy + m.t + ph, y2: oy + m.t + ph - 2.4,
                                   stroke: "#22303f", "stroke-width": 0.5}));
-      if (row === lastRow && ti % skip === 0) {
+      if (row === s.rows - 1 && ti % skip === 0) {
         const t = el("text", {x: px, y: oy + m.t + ph + s.fsize * 1.35,
                               "text-anchor": "middle", "font-size": s.fsize});
         t.textContent = v.toFixed(2);
@@ -201,7 +322,7 @@ function buildSvg() {
   const gridLeft = pad.l + m.l;
   const gridRight = pad.l + (s.cols - 1) * (cellW + gapX) + m.l + (cellW - m.l - m.r);
   const gridTop = pad.t + titleRoom + m.t;
-  const gridBottom = pad.t + titleRoom + lastRow * (cellH + gapY) + m.t + (cellH - m.t - m.b);
+  const gridBottom = pad.t + titleRoom + (s.rows - 1) * (cellH + gapY) + m.t + (cellH - m.t - m.b);
   if (s.xlabel) {
     const ty = gridBottom + labelRoom + s.xoff;
     const t = el("text", {x: (gridLeft + gridRight) / 2, y: ty, "text-anchor": "middle",
@@ -275,6 +396,12 @@ function render() {
     (s.autocrop ? "自适应留白" : "固定留白");
 }
 
+["cellw", "cellh", "gapx", "gapy", "rows", "cols", "xnt", "ynt", "sharey",
+ "mxl", "mxr", "myb", "myt", "font", "fsize", "letters", "grid", "xlabel", "ylabel",
+ "xoff", "yoff", "msize", "lw", "dcolor", "ccolor", "edgepad", "autocrop"].forEach(id => {
+  $(id).addEventListener("input", render);
+  $(id).addEventListener("change", render);
+});
 
 function download(name, blob) {
   const a = document.createElement("a");
@@ -319,38 +446,6 @@ render();
 </html>
 """
 
-DEFAULTS: dict[str, Any] = {
-    "cell_w_mm": 41, "cell_h_mm": 25, "gap_x_mm": 0, "gap_y_mm": 5,
-    "rows": 3, "cols": 4,
-    "x_ticks": 3, "y_ticks": 2, "share_y": True,
-    "margin_xl": 20, "margin_xr": 20, "margin_yb": 30, "margin_yt": 10,
-    "font_family": "Times New Roman, Times, serif", "font_size": 11,
-    "show_letters": True, "show_grid": False,
-    "x_label": "拟动态时间", "y_label": "变换后的观测值",
-    "x_title_offset": 10, "y_title_offset": 0,
-    "marker_size": 6.5, "line_width": 1.5,
-    "data_color": "#1f77b4", "curve_color": "#d62728",
-    "edge_pad": 1.5, "autocrop": True, "dpi": 600,
-    "svg_label": "导出 SVG（物理尺寸）", "png_label": "导出 PNG（按 dpi）",
-}
-
-_JS_KEYS = {
-    "cell_w_mm": "cellWmm", "cell_h_mm": "cellHmm",
-    "gap_x_mm": "gapXmm", "gap_y_mm": "gapYmm",
-    "rows": "rows", "cols": "cols",
-    "x_ticks": "xnt", "y_ticks": "ynt", "share_y": "sharey",
-    "margin_xl": "mxl", "margin_xr": "mxr",
-    "margin_yb": "myb", "margin_yt": "myt",
-    "font_family": "font", "font_size": "fsize",
-    "show_letters": "letters", "show_grid": "grid",
-    "x_label": "xlabel", "y_label": "ylabel",
-    "x_title_offset": "xoff", "y_title_offset": "yoff",
-    "marker_size": "msize", "line_width": "lw",
-    "data_color": "dcolor", "curve_color": "ccolor",
-    "edge_pad": "edgePad", "autocrop": "autocrop",
-    "dpi": "dpi",
-}
-
 
 def build_panels(quasi, samples, features: Iterable[str]) -> list[dict[str, Any]]:
     """Pack the two fitted tables into the renderer's panel payload."""
@@ -368,15 +463,6 @@ def build_panels(quasi, samples, features: Iterable[str]) -> list[dict[str, Any]
     return panels
 
 
-def render(panels: list[dict[str, Any]], **settings: Any) -> str:
-    """Return a self-contained HTML document with the figure and export buttons."""
-    merged = {**DEFAULTS, **{k: v for k, v in settings.items() if v is not None}}
-    # margins arrive as percentages; the renderer works in fractions
-    for key in ("margin_xl", "margin_xr", "margin_yb", "margin_yt"):
-        merged[key] = float(merged.get(key) or 0) / 100.0
-    js_settings = {_JS_KEYS[key]: value for key, value in merged.items() if key in _JS_KEYS}
-    html = TEMPLATE.replace("__DATA__", json.dumps({"panels": panels}, ensure_ascii=False))
-    html = html.replace("__SETTINGS__", json.dumps(js_settings, ensure_ascii=False))
-    html = html.replace("__SVG_LABEL__", str(merged["svg_label"]))
-    html = html.replace("__PNG_LABEL__", str(merged["png_label"]))
-    return html
+def render(panels: list[dict[str, Any]]) -> str:
+    """Return a self-contained HTML document: control panel + figure + exports."""
+    return TEMPLATE.replace("__DATA__", json.dumps({"panels": panels}, ensure_ascii=False))
