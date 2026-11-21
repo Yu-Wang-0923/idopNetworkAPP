@@ -11,7 +11,9 @@
 .profile-details .profile-btn { white-space: nowrap; }
 /* 浅蓝卷首与纸面正文 */
 .st-key-home-hero {
-    padding: clamp(1.25rem, 2.5vw, 2.75rem);
+    padding: clamp(.9rem, 1.6vw, 1.6rem);
+    max-width: min(100%, 860px);
+    margin-inline: auto;
     background-color: #dcebf9;
     background-image: linear-gradient(130deg, #e7f2fd 0%, #d4e7f9 52%, #c4dcf4 100%);
     border-radius: 16px;
@@ -21,7 +23,7 @@
     font-family: Georgia, "Songti SC", "Noto Serif CJK SC", serif;
 }
 h1.home-title {
-    color: #14365c; font-size: clamp(2.2rem, 4.6vw, 4.6rem);
+    color: #14365c; font-size: clamp(1.9rem, 3.2vw, 3.1rem);
     letter-spacing: -.045em; line-height: 1.08; margin: 0; padding: 0;
     border-bottom: 1px solid #b6cfea;
     overflow-wrap: anywhere;
@@ -87,7 +89,7 @@ h2.home-section-title {
 .home-hero-grid {
     display: grid;
     grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
-    gap: clamp(1rem, 2.2vw, 2.2rem);
+    gap: clamp(.7rem, 1.4vw, 1.4rem);
     align-items: stretch;
 }
 .home-hero-left {
@@ -96,7 +98,7 @@ h2.home-section-title {
     min-width: 0;
 }
 .home-hero-head {
-    flex: 1 1 0;
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -111,10 +113,10 @@ h1.home-title {
     border-bottom: 1px solid #b6cfea;
 }
 .home-hero-body {
-    flex: 1 1 0;
+    flex: 1 1 auto;
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
-    gap: clamp(1rem, 2.2vw, 2rem);
+    gap: clamp(.7rem, 1.4vw, 1.3rem);
     align-items: center;
     min-height: 0;
 }
@@ -139,7 +141,7 @@ h1.home-title {
 }
 .home-hero-photo {
     display: block;
-    width: min(100%, clamp(10rem, 17vw, 20rem));
+    width: min(100%, clamp(8rem, 12vw, 13.5rem));
     height: auto;
     border-radius: 12px;
 }
