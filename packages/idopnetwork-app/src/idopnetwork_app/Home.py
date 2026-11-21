@@ -1,7 +1,9 @@
 
 
 import streamlit as st
+import base64
 from importlib.resources import files
+from pathlib import Path
 from idopnetwork_app.i18n import t
 from idopnetwork_app.utils import _is_admin_user, load_css, setup_sidebar
 from idopnetwork_app.auth import show_auth_modal
@@ -29,48 +31,49 @@ home_css = (files("idopnetwork_app.static") / "css" / "home.css").read_text(enco
 st.html(f"<style>{home_css}</style>")
 
 # --- 首屏横幅区 ---
-col_hero1, col_hero2 = st.container(key="home-hero").columns([2.2, 1], gap="medium", vertical_alignment="center")
-with col_hero1:
+hero_figure_b64 = base64.b64encode(Path(_HERO_FIGURE).read_bytes()).decode("ascii")
+hero_photo_b64 = base64.b64encode(Path(_WU).read_bytes()).decode("ascii")
+with st.container(key="home-hero"):
     st.markdown(
-        f"<h1 class='home-title'>idopNetwork<span class='home-title-cn'>{t('home.hero.suffix')}</span></h1>",
+        f"""
+        <div class="home-hero-grid">
+          <div class="home-hero-left">
+            <div class="home-hero-head">
+              <h1 class="home-title">idopNetwork<span class="home-title-cn">{t('home.hero.suffix')}</span></h1>
+            </div>
+            <div class="home-hero-body">
+              <figure class="home-hero-figure">
+                <img src="data:image/png;base64,{hero_figure_b64}" alt="{t('home.hero.figure.alt')}">
+              </figure>
+              <div class="home-hero-copy">
+                <p class="home-intro">{t('home.hero.intro')}</p>
+                <div class="idop-badges">
+                  <div class="badge-item" title="将复杂数据转化为可解释的生物/物理逻辑">Informative</div>
+                  <div class="badge-item" title="刻画系统随时间与环境变化的演化轨迹">Dynamic</div>
+                  <div class="badge-item" title="覆盖从分子到表型的全尺度互作网络">Omnidirectional</div>
+                  <div class="badge-item" title="生成针对单样本或个体的特异性精准分析">Personalized</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="home-hero-profile">
+            <img class="home-hero-photo" src="data:image/jpeg;base64,{hero_photo_b64}" alt="{t('home.profile.photo.alt')}">
+            <div class="profile-details">
+              <p><strong>{t('home.profile.name')}</strong></p>
+              <p>{t('home.profile.role')}</p>
+              <a href="https://www.bimsa.cn/zh-CN/detail/ronglingwu.html"
+                 target="_blank" rel="noopener noreferrer" class="profile-btn">{t('home.profile.link')} &rarr;</a>
+            </div>
+          </div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
-    figure_col, text_col = st.columns([1, 1.35], gap="large", vertical_alignment="center")
-
-    with figure_col:
-        with st.container(key="home-hero-figure"):
-            st.image(_HERO_FIGURE, width="stretch", alt=t("home.hero.figure.alt"))
-
-    with text_col:
-        st.markdown(
-            f"<p class='home-intro'>{t('home.hero.intro')}</p>",
-            unsafe_allow_html=True,
-        )
-
-        st.markdown("""
-        <div class="idop-badges">
-            <div class="badge-item" title="将复杂数据转化为可解释的生物/物理逻辑">Informative</div>
-            <div class="badge-item" title="刻画系统随时间与环境变化的演化轨迹">Dynamic</div>
-            <div class="badge-item" title="覆盖从分子到表型的全尺度互作网络">Omnidirectional</div>
-            <div class="badge-item" title="生成针对单样本或个体的特异性精准分析">Personalized</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        if not logged_in and st.button(t("home.login"), type="primary"):
+if not logged_in:
+    with st.container(key="home-login-cta"):
+        if st.button(t("home.login"), type="primary"):
             show_auth_modal()
-
-with col_hero2.container(key="home-profile"):
-    st.image(_WU, width="stretch", alt=t("home.profile.photo.alt"))
-    st.markdown(f"""
-    <div class="profile-details">
-    <p><strong>{t('home.profile.name')}</strong></p>
-    <p>{t('home.profile.role')}</p>
-    <a href="https://www.bimsa.cn/zh-CN/detail/ronglingwu.html"
-       target="_blank" rel="noopener noreferrer" class="profile-btn">{t('home.profile.link')} &rarr;</a>
-    </div>
-    """, unsafe_allow_html=True)
-
 
 if not logged_in:
     st.stop()

@@ -83,25 +83,78 @@ h2.home-section-title {
 .paper-authors { color: #526580; font-size: .9rem; margin-top: .35rem; }
 .scroll-box .paper-link { color: #2258a1; font-size: .85rem; }
 
-/* 首屏：标题与正文以分隔线为界，各自居中 */
-.st-key-home-hero h1.home-title {
-    text-align: center;
-    padding-bottom: clamp(.5rem, 1vw, .9rem);
-    margin-bottom: clamp(.9rem, 1.8vw, 1.6rem);
+/* 首屏：单块 HTML 布局，标题块 / 内容块各占一半并垂直居中 */
+.home-hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
+    gap: clamp(1rem, 2.2vw, 2.2rem);
+    align-items: stretch;
 }
-.st-key-home-hero .home-intro {
-    max-width: 44em;
-    margin: .2rem auto 0;
-    text-align: center;
+.home-hero-left {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
 }
-.st-key-home-hero .idop-badges {
+.home-hero-head {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
     justify-content: center;
-    margin-top: .9rem;
+    min-height: 0;
 }
-.st-key-home-hero [data-testid="stButton"] {
+h1.home-title {
+    text-align: center;
+    margin: 0;
+    border-bottom: 0;
+}
+.home-hero-head {
+    border-bottom: 1px solid #b6cfea;
+}
+.home-hero-body {
+    flex: 1 1 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+    gap: clamp(1rem, 2.2vw, 2rem);
+    align-items: center;
+    min-height: 0;
+}
+.home-hero-figure { margin: 0; display: flex; justify-content: center; }
+.home-hero-figure img { width: 100%; height: auto; display: block; }
+.home-hero-copy {
+    display: flex;
+    flex-direction: column;
     justify-content: center;
+    align-items: center;
+    text-align: center;
 }
-.st-key-home-hero [data-testid="stHorizontalBlock"] [data-testid="stHorizontalBlock"] {
-    max-width: 54rem;
-    margin-inline: auto;
+.home-hero-copy .home-intro { max-width: 44em; margin: 0 auto; }
+.home-hero-copy .idop-badges { justify-content: center; margin-top: .9rem; width: 100%; }
+.home-hero-profile {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: .6rem;
+    text-align: center;
 }
+.home-hero-photo {
+    display: block;
+    width: min(100%, clamp(10rem, 17vw, 20rem));
+    height: auto;
+    border-radius: 12px;
+}
+@media (max-width: 900px) {
+    .home-hero-grid { grid-template-columns: 1fr; }
+    .home-hero-left { display: block; }
+    .home-hero-head {
+        display: block;
+        padding-bottom: .75rem;
+        margin-bottom: 1rem;
+    }
+    .home-hero-body {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+}
+.st-key-home-login-cta { display: flex; justify-content: center; margin-top: 1rem; }
