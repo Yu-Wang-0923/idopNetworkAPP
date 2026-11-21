@@ -23,8 +23,6 @@ from matplotlib.colors import to_rgb
 from matplotlib.figure import Figure
 from matplotlib.font_manager import FontProperties
 
-from idopnetwork.curve_fitting import fit_power_loglinear
-
 try:
     import torch
 except ImportError:
@@ -1120,39 +1118,6 @@ def stitch_cluster_figures(
     axis.imshow(canvas, interpolation="none")
     axis.set_axis_off()
     return out
-
-
-def _fit_mean_curve_power_sample(
-    t_curve: np.ndarray,
-    y_mean: np.ndarray,
-    t_sample: np.ndarray,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """基于 ``y = a · t^b`` 拟合均值曲线，并在 ``t_sample`` 上采样。
-
-    与 ``FunClu`` 内部初始化所用的 :func:`backend.curve_fitting.fit_power_loglinear`
-    同源（双对数线性回归），保持口径一致。仅在 ``t_curve`` 的有效域 ``[t_lo, t_hi]``
-    内输出有限值，域外为 ``NaN``，便于上游做兜底。
-    """
-    x_arr = np.asarray(t_curve, dtype=np.float64)
-    y_arr = np.asarray(y_mean, dtype=np.float64)
-    xg = np.asarray(t_sample, dtype=np.float64)
-    out = np.full(xg.shape, np.nan, dtype=np.float64)
-
-    mask = np.isfinite(x_arr) & np.isfinite(y_arr) & (x_arr > 0) & (y_arr > 0)
-    if int(mask.sum()) < 2:
-        return xg, out
-    a, b = fit_power_loglinear(
-        x_arr[mask],
-        y_arr[mask],
-        clip_a=(1e-12, np.inf),
-        clip_b=(-10.0, 10.0),
-    )
-    x_lo = float(np.min(x_arr[mask]))
-    x_hi = float(np.max(x_arr[mask]))
-    in_range = np.isfinite(xg) & (xg >= x_lo) & (xg <= x_hi)
-    with np.errstate(over="ignore", invalid="ignore"):
-        out[in_range] = a * np.power(xg[in_range], b)
-    return xg, out
 
 
 def plot_bic_elbow(

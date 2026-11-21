@@ -377,25 +377,6 @@ def _fit_idop_network_from_curve_sample(
     }
 
 
-def _cluster_response_from_quasi(
-    labels_df: pd.DataFrame,
-    quasi_dynamic_df: pd.DataFrame,
-    center_columns: list[str],
-) -> pd.DataFrame:
-    """按 FunClu-K 标签把成员 quasi_dynamic 聚合为 cluster-level 响应。"""
-    rows: dict[str, pd.Series] = {}
-    for cluster_name in center_columns:
-        member_cols = labels_df.loc[
-            labels_df["cluster"].astype(str) == str(cluster_name),
-            "feature",
-        ].astype(str).tolist()
-        available_cols = [col for col in member_cols if col in quasi_dynamic_df.columns]
-        if not available_cols:
-            raise ValueError(f"cluster {cluster_name} 在 quasi_dynamic 中没有成员列")
-        rows[str(cluster_name)] = quasi_dynamic_df.loc[:, available_cols].mean(axis=1)
-    return pd.DataFrame(rows, index=quasi_dynamic_df.index)
-
-
 def _adjacency_to_from_to(adj_df: pd.DataFrame, *, eps: float = 1e-12) -> pd.DataFrame:
     """将邻接矩阵转换为边表（保留自环，忽略绝对值很小的权重）。
 

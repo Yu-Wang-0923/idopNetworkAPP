@@ -319,16 +319,6 @@ def _project_nonneg_self_keep_intercept(
         w[intercept_idx] += -gap
 
 
-def _precompute_pinvs(Xv: np.ndarray, groups: list[np.ndarray]) -> dict[int, np.ndarray]:
-    """预计算每个非截距组的伪逆，供约束投影复用。"""
-    pinvs: dict[int, np.ndarray] = {}
-    for gi, g in enumerate(groups):
-        if gi == 0:
-            continue
-        pinvs[gi] = np.linalg.pinv(Xv[:, g])
-    return pinvs
-
-
 def _asgl_col(
     Xv: np.ndarray,
     y: np.ndarray,

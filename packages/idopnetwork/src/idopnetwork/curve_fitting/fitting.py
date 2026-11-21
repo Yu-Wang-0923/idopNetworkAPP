@@ -218,26 +218,3 @@ def get_power_function_sample(
     quasi_dynamic_df: pd.DataFrame, n_samples: int = 30,
 ) -> pd.DataFrame:
     return power_fitting(quasi_dynamic_df, n_samples=n_samples)[1]
-
-
-def show_data_expander(title, df):
-    import warnings
-    warnings.warn(
-        "show_data_expander is deprecated and no longer supports Streamlit display. "
-        "Use your application layer's display framework instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-
-
-
-
-
-
-
-
-
-
-
-
-

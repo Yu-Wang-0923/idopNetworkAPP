@@ -1461,51 +1461,6 @@ def _edge_curvature(
     )
 
 
-def _hex_to_rgba(
-    color,
-    alpha,
-):
-
-    color = (
-        str(
-            color
-        )
-        .replace(
-            "#",
-            ""
-        )
-    )
-
-
-    r = int(
-        color[
-            0:2
-        ],
-        16
-    )
-
-
-    g = int(
-        color[
-            2:4
-        ],
-        16
-    )
-
-
-    b = int(
-        color[
-            4:6
-        ],
-        16
-    )
-
-
-    return (
-        f"rgba({r},{g},{b},{float(alpha):.4f})"
-    )
-
-
 def generate_effect_download_artifacts(
     group_dir,
 ):
