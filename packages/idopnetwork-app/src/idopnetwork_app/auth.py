@@ -110,7 +110,7 @@ def show_login_ui():
     col_title, col_btn = st.columns([8.5, 1.5])
     with col_btn:
         st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
-        if st.button("🔑 登录 / 注册", type="primary", use_container_width=True):
+        if st.button("🔑 登录 / 注册", type="primary", width="stretch"):
             show_auth_modal()
 
 
@@ -123,7 +123,7 @@ def show_auth_modal():
         log_user = st.text_input("用户名", key="log_user")
         log_pwd = st.text_input("密码", type="password", key="log_pwd")
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("验证并进入系统", type="primary", use_container_width=True):
+        if st.button("验证并进入系统", type="primary", width="stretch"):
             log_user = _normalize_username(log_user)
             users = load_users()
             user_info = users.get(log_user)
@@ -153,7 +153,7 @@ def show_auth_modal():
         st.markdown("<br>", unsafe_allow_html=True)
         st.info("ℹ️ **声明**：您填写的个人信息仅用于学术交流及课题组内部成员身份核验，平台将严格保护您的隐私。")
 
-        if st.button("提交注册申请", use_container_width=True, type="primary"):
+        if st.button("提交注册申请", width="stretch", type="primary"):
             reg_user = _normalize_username(reg_user)
             if not reg_user or not reg_pwd:
                 st.warning("请至少填写用户名和密码")

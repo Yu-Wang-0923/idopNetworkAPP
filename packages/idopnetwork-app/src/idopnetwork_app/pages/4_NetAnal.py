@@ -15,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="auto",
 )
 # ========== 加载 CSS ==========
-from idopnetwork_app.utils import load_css, setup_sidebar
+from idopnetwork_app.utils import load_css, setup_sidebar, upload_guidance
 from idopnetwork.analysis.network_analysis import (
     list_from_to_members,
     member_display_label,
@@ -74,7 +74,10 @@ tab1_1, tab1_2 = st.tabs(["Uploaded Data", "GLMY Analysis"])
 # ========== Uploaded Data ==========
 with tab1_1:
     if zip_bytes is None:
-        st.info("Please upload an IdopNetwork export ZIP first.")
+        upload_guidance(
+            "pages/3_NetRecon.py", "NetRecon", "single_layer_idopnetwork_export.zip",
+            "在 NetRecon 页完成网络构建（单层，或多层），两种导出都可上传",
+        )
     else:
         labels = [member_display_label(m) for m in members]
         choice_label = st.selectbox(

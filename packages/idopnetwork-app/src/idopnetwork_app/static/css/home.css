@@ -47,7 +47,7 @@ h1.home-title {
 }
 .badge-item { font: italic 1rem/1.5 Georgia, serif; color: #3a6191; }
 .profile-details { color: #14365c; }
-.profile-details p:nth-child(2) { color: #456a97; }
+.profile-details p:nth-child(2) { color: #2f5784; }
 .profile-btn {
     display: inline-flex; align-items: center; min-height: 44px;
     margin-top: .45rem; padding: .4rem 1rem; border-radius: 5px;

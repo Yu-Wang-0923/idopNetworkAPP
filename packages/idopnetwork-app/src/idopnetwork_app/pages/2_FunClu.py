@@ -27,7 +27,7 @@ from idopnetwork.clustering.plot import (
     plot_cluster_profiles_per_cluster,
     stitch_cluster_figures,
 )
-from idopnetwork_app.utils import load_css, setup_sidebar
+from idopnetwork_app.utils import load_css, setup_sidebar, upload_guidance
 
 # 🌟 一键加载 CSS 和侧边栏
 load_css()
@@ -273,7 +273,10 @@ with tab1:
     curve_sample_dict = st.session_state.get("funclu_curve_sample", {})
     
     if not curve_sample_dict:
-        st.info("💡 Please upload `curve_fitting_export.zip` above to proceed.")
+        upload_guidance(
+            "pages/1_Curve Fitting.py", "Curve Fitting", "curve_fitting_export.zip",
+            "在 Curve Fitting 页上传观测数据，点击 Run Fitting 完成拟合",
+        )
     else:
         st.divider()
         st.markdown("### Data Overview")
@@ -326,14 +329,14 @@ with tab1:
                     }
                     for i, n in enumerate(cond_names)
                 ])
-                st.dataframe(summary_df, use_container_width=True, hide_index=True)
+                st.dataframe(summary_df, width="stretch", hide_index=True)
 
             # --- 子标签页 2: Common Features (共有特征列表) ---
             with overview_tab2:
                 st.markdown(f"#### Shared Features Across All Conditions ({model.n_features})")
                 features_df = pd.DataFrame({"Feature Name": model.common_cols})
                 # 给 dataframe 限制一下高度，防止特征太多拉得太长
-                st.dataframe(features_df, use_container_width=True, hide_index=True, height=300)
+                st.dataframe(features_df, width="stretch", hide_index=True, height=300)
 
             # --- 子标签页 3: Data Preview (数据预览) ---
             with overview_tab3:
@@ -349,7 +352,7 @@ with tab1:
                 st.markdown(f"**Top 5 rows × 5 cols for `{selected_cond}`:**")
                 st.dataframe(
                     curve_sample_dict[selected_cond].iloc[:5, :5],
-                    use_container_width=True,
+                    width="stretch",
                 )
 
 # =====================================================================
@@ -428,7 +431,7 @@ with tab2:
                     }
                 )
                 st.markdown("**Cluster sizes & weights (after EM)**")
-                st.dataframe(em_sw_df, use_container_width=True)
+                st.dataframe(em_sw_df, width="stretch")
 
                 # 参数表
                 em_mu_np = em_model.params_mu.detach().cpu().numpy()
@@ -457,10 +460,10 @@ with tab2:
                 col_mu, col_cov = st.columns(2)
                 with col_mu:
                     st.markdown(r"**mu_params (a, b)** — $\mu = a \cdot t^{b}$")
-                    st.dataframe(pd.DataFrame(em_mu_rows), use_container_width=True)
+                    st.dataframe(pd.DataFrame(em_mu_rows), width="stretch")
                 with col_cov:
                     st.markdown(r"**cov_params (phi, gamma)** — SAD1")
-                    st.dataframe(pd.DataFrame(em_cov_rows), use_container_width=True)
+                    st.dataframe(pd.DataFrame(em_cov_rows), width="stretch")
 
                 st.markdown("**Cluster profiles**")
                 with st.expander("Cluster profiles plot settings", expanded=False):
@@ -565,7 +568,7 @@ with tab2:
                     )
                     for _fig in _cluster_figs:
                         plt.close(_fig)
-                    st.pyplot(_stitched, use_container_width=True)
+                    st.pyplot(_stitched, width="stretch")
                     plt.close(_stitched)
                 else:
                     plot_cluster_profiles(
@@ -978,7 +981,7 @@ with tab3:
                         "min_cluster_size_threshold": "Min Size Threshold",
                     })
                     st.dataframe(
-                        display_df, use_container_width=True, hide_index=True,
+                        display_df, width="stretch", hide_index=True,
                     )
 
     # ---------- Export ----------
@@ -989,7 +992,7 @@ with tab3:
         else:
             st.markdown("### Export BIC Results as CSV")
             st.dataframe(
-                bic_result_df, use_container_width=True, hide_index=True,
+                bic_result_df, width="stretch", hide_index=True,
             )
             csv_data = bic_result_df.to_csv(index=False).encode("utf-8")
             st.download_button(

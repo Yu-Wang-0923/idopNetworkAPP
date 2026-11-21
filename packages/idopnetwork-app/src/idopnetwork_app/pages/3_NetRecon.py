@@ -103,7 +103,7 @@ from idopnetwork.network.plot import (
     plot_effect,
     plot_adjusted_matrix_heatmap,
 )
-from idopnetwork_app.utils import font_prop, load_css, setup_sidebar
+from idopnetwork_app.utils import font_prop, load_css, setup_sidebar, upload_guidance
 
 import streamlit.components.v1 as components
 
@@ -668,7 +668,10 @@ with tab1:
     # ========== Tab 1_1 Data Overview ==========
     with tab1_1:
         if not common_conditions:
-            st.info("Please upload curve_fitting_export.zip first.")
+            upload_guidance(
+                "pages/1_Curve Fitting.py", "Curve Fitting", "curve_fitting_export.zip",
+                "在 Curve Fitting 页上传观测数据，点击 Run Fitting 完成拟合",
+            )
         else:
             default_condition = common_conditions[0]
             selected_condition = st.selectbox(
@@ -685,10 +688,10 @@ with tab1:
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown("**quasi_dynamic preview**")
-                st.dataframe(quasi_dynamic_df.head(), use_container_width=True)
+                st.dataframe(quasi_dynamic_df.head(), width="stretch")
             with col2:
                 st.markdown("**curve_sample preview**")
-                st.dataframe(curve_sample_df.head(), use_container_width=True)
+                st.dataframe(curve_sample_df.head(), width="stretch")
 
     # ========== Tab 1_2 IdopNetwork Construction ==========
     with tab1_2:
@@ -863,7 +866,7 @@ with tab1:
                             st.warning(note)
                         if hasattr(model, "solver_version_"):
                             st.caption(f"{model.solver_version_} · 整段 {len(model.observed())} 点拟合 · Fourier 阶数 {model.n_fourier} · 边权 sign × energy share")
-                            st.dataframe(model.diagnostics_, use_container_width=True)
+                            st.dataframe(model.diagnostics_, width="stretch")
 
                         progress_bar.progress(70, text="Generating prediction curves...")
                         log.write("Generating prediction curves...")
@@ -1039,7 +1042,7 @@ with tab1:
                 # ========== Tab 1_2_3 Adjacency Matrix ==========
                 with tab1_2_3:
                     st.markdown("### Adjacency Matrix")
-                    st.dataframe(result["adj_df"], use_container_width=True)
+                    st.dataframe(result["adj_df"], width="stretch")
 
                     st.markdown("### Adjusted Matrix Heatmap")
 
@@ -1163,7 +1166,10 @@ with tab2:
     # ========== Tab 2_1 Data Overview ==========
     with tab2_1:
         if not centers:
-            st.info("Please upload funclu_k_export.zip first.")
+            upload_guidance(
+                "pages/2_FunClu.py", "FunClu", "funclu_k_export.zip",
+                "在 FunClu 页的 FunClu-K 标签完成聚类并导出",
+            )
         else:
             condition_names = list(centers.keys())
             cluster_names = sorted(
@@ -1201,19 +1207,19 @@ with tab2:
                         "member_response_clusters": member_response_count,
                     }
                 )
-            st.dataframe(pd.DataFrame(overview_rows), use_container_width=True)
+            st.dataframe(pd.DataFrame(overview_rows), width="stretch")
 
             with st.expander("FunClu labels and cluster sizes", expanded=False):
                 left_col, right_col = st.columns(2)
                 with left_col:
                     st.markdown("**labels.csv**")
-                    st.dataframe(labels_df, use_container_width=True)
+                    st.dataframe(labels_df, width="stretch")
                 with right_col:
                     st.markdown("**cluster_sizes.csv**")
                     if cluster_sizes_df.empty:
                         st.caption("No cluster_sizes.csv found in ZIP.")
                     else:
-                        st.dataframe(cluster_sizes_df, use_container_width=True)
+                        st.dataframe(cluster_sizes_df, width="stretch")
 
     # ========== Tab 2_2 IdopNetwork Construction ==========
     with tab2_2:
@@ -1492,7 +1498,7 @@ with tab2:
                             )
                     for row in multilayer_result.get("skipped", []):
                         summary_rows.append({**row, "mse": np.nan, "status": "skipped"})
-                    st.dataframe(pd.DataFrame(summary_rows), use_container_width=True)
+                    st.dataframe(pd.DataFrame(summary_rows), width="stretch")
 
                     if multilayer_result["inter_cluster"]:
                         st.markdown("### Inter-Cluster Network")
@@ -1817,7 +1823,7 @@ with tab2:
                         inter_adj_for_table = multilayer_result["inter_cluster"][inter_adj_condition]["adj_df"]
 
                         st.caption("Direction rule: rows are source nodes, columns are target nodes.")
-                        st.dataframe(inter_adj_for_table, use_container_width=True)
+                        st.dataframe(inter_adj_for_table, width="stretch")
 
                         st.markdown("#### Inter-Cluster Heatmap")
 
@@ -1894,7 +1900,7 @@ with tab2:
                         intra_adj_for_table = available_intra[intra_adj_condition][intra_adj_cluster]["adj_df"]
 
                         st.caption("Direction rule: rows are source nodes, columns are target nodes.")
-                        st.dataframe(intra_adj_for_table, use_container_width=True)
+                        st.dataframe(intra_adj_for_table, width="stretch")
 
                         st.markdown("#### Intra-Cluster Heatmap")
 

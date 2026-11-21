@@ -96,7 +96,7 @@ with col_left:
             heading, entry = st.columns([4, 1], vertical_alignment="center")
             heading.markdown(f"**:material/{icon}: {label}**")
             # Native page navigation preserves the authenticated session.
-            entry.page_link(page, label="进入 →", use_container_width=True)
+            entry.page_link(page, label="进入 →", width="stretch")
             st.caption(description)
 
 with col_right:
@@ -177,7 +177,7 @@ with col_right:
 
 # --- 原有的底部版权 ---
 st.markdown(
-    """<div style="text-align:center; color:#94a3b8; font-size:0.9rem; margin: 3rem 0;">
+    """<div style="text-align:center; color:#4a5f7d; font-size:0.9rem; margin: 3rem 0;">
         复杂系统拓扑统计理论及应用北京市重点实验室 
             北京雁栖湖应用数学研究院 
                  idopNetwork v2.0
@@ -198,4 +198,4 @@ if _is_admin_user():
     # 隐藏密码列，保护隐私
     if "password" in df.columns:
         df = df.drop(columns=["password"])
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, width="stretch")

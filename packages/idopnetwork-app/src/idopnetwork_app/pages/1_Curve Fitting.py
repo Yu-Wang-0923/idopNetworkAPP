@@ -63,18 +63,21 @@ if len(names) != len(set(names)):
     st.stop()
 
 st.subheader("分析设置")
-data_mode = st.radio(
-    "数据类型 / Data type",
-    options=[DATA_MODE_QUASI, DATA_MODE_DYNAMIC],
-    format_func=lambda key: DATA_MODE_LABELS.get(key, key),
-    horizontal=True,
-    key="fit_data_mode",
-    help=(
-        "• Quasi-dynamic：静态数据 → 列变换 → 按行和排序成拟动态序列 → 幂律拟合。\n"
-        "• Dynamic：时间序列（如 12 导联 ECG）→ 逐通道 SWT 平稳小波软阈值去噪。"
-        "去噪后的波形可直接用于建网页的「Fourier + Legendre（动态 idop）」算法。"
-    ),
+mode_tabs = st.tabs(
+    [DATA_MODE_LABELS[DATA_MODE_QUASI], DATA_MODE_LABELS[DATA_MODE_DYNAMIC]],
+    key="fit_data_mode_tabs",
+    default=DATA_MODE_LABELS[DATA_MODE_QUASI],
+    on_change="rerun",
 )
+data_mode = DATA_MODE_QUASI if mode_tabs[0].open or not mode_tabs[1].open else DATA_MODE_DYNAMIC
+active_tab = mode_tabs[0] if data_mode == DATA_MODE_QUASI else mode_tabs[1]
+mode_help = {
+    DATA_MODE_QUASI: "静态数据 → 列变换 → 按行和排序成拟动态序列 → 幂律拟合。",
+    DATA_MODE_DYNAMIC: "时间序列（如 12 导联 ECG）→ 逐通道 SWT 平稳小波软阈值去噪；"
+                       "去噪后的波形可直接用于建网页的「Fourier + Legendre（动态 idop）」算法。",
+}
+with active_tab:
+    st.caption(mode_help[data_mode])
 
 signature = (data_mode,) + tuple(
     (file.name, sha256(file.getvalue()).hexdigest()) for file in uploaded
@@ -83,7 +86,7 @@ previous = st.session_state.get("curve_fitting_run_v4")
 if previous is not None and previous["signature"] != signature:
     st.session_state.pop("curve_fitting_run_v4", None)
 
-with st.form("curve_fitting_parameters"):
+with active_tab, st.form("curve_fitting_parameters"):
     if data_mode == DATA_MODE_DYNAMIC:
         st.markdown("**SWT denoise parameters**")
         swt_left, swt_mid, swt_right = st.columns(3)
@@ -256,7 +259,7 @@ for tab, table, suffix in (
     (quasi_tab, quasi, "quasidynamic"),
 ):
     with tab:
-        st.dataframe(table, use_container_width=True)
+        st.dataframe(table, width="stretch")
         st.download_button(f"Download {suffix}.csv", table.to_csv(index=True),
                            file_name=f"{selected.rsplit('.', 1)[0]}_{suffix}.csv",
                            mime="text/csv", key=f"download_{suffix}")

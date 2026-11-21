@@ -6,6 +6,7 @@ from importlib.resources import files
 import matplotlib.font_manager as fm
 import matplotlib.pyplot as plt
 import streamlit as st
+from streamlit.errors import StreamlitPageNotFoundError
 
 # ── 静态资源访问（通过 importlib.resources） ──────────────────────────────
 _STATIC = files("idopnetwork_app.static")
@@ -29,6 +30,23 @@ def load_css():
     """加载工作区共享样式。"""
     css = CSS_PATH.read_text(encoding="utf-8")
     st.html(f"<style>{css}</style>")
+
+
+def upload_guidance(source_page: str, source_label: str, file_name: str, first_step: str) -> None:
+    """Empty state for a page driven by an upstream export: what it needs, where it comes from."""
+    slug = "".join(ch if ch.isalnum() else "-" for ch in file_name)
+    with st.container(key=f"upload-guidance-{slug}"):
+        st.markdown(f"**这一步需要 `{file_name}`**")
+        st.markdown(
+            f"1. {first_step}\n"
+            f"2. 在该页下载 `{file_name}`\n"
+            "3. 回到本页，把它拖进上面的上传框"
+        )
+        try:
+            st.page_link(source_page, label=f"去 {source_label} →")
+        except StreamlitPageNotFoundError:
+            # A single page executed on its own (tests, direct run) has no page registry to link into.
+            st.caption(f"去 {source_label}")
 
 
 def setup_sidebar():

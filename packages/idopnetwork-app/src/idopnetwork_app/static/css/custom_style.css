@@ -1,5 +1,6 @@
 :root {
     --workspace-ink: #193454;
+    --workspace-ink-soft: #4a5f7d;
     --workspace-accent: #245db4;
     --workspace-line: #d4dfed;
     --workspace-paper: #f7f9fd;
@@ -72,6 +73,11 @@ footer, [data-testid="stSidebarNav"] { display: none; }
     border-radius: 9px;
 }
 [data-testid="stWidgetLabel"] p { color: #374e69; font-weight: 550; }
+/* Streamlit draws captions at 60% opacity; that lands at ~3.9:1 on white and less on the sidebar. */
+[data-testid="stCaptionContainer"] {
+    color: var(--workspace-ink-soft);
+    opacity: 1;
+}
 button[kind="primary"]:not(:disabled) {
     background: var(--workspace-accent);
     border-color: var(--workspace-accent);
@@ -91,16 +97,40 @@ button:focus-visible, .stPageLink a:focus-visible {
 @media (max-width: 640px) {
     [data-testid="stMainBlockContainer"] { padding-inline: 1rem; }
     .stTabs [role="tab"] { padding-inline: .6rem; }
+    [data-testid="stHeader"] button { min-width: 40px; min-height: 40px; }
 }
 
 .st-key-fit-intake {
     background: white;
     padding: clamp(1rem, 2vw, 1.6rem);
     border: 1px solid var(--workspace-line);
-    border-top: 3px solid var(--workspace-accent);
+    border-top: 1px solid var(--workspace-accent);
     border-radius: 12px;
     gap: .55rem;
 }
 .st-key-fit-intake h3 { color: var(--workspace-ink); padding: 0; }
 .st-key-fit-intake [data-testid="stExpander"] details { border: 0; }
 .st-key-fit-intake summary { color: var(--workspace-accent); }
+
+/* Empty-state guidance: names the upstream export this page needs and links to the page that makes it. */
+[class*="st-key-upload-guidance"] {
+    background: #fff;
+    border: 1px solid var(--workspace-line);
+    border-radius: 12px;
+    padding: clamp(1rem, 2vw, 1.5rem) clamp(1rem, 2vw, 1.6rem);
+    gap: .3rem;
+}
+[class*="st-key-upload-guidance"] p { margin-bottom: .15rem; }
+[class*="st-key-upload-guidance"] ol { margin: .25rem 0 .5rem; padding-left: 1.3rem; }
+[class*="st-key-upload-guidance"] [data-testid="stPageLink"] { margin-top: .35rem; }
+[class*="st-key-upload-guidance"] [data-testid="stPageLink"] a,
+[class*="st-key-upload-guidance"] [data-testid="stPageLink"] a span {
+    padding-inline: 0;
+    color: var(--workspace-accent) !important;
+    font-weight: 600;
+    text-decoration: none;
+}
+[class*="st-key-upload-guidance"] [data-testid="stPageLink"] a:hover span {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
