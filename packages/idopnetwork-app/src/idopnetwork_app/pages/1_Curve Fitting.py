@@ -2,10 +2,10 @@
 from importlib.resources import files
 from hashlib import sha256
 
+import base64
 import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
-import streamlit.components.v1 as components
 
 from idopnetwork.curve_fitting.plot import plot_curve_fitting_compare
 from idopnetwork_app.charts import curve_fitting_html
@@ -243,7 +243,10 @@ with plot_tab:
                            sampling_rate=float(ecg_sampling_rate))
     else:
         panels = curve_fitting_html.build_panels(quasi, samples, features)
-        components.html(curve_fitting_html.render(panels), height=700, scrolling=True)
+        chart_html = curve_fitting_html.render(panels)
+        chart_url = "data:text/html;base64," + base64.b64encode(
+            chart_html.encode("utf-8")).decode("ascii")
+        st.iframe(chart_url, height=700)
     st.caption(
         f"共 {len(features)} 个 Feature；在图表左侧面板的「特征」里勾选要显示的面板，"
         "Rows × Cols 决定每页容量。"

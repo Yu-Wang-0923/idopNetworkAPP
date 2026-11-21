@@ -221,3 +221,21 @@ Home 中文；Curve Fitting 中英混排（`导入观测数据` / `Fitting param
 实现：`st.context.headers` 读 User-Agent，命中 `Android/iPhone/iPad/Mobile` 时走紧凑分支（每页 2 张图、1 列；指标压成一行）。`plot_curve_fitting` 新增 `cell_height` 参数（默认 1.5，行为不变），页面按模式传 1.8 / 2.0。
 
 注意：**库模块改动需要重启 Streamlit 进程**才生效（`runOnSave` 只重跑页面脚本，不重载已导入的 `idopnetwork` 包）。这一轮重启过一次服务。
+
+## R-3 出版级图表（HTML/SVG 渲染器）
+
+Curve Fitting 的绘图从 matplotlib 的 `st.pyplot` 改为组件内的 HTML/SVG 渲染器（`idopnetwork_app/charts/curve_fitting_html.py`），默认参数面向期刊投稿：
+
+| 项 | 值 |
+|---|---|
+| 画布 | 子图尺寸驱动（41 × 25 mm），行列间距 0 / 5 mm，自适应留白（外边距 1.5 pt） |
+| 排布 | 3 × 4；共享 Y 轴，只在第一列标数字；X 刻度数字只在最底一行 |
+| 排版 | Times 11 pt；面板字母 a–l；四向数据边距 20/20/30/10 % |
+| 轴标题 | X 距子图 10 pt、Y 距子图 0 pt，均居中于子图网格 |
+| 导出 | 组件内 SVG（物理尺寸，pt）与 300/600 dpi PNG |
+
+控制面板在组件内（`特征`、`画布与子图`、`刻度与范围`、`排版与轴标题`、`图元`、`导出`，均可折叠），改参数即时重绘，不再触发服务端重跑；页面只保留一行说明，`Features to plot` 与 `Feature page` 已移除。
+
+**文件**：`charts/curve_fitting_html.py`（新增）、`pages/1_Curve Fitting.py`、`tests/test_curve_fitting_page.py`。
+**回归**：`pytest` 114 passed。
+**仍用 matplotlib 的地方**：`Compare fitted curves`（多文件对比）与 Dynamic 模式的 SWT 波形；PDF/EPS 导出尚未接入。
