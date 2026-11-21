@@ -236,30 +236,18 @@ with plot_tab:
         # is configured there; the page only decides which features are drawn.
         nrow, ncol = 3, 4
         per_page = 12
-    pick_features, pick_page = st.columns([2.6, 1], gap="medium", vertical_alignment="bottom")
-    selected_features = pick_features.multiselect(
-        "Features to plot",
-        options=list(quasi.columns),
-        default=list(quasi.columns[:6]),
-        key=f"fit_features_{selected}_{sha256(repr(list(quasi.columns)).encode()).hexdigest()[:12]}",
-        help="默认只绘制前 6 个 Feature；可自行增减，超过每页容量时分页显示。",
-    )
-    pages = max(1, (len(selected_features) + per_page - 1) // per_page)
-    page = pick_page.selectbox("Feature page", range(1, pages + 1), key=f"fit_page_{selected}_{per_page}")
-    features = selected_features[(page - 1) * per_page:page * per_page]
-    if features:
-        if is_dynamic:
-            from idopnetwork_app.ecg_visualization import render_ecg_fitting
-            render_ecg_fitting(quasi, samples, features=features, key=f"swt_{selected}",
-                               sampling_rate=float(ecg_sampling_rate))
-        else:
-            panels = curve_fitting_html.build_panels(
-                quasi.loc[:, features], samples.loc[:, features], features
-            )
-            components.html(curve_fitting_html.render(panels), height=980, scrolling=True)
+    features = list(quasi.columns)
+    if is_dynamic:
+        from idopnetwork_app.ecg_visualization import render_ecg_fitting
+        render_ecg_fitting(quasi, samples, features=features[:per_page], key=f"swt_{selected}",
+                           sampling_rate=float(ecg_sampling_rate))
     else:
-        st.info("请选择至少一个 Feature 以显示拟合图。")
-    st.caption(f"显示 {len(features)} / {len(quasi.columns)} 个 Feature；默认选择前 6 个。")
+        panels = curve_fitting_html.build_panels(quasi, samples, features)
+        components.html(curve_fitting_html.render(panels), height=700, scrolling=True)
+    st.caption(
+        f"共 {len(features)} 个 Feature；在图表左侧面板的「特征」里勾选要显示的面板，"
+        "Rows × Cols 决定每页容量。"
+    )
 
 for tab, table, suffix in (
     (params_tab, params, "params"),

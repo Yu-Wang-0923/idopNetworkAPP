@@ -17,7 +17,7 @@ def upload(name, frame):
 
 
 class CurveFittingPageTests(unittest.TestCase):
-    def test_many_features_default_to_six_and_can_be_selected_or_cleared(self):
+    def test_all_features_reach_the_publication_renderer(self):
         from idopnetwork_app.charts.curve_fitting_html import render as render_chart
 
         frame = pd.DataFrame({f'feature_{i}': [x * (i + 1) for x in range(1, 21)]
@@ -30,17 +30,8 @@ class CurveFittingPageTests(unittest.TestCase):
             app.run()
             app.button[0].click().run()
             self.assertFalse(app.exception)
-            self.assertEqual(app.multiselect[0].value, list(frame.columns[:6]))
             names = [panel['name'] for panel in draw.call_args.args[0]]
-            self.assertEqual(names, list(frame.columns[:6]))
-            app.multiselect[0].set_value(['feature_10', 'feature_11']).run()
-            self.assertFalse(app.exception)
-            names = [panel['name'] for panel in draw.call_args.args[0]]
-            self.assertEqual(names, ['feature_10', 'feature_11'])
-            draw.reset_mock()
-            app.multiselect[0].set_value([]).run()
-            self.assertFalse(app.exception)
-            draw.assert_not_called()
+            self.assertEqual(names, list(frame.columns))
             self.assertEqual(len(app.dataframe), 3)
 
     def test_upload_results_replacement_comparison_and_clear(self):

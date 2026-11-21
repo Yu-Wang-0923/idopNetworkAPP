@@ -47,7 +47,10 @@ TEMPLATE = r"""<!DOCTYPE html>
   .btn.primary{background:#245db4;border-color:#245db4;color:#fff}
   .btn.primary:hover{background:#1d4d95}
   main{min-width:0}
-  .figure{background:#fff;border:1px solid #d4dfed;border-radius:6px;padding:14px;overflow:auto}
+  .figure{background:#fff;border:1px solid #d4dfed;border-radius:6px;padding:14px;overflow:auto;display:flex;justify-content:center}
+  .figure svg{width:100%;height:auto;max-width:100%}
+  #feature-list{max-height:150px;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px}
+  .feat{display:flex;align-items:center;gap:5px;font-size:.72rem;color:#374e69}
   #stage{position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none}
   .meta{margin-top:8px;color:#4a5f7d;font-size:.71rem}
   .note{margin-top:9px;padding:7px 9px;border-left:2px solid #245db4;background:#f1f6fd;
@@ -59,6 +62,11 @@ TEMPLATE = r"""<!DOCTYPE html>
 <div class="page">
   <aside>
     <h2>Publication</h2>
+
+    <details open>
+      <summary>特征</summary>
+      <div class="body" id="feature-list"></div>
+    </details>
 
     <details open>
       <summary>画布与子图</summary>
@@ -217,7 +225,7 @@ function buildSvg() {
   const W = pad.l + pad.r + s.cols * cellW + (s.cols - 1) * gapX;
   const H = pad.t + pad.b + s.rows * cellH + (s.rows - 1) * gapY + titleRoom;
 
-  const cells = DATA.panels.slice(0, s.rows * s.cols);
+  const cells = DATA.panels.filter(p => active.has(p.name)).slice(0, s.rows * s.cols);
 
   let xlo = Infinity, xhi = -Infinity, shared = [Infinity, -Infinity];
   const per = [];
@@ -439,6 +447,24 @@ $("png").onclick = () => {
   };
   img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(text);
 };
+
+const active = new Set(DATA.panels.map(p => p.name));
+const featureList = document.getElementById("feature-list");
+DATA.panels.forEach(p => {
+  const row = document.createElement("label");
+  row.className = "feat";
+  const box = document.createElement("input");
+  box.type = "checkbox";
+  box.checked = true;
+  box.addEventListener("change", () => {
+    if (box.checked) active.add(p.name); else active.delete(p.name);
+    render();
+  });
+  const span = document.createElement("span");
+  span.textContent = p.name;
+  row.append(box, span);
+  featureList.appendChild(row);
+});
 
 render();
 </script>
