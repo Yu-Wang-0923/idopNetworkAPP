@@ -34,7 +34,7 @@ if not st.session_state.get("logged_in", False):
 
 st.title("Network Analysis")
 
-st.markdown("### GLMY (Path Homology)")
+st.markdown("## GLMY (Path Homology)")
 
 
 # ========== GLMY ==========

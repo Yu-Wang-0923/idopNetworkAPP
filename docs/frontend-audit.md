@@ -151,20 +151,20 @@ Home 中文；Curve Fitting 中英混排（`导入观测数据` / `Fitting param
 | P2 空状态引导 | 已修 | 三页的裸提示换成 `upload_guidance()`：写明所需 ZIP、三步从哪来、给出去上游页面的链接（`utils.py` + `.st-key-upload-guidance*` 卡片样式） |
 | 回归验证 | 通过 | `pytest`：**114 passed**；检测器：CSS **0 findings**、线上 URL **0 findings** |
 | P2 语言/术语统一 | 进行中 | 空状态已统一为“中文为主 + 英文标识符随附”，其余控件文案仍待逐页套用 |
-| P2 标题层级 h1→h3 | 未做 | Streamlit `st.subheader` 固定渲染 h3 |
-| P2 图片 alt | 未做 | `st.image` 无 alt 参数，需改成带 alt 的 HTML |
+| P2 标题层级 | 已修 | Curve Fitting 三个区块、FunClu `Data Initialization`、NetAnal `GLMY` 改为 `##`（h2），Home 后台标题同步；CSS 把 markdown h2 拉回原 subheader 尺度，视觉不变 |
+| P2 图片 alt | 已修 | 更正审计结论：Streamlit 1.67 的 `st.image` **支持** `alt`。侧栏 logo、卷首网络图、导师肖像走 i18n 词条；ECG 与 GLMY 生成图按图表名补 alt |
 | P3 `IDOP.png` 3.1 MB | 未动 | 全仓无引用；删除属资产决策，留给作者确认 |
 
 ### 修复后自评（检测器 + 截图，未做全量重审）
 
 | 维度 | 前 | 后 | 依据 |
 |---|:---:|:---:|---|
-| 可访问性 | 2 | 3 | 对比度已达标；alt 与标题层级仍未做 |
+| 可访问性 | 2 | 4 | 对比度、alt、标题层级均已处理 |
 | 性能 | 2 | 3 | 图片与弃用 API 已解决；图片仍无懒加载 |
 | 主题化 | 2 | 2 | token 覆盖面未变 |
 | 响应式 | 3 | 3 | 页头触控目标已放大 |
 | 一致性 | 3 | 4 | 检测器 0 findings |
-| **合计** | **12** | **15 / 20（Good）** | |
+| **合计** | **12** | **16 / 20（Good）** | |
 
 ---
 

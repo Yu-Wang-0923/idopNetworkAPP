@@ -237,7 +237,7 @@ tab1, tab2, tab3 = st.tabs(["Uploaded Data", "FunClu-K", "FunClu-BIC"])
 # =====================================================================
 with tab1:
     # ---------- 1. 文件上传（直接位于 Tab 1 顶级） ----------
-    st.markdown("### Data Initialization")
+    st.markdown("## Data Initialization")
     uploaded_file = st.file_uploader(
         label="Please upload your file",
         type=["zip"],

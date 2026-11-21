@@ -72,13 +72,16 @@ def render_glmy_analysis(from_to_df: pd.DataFrame | None, member: str | None) ->
         if not images:
             continue
         st.markdown(f"#### {label}")
-        views = st.tabs(["Filtration process", "Barcode", "β₁ representatives", "β₂ representatives", "Tables"])
-        for view, filename in zip(views[:4], ("filtration_process.png", "barcode.png",
-                                             "homology_representative_beta1.png", "homology_representative_beta2.png")):
+        view_labels = ["Filtration process", "Barcode", "β₁ representatives", "β₂ representatives"]
+        views = st.tabs([*view_labels, "Tables"])
+        for view, view_label, filename in zip(views[:4], view_labels,
+                                              ("filtration_process.png", "barcode.png",
+                                               "homology_representative_beta1.png",
+                                               "homology_representative_beta2.png")):
             with view:
                 name = f"{folder}/{filename}"
                 if name in artifacts:
-                    st.image(artifacts[name], width="stretch")
+                    st.image(artifacts[name], width="stretch", alt=f"{label} · {view_label}")
                     st.download_button(f"Download {filename}", artifacts[name], filename,
                                        mime="image/png", key=f"regular_download_{name}")
                 else:

@@ -55,7 +55,7 @@ def setup_sidebar():
     """全局统一的侧边栏组件"""
     with st.sidebar:
         with st.container(key="platform-brand", horizontal_alignment="center", gap=None):
-            st.image(str(IMAGES_DIR / "TSA.png"), width=112)
+            st.image(str(IMAGES_DIR / "TSA.png"), width=112, alt=t("sidebar.logo.alt"))
             st.markdown("**idopNetwork**")
 
         language_switch()

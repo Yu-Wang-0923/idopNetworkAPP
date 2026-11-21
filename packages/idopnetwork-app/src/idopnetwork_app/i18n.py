@@ -16,11 +16,14 @@ OPTIONS = {"zh": "中文", "en": "English"}
 STRINGS: dict[str, dict[str, str]] = {
     "zh": {
         "sidebar.caption": "登录后可使用分析工具。",
+        "sidebar.logo.alt": "idopNetwork 标识",
         "sidebar.back_home": "返回首页登录",
         "sidebar.welcome": "欢迎，{user}",
         "sidebar.logout": "退出登录",
         "auth.login_required": "请先返回首页登录后使用。",
         "home.hero.suffix": "计算平台",
+        "home.hero.figure.alt": "多层网络示意图：M1、M2、M3 三层节点与有向边",
+        "home.profile.photo.alt": "邬荣领教授肖像",
         "home.hero.intro": (
             "idopNetwork 是一套基于 <b>邬荣领教授</b> 提出的统计力学框架构建的复杂系统分析体系。"
             "通过将静态的观测数据映射到高维拓扑空间，我们能够突破传统统计学的局限，"
@@ -63,6 +66,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "fitting.example.expander": "下载示例数据与使用说明",
         "fitting.intake.caption": "支持多个 CSV 文件。第一列为样本或时间索引，其余列为分析特征。",
         "fitting.settings.title": "分析设置",
+        "fitting.results.title": "分析结果",
         "fitting.example.education": "教育数据已匿名化。解压后上传 CSV，选择 Quasi-dynamic 进行拟合。",
         "fitting.example.ecg": "12 导联、1000 个采样点。选择 Dynamic 去噪，建网时选择 idopECG(4)，采样率保持 100 Hz。",
         "fitting.mode.quasi": "静态数据 → 列变换 → 按行和排序成拟动态序列 → 幂律拟合。",
@@ -77,11 +81,14 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "en": {
         "sidebar.caption": "Sign in to use the analysis tools.",
+        "sidebar.logo.alt": "idopNetwork logo",
         "sidebar.back_home": "Back to Home to sign in",
         "sidebar.welcome": "Signed in as {user}",
         "sidebar.logout": "Sign out",
         "auth.login_required": "Please return to Home and sign in first.",
         "home.hero.suffix": "Computing Platform",
+        "home.hero.figure.alt": "Multi-layer network diagram with M1, M2 and M3 nodes and directed edges",
+        "home.profile.photo.alt": "Portrait of Prof. Rongling Wu",
         "home.hero.intro": (
             "idopNetwork is a complex-systems framework built on the statistical mechanics proposed by "
             "<b>Prof. Rongling Wu</b>. Mapping static observations into a high-dimensional topological space "
@@ -131,6 +138,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "fitting.example.expander": "Sample data & instructions",
         "fitting.intake.caption": "Multiple CSV files are supported. The first column is the sample or time index; the rest are features.",
         "fitting.settings.title": "Analysis settings",
+        "fitting.results.title": "Results",
         "fitting.example.education": "Anonymized education data. Unzip, upload the CSVs, and choose Quasi-dynamic.",
         "fitting.example.ecg": "12 leads, 1000 samples. Choose Dynamic for denoising and keep 100 Hz when building the network.",
         "fitting.mode.quasi": "Static data → column transforms → rows sorted into a quasi-dynamic sequence → power-law fit.",

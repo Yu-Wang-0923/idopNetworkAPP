@@ -40,7 +40,7 @@ with col_hero1:
 
     with figure_col:
         with st.container(key="home-hero-figure"):
-            st.image(_HERO_FIGURE, width="stretch")
+            st.image(_HERO_FIGURE, width="stretch", alt=t("home.hero.figure.alt"))
 
     with text_col:
         st.markdown(
@@ -61,7 +61,7 @@ with col_hero1:
             show_auth_modal()
 
 with col_hero2.container(key="home-profile"):
-    st.image(_WU, width="stretch")
+    st.image(_WU, width="stretch", alt=t("home.profile.photo.alt"))
     st.markdown(f"""
     <div class="profile-details">
     <p><strong>{t('home.profile.name')}</strong></p>
@@ -181,7 +181,7 @@ st.markdown(
 # 只有当你用 admin 账号登录时才显示
 if _is_admin_user():
     st.divider()
-    st.subheader(t("home.admin.title"))
+    st.markdown(f"## {t('home.admin.title')}")
     from idopnetwork_app.auth import load_users
     import pandas as pd
 

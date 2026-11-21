@@ -56,7 +56,7 @@ def effect_artifacts(effects: dict[str, pd.DataFrame], *, lead: str,
 
 
 def _show(artifacts: dict[str, bytes], *, label: str, key: str) -> None:
-    st.image(artifacts['png'], width='stretch')
+    st.image(artifacts['png'], width='stretch', alt=f'{label} — normalized ECG fitting plot')
     name = re.sub(r'[^\w.-]+', '_', label) or 'ECG'
     columns = st.columns(3)
     for column, suffix, mime in zip(columns, ('png','pdf','svg'),

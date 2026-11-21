@@ -33,7 +33,7 @@ def _fit(content: bytes, **options):
 
 st.title("Curve Fitting")
 with st.container(key="fit-intake"):
-    st.subheader(t("fitting.intake.title"))
+    st.markdown(f"## {t('fitting.intake.title')}")
     st.caption(t("fitting.intake.caption"))
     uploaded = st.file_uploader("Upload CSV files", type=["csv"], accept_multiple_files=True,
                                 key="curve_fitting_upload_v4", label_visibility="collapsed")
@@ -63,7 +63,7 @@ if len(names) != len(set(names)):
     st.stop()
 
 MODE_TABS = ['Quasi-dynamic', 'Dynamic']
-st.subheader(t("fitting.settings.title"))
+st.markdown(f"## {t('fitting.settings.title')}")
 mode_tabs = st.tabs(
     MODE_TABS,
     key="fit_data_mode_tabs",
@@ -155,7 +155,7 @@ run = st.session_state.get("curve_fitting_run_v4")
 if run is None:
     st.stop()
 st.divider()
-st.subheader("分析结果")
+st.markdown(f"## {t('fitting.results.title')}")
 for name, error in run["errors"].items():
     st.error(f"{name} 拟合失败：{error}")
 results = run["results"]
