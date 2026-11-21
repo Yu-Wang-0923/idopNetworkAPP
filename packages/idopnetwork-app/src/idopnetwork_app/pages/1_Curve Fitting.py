@@ -3,11 +3,9 @@ from importlib.resources import files
 from hashlib import sha256
 
 import base64
-import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
 
-from idopnetwork.curve_fitting.plot import plot_curve_fitting_compare
 from idopnetwork_app.charts import curve_fitting_html
 from idopnetwork_app.curve_fitting_workflow import (
     DATA_MODE_DYNAMIC,
@@ -283,11 +281,13 @@ if len(results) > 1:
                                            features=subset, key=f"compare_swt_{name}",
                                            sampling_rate=float(ecg_sampling_rate))
                 else:
-                    fig = plot_curve_fitting_compare(
-                        df_scatter_list=[t["quasi_dynamic"].loc[:, subset] for t in results.values()],
-                        df_curve_list=[t["curve_sample"].loc[:, subset] for t in results.values()],
-                        label_list=list(results), show_curve=True, nrow=int(nrow),
-                        ncol=int(ncol), nsubfig=per_page,
+                    panels = curve_fitting_html.build_compare_panels(
+                        [item["quasi_dynamic"].loc[:, subset] for item in results.values()],
+                        [item["curve_sample"].loc[:, subset] for item in results.values()],
+                        list(results),
+                        subset,
                     )
-                    st.pyplot(fig)
-                    plt.close(fig)
+                    compare_html = curve_fitting_html.render(panels)
+                    compare_url = "data:text/html;base64," + base64.b64encode(
+                        compare_html.encode("utf-8")).decode("ascii")
+                    st.iframe(compare_url, height=700)

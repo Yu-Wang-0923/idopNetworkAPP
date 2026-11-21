@@ -47,6 +47,10 @@ TEMPLATE = r"""<!DOCTYPE html>
   .btn.primary{background:#245db4;border-color:#245db4;color:#fff}
   .btn.primary:hover{background:#1d4d95}
   main{min-width:0}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin:0 0 8px;font-size:.74rem;color:#374e69}
+  .legend .item{display:flex;align-items:center;gap:6px}
+  .legend .swatch{display:inline-block;width:22px;height:0;border-top-width:2px;border-top-style:solid}
+  .legend .dot{display:inline-block;width:8px;height:8px;border-radius:50%;border-width:1.4px;border-style:solid;background:#fff;margin-left:-14px}
   .figure{background:#fff;border:1px solid #d4dfed;border-radius:6px;padding:14px;overflow:auto;display:flex;justify-content:center}
   .figure svg{width:100%;height:auto;max-width:100%}
   #feature-list{max-height:150px;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px}
@@ -146,6 +150,7 @@ TEMPLATE = r"""<!DOCTYPE html>
 
   <main>
     <div id="stage" aria-hidden="true"></div>
+    <div class="legend" id="legend"></div>
     <div class="figure" id="figure"></div>
     <p class="meta" id="meta"></p>
   </main>
@@ -227,14 +232,23 @@ function buildSvg() {
 
   const cells = DATA.panels.filter(p => active.has(p.name)).slice(0, s.rows * s.cols);
 
+  const seriesOf = p => p.series && p.series.length ? p.series : [{
+    label: null, xs: p.xs, ys: p.ys, curveX: p.curveX, curveY: p.curveY,
+    dcolor: s.dcolor, ccolor: s.ccolor,
+  }];
   let xlo = Infinity, xhi = -Infinity, shared = [Infinity, -Infinity];
   const per = [];
   cells.forEach(p => {
-    const [a, b] = range(p.curveX);
-    xlo = Math.min(xlo, a); xhi = Math.max(xhi, b);
-    const [c, d] = range(p.ys.concat(p.curveY));
-    per.push([c, d]);
-    shared = [Math.min(shared[0], c), Math.max(shared[1], d)];
+    const list = seriesOf(p);
+    let lo = Infinity, hi = -Infinity;
+    list.forEach(ser => {
+      const [a, b] = range(ser.curveX);
+      xlo = Math.min(xlo, a); xhi = Math.max(xhi, b);
+      const [c, d] = range(ser.ys.concat(ser.curveY));
+      lo = Math.min(lo, c); hi = Math.max(hi, d);
+    });
+    per.push([lo, hi]);
+    shared = [Math.min(shared[0], lo), Math.max(shared[1], hi)];
   });
   const xSpan = xhi - xlo;
   const xMin = xlo - xSpan * s.mxl, xMax = xhi + xSpan * s.mxr;
@@ -313,12 +327,16 @@ function buildSvg() {
     defs.appendChild(clip);
     svg.appendChild(defs);
     const marks = el("g", {"clip-path": `url(#${clipId})`});
-    const d = p.curveX.map((cx, k) =>
-      `${k ? "L" : "M"}${x(cx).toFixed(2)},${y(p.curveY[k]).toFixed(2)}`).join(" ");
-    marks.appendChild(el("path", {d, fill: "none", stroke: s.ccolor,
-                                  "stroke-width": s.lw, "stroke-linecap": "butt"}));
-    p.xs.forEach((cx, k) => marks.appendChild(el("circle", {cx: x(cx), cy: y(p.ys[k]),
-      r: s.msize / 2, fill: "none", stroke: s.dcolor, "stroke-width": s.lw * 0.75})));
+    seriesOf(p).forEach(ser => {
+      const line = ser.curveX.map((cx, k) =>
+        `${k ? "L" : "M"}${x(cx).toFixed(2)},${y(ser.curveY[k]).toFixed(2)}`).join(" ");
+      marks.appendChild(el("path", {d: line, fill: "none",
+                                    stroke: ser.ccolor || s.ccolor,
+                                    "stroke-width": s.lw, "stroke-linecap": "butt"}));
+      ser.xs.forEach((cx, k) => marks.appendChild(el("circle", {
+        cx: x(cx), cy: y(ser.ys[k]), r: s.msize / 2, fill: "none",
+        stroke: ser.dcolor || s.dcolor, "stroke-width": s.lw * 0.75})));
+    });
     svg.appendChild(marks);
 
     const cap = el("text", {x: ox + m.l + pw / 2, y: oy - 3, "text-anchor": "middle",
@@ -448,6 +466,26 @@ $("png").onclick = () => {
   img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(text);
 };
 
+const legend = document.getElementById("legend");
+if (DATA.series && DATA.series.length) {
+  DATA.series.forEach(entry => {
+    const item = document.createElement("span");
+    item.className = "item";
+    const line = document.createElement("span");
+    line.className = "swatch";
+    line.style.borderTopColor = entry.ccolor;
+    const dot = document.createElement("span");
+    dot.className = "dot";
+    dot.style.borderColor = entry.dcolor;
+    const label = document.createElement("span");
+    label.textContent = entry.label;
+    item.append(line, dot, label);
+    legend.appendChild(item);
+  });
+} else {
+  legend.remove();
+}
+
 const active = new Set(DATA.panels.map(p => p.name));
 const featureList = document.getElementById("feature-list");
 DATA.panels.forEach(p => {
@@ -489,6 +527,36 @@ def build_panels(quasi, samples, features: Iterable[str]) -> list[dict[str, Any]
     return panels
 
 
+COMPARE_SCATTER_COLORS = ("#F9B3AD", "#C9A1CA", "#76C2AF", "#E5C68F", "#C59FCE", "#A0D8E7")
+COMPARE_CURVE_COLORS = ("#9E2223", "#A06EA5", "#52B793", "#DDB866", "#B488C2", "#79C6DF")
+
+
+def build_compare_panels(scatter_frames, curve_frames, labels, features) -> list[dict[str, Any]]:
+    """One panel per feature, one series per input file (markers + fitted curve)."""
+    panels = []
+    for name in features:
+        series = []
+        for i, (scatter, curve, label) in enumerate(zip(scatter_frames, curve_frames, labels)):
+            series.append({
+                "label": str(label),
+                "xs": [round(float(v), 4) for v in scatter.index],
+                "ys": [round(float(v), 4) for v in scatter[name]],
+                "curveX": [round(float(v), 4) for v in curve.index],
+                "curveY": [round(float(v), 4) for v in curve[name]],
+                "dcolor": COMPARE_SCATTER_COLORS[i % len(COMPARE_SCATTER_COLORS)],
+                "ccolor": COMPARE_CURVE_COLORS[i % len(COMPARE_CURVE_COLORS)],
+            })
+        panels.append({"name": str(name), "series": series})
+    return panels
+
+
 def render(panels: list[dict[str, Any]]) -> str:
     """Return a self-contained HTML document: control panel + figure + exports."""
-    return TEMPLATE.replace("__DATA__", json.dumps({"panels": panels}, ensure_ascii=False))
+    payload: dict[str, Any] = {"panels": panels}
+    first = panels[0] if panels else {}
+    if first.get("series"):
+        payload["series"] = [
+            {"label": s["label"], "dcolor": s["dcolor"], "ccolor": s["ccolor"]}
+            for s in first["series"]
+        ]
+    return TEMPLATE.replace("__DATA__", json.dumps(payload, ensure_ascii=False))

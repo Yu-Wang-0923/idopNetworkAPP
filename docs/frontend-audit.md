@@ -238,4 +238,5 @@ Curve Fitting 的绘图从 matplotlib 的 `st.pyplot` 改为组件内的 HTML/SV
 
 **文件**：`charts/curve_fitting_html.py`（新增）、`pages/1_Curve Fitting.py`、`tests/test_curve_fitting_page.py`。
 **回归**：`pytest` 114 passed。
-**仍用 matplotlib 的地方**：`Compare fitted curves`（多文件对比）与 Dynamic 模式的 SWT 波形；PDF/EPS 导出尚未接入。
+**Compare fitted curves** 也改用同一渲染器：每个面板一个特征、每个文件一条序列（同色系空心点 + 曲线），图例在画布顶部。
+**仍用 matplotlib 的地方**：仅 Dynamic 模式的 SWT 波形；PDF/EPS 导出尚未接入。
