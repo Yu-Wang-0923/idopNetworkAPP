@@ -12,8 +12,6 @@
 /* 浅蓝卷首与纸面正文 */
 .st-key-home-hero {
     padding: clamp(.9rem, 1.6vw, 1.6rem);
-    max-width: min(100%, 860px);
-    margin-inline: auto;
     background-color: #dcebf9;
     background-image: linear-gradient(130deg, #e7f2fd 0%, #d4e7f9 52%, #c4dcf4 100%);
     border-radius: 16px;
