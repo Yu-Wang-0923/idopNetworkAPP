@@ -113,13 +113,18 @@ h1.home-title {
 .home-hero-body {
     flex: 1 1 auto;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+    grid-template-columns: auto minmax(0, 1fr);
     gap: clamp(.7rem, 1.4vw, 1.3rem);
     align-items: center;
     min-height: 0;
 }
 .home-hero-figure { margin: 0; display: flex; justify-content: center; }
-.home-hero-figure img { width: 100%; height: auto; display: block; }
+.home-hero-figure img {
+    width: clamp(11rem, 17vw, 17rem);
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
 .home-hero-copy {
     display: flex;
     flex-direction: column;
