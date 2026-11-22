@@ -230,91 +230,102 @@ def _build_funclu_k_export_zip(
 
 
 # ========== Top-Level Tabs ==========
-tab1, tab2, tab3 = st.tabs([t("funclu.tab.uploaded"), "FunClu-K", "FunClu-BIC"])
+tab1, tab2, tab3 = st.tabs([t("funclu.tab.data"), "FunClu-K", "FunClu-BIC"])
 
 # =====================================================================
-# TAB 1: Uploaded Data (File uploader & Data Overview)
+# TAB 1: Uploaded Data (compact header + overview)
 # =====================================================================
 with tab1:
-    # ---------- 1. 文件上传（直接位于 Tab 1 顶级） ----------
-    st.markdown(f"## {t('funclu.init.title')}")
-    uploaded_file = st.file_uploader(
-        label=t("funclu.upload.label"),
-        type=["zip"],
-        accept_multiple_files=False,
-        help=t("funclu.upload.help"),
-        label_visibility="visible",
-        max_upload_size=500,
-    )
+    def _ingest_upload(uploaded_file) -> None:
+        """Load the curve_fitting ZIP into session state and refresh the page."""
+        try:
+            curve_sample_map, quasi_dynamic_map = _load_netrecon_inputs_from_zip(
+                uploaded_file.getvalue()
+            )
+            if not quasi_dynamic_map:
+                raise ValueError("ZIP 中缺少 quasi_dynamic.csv，无法导出多层响应变量")
+            st.session_state.funclu_curve_sample = curve_sample_map
+            st.session_state.funclu_quasi_dynamic = quasi_dynamic_map
+            st.session_state.funclu_uploaded_zip_name = uploaded_file.name
+            st.session_state.funclu_em_result = None
+        except Exception as exc:
+            st.error(t("funclu.upload.failed", error=exc))
+            st.session_state.funclu_curve_sample = {}
+            st.session_state.funclu_quasi_dynamic = {}
+            st.session_state.funclu_uploaded_zip_name = None
+        else:
+            st.rerun()
 
-    if uploaded_file is not None:
-        if st.session_state.funclu_uploaded_zip_name != uploaded_file.name:
-            try:
-                curve_sample_map, quasi_dynamic_map = _load_netrecon_inputs_from_zip(
-                    uploaded_file.getvalue()
-                )
-                if not quasi_dynamic_map:
-                    raise ValueError("ZIP 中缺少 quasi_dynamic.csv，无法导出多层响应变量")
-                st.session_state.funclu_curve_sample = curve_sample_map
-                st.session_state.funclu_quasi_dynamic = quasi_dynamic_map
-                st.session_state.funclu_uploaded_zip_name = uploaded_file.name
-                # 当上传新数据时，清空之前的 EM 拟合结果
-                st.session_state.funclu_em_result = None 
-                st.success(t("funclu.upload.ok"))
-            except Exception as e:
-                st.error(t("funclu.upload.failed", error=e))
-                st.session_state.funclu_curve_sample = {}
-                st.session_state.funclu_quasi_dynamic = {}
-                st.session_state.funclu_uploaded_zip_name = None
-
-    # ---------- 2. 数据概览（拆分为多个子 Tab） ----------
     curve_sample_dict = st.session_state.get("funclu_curve_sample", {})
-    
+
     if not curve_sample_dict:
+        st.markdown(f"## {t('funclu.init.title')}")
+        uploaded_file = st.file_uploader(
+            label=t("funclu.upload.label"),
+            type=["zip"],
+            accept_multiple_files=False,
+            help=t("funclu.upload.help"),
+            label_visibility="visible",
+            max_upload_size=500,
+        )
+        if uploaded_file is not None and (
+            st.session_state.funclu_uploaded_zip_name != uploaded_file.name
+        ):
+            _ingest_upload(uploaded_file)
         upload_guidance(
             "pages/1_Curve Fitting.py", "Curve Fitting", "curve_fitting_export.zip",
             t("funclu.need.step1"),
         )
     else:
-        st.divider()
-        st.markdown("### " + t("funclu.overview"))
         cond_names = list(curve_sample_dict.keys())
-        data_list = [curve_sample_dict[n] for n in cond_names]
+        n_features = int(curve_sample_dict[cond_names[0]].shape[1])
+        n_timepoints = int(sum(len(df) for df in curve_sample_dict.values()))
 
-        st.markdown(
-            f"**Detected conditions ({len(cond_names)}):** "
-            + ", ".join(f"`{n}`" for n in cond_names)
+        head_col, action_col = st.columns([3, 1], vertical_alignment="center")
+        head_col.markdown(
+            f"<p class='funclu-strip'>{t('funclu.strip', n=len(cond_names), f=n_features, tp=n_timepoints)}</p>",
+            unsafe_allow_html=True,
         )
+        head_col.caption(" · ".join(cond_names))
+        with action_col.popover(t("funclu.upload.change"), use_container_width=True):
+            replacement = st.file_uploader(
+                label=t("funclu.upload.label"),
+                type=["zip"],
+                accept_multiple_files=False,
+                help=t("funclu.upload.help"),
+                key="funclu_reupload",
+                label_visibility="collapsed",
+            )
+            if replacement is not None and (
+                st.session_state.funclu_uploaded_zip_name != replacement.name
+            ):
+                _ingest_upload(replacement)
+
+        st.markdown("### " + t("funclu.overview"))
 
         try:
             model = FunClu()
-            X_list, times_list = model._prepare_data(data_list)
-        except Exception as e:
-            st.error(t("funclu.prepare_failed", error=e))
+            X_list, times_list = model._prepare_data(
+                [curve_sample_dict[n] for n in cond_names]
+            )
+        except Exception as exc:
+            st.error(t("funclu.prepare_failed", error=exc))
         else:
-            # 🌟 创建数据概览的子标签页
-            overview_tab1, overview_tab2, overview_tab3 = st.tabs([
-                t("funclu.tab.summary"), 
-                t("funclu.tab.features"), 
-                t("funclu.tab.preview")
-            ])
+            overview_tab1, overview_tab2 = st.tabs(
+                [t("funclu.tab.summary"), t("funclu.tab.detail")]
+            )
 
-            # --- 子标签页 1: Summary (核心指标与维度摘要) ---
             with overview_tab1:
                 col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric(t("funclu.metric.conditions"), model.n_conditions)
-                with col2:
-                    st.metric(t("funclu.metric.features"), model.n_features)
-                with col3:
-                    per_cond_str = ", ".join(str(d) for d in model.n_times_conditions)
-                    st.metric(
-                        t("funclu.metric.timepoints"),
-                        f"{sum(model.n_times_conditions)}",
-                        delta=f"Per condition: {per_cond_str}",
-                        delta_color="off",
-                    )
-                
+                col1.metric(t("funclu.metric.conditions"), model.n_conditions)
+                col2.metric(t("funclu.metric.features"), model.n_features)
+                per_cond_str = ", ".join(str(d) for d in model.n_times_conditions)
+                col3.metric(
+                    t("funclu.metric.timepoints"),
+                    f"{sum(model.n_times_conditions)}",
+                    delta=f"Per condition: {per_cond_str}",
+                    delta_color="off",
+                )
                 st.write("")
                 st.markdown("#### " + t("funclu.per_condition"))
                 summary_df = pd.DataFrame([
@@ -329,25 +340,18 @@ with tab1:
                 ])
                 st.dataframe(summary_df, width="stretch", hide_index=True)
 
-            # --- 子标签页 2: Common Features (共有特征列表) ---
             with overview_tab2:
                 st.markdown("#### " + t("funclu.shared_features", n=model.n_features))
                 features_df = pd.DataFrame({t("funclu.col.feature"): model.common_cols})
-                # 给 dataframe 限制一下高度，防止特征太多拉得太长
-                st.dataframe(features_df, width="stretch", hide_index=True, height=300)
+                st.dataframe(features_df, width="stretch", hide_index=True, height=220)
 
-            # --- 子标签页 3: Data Preview (数据预览) ---
-            with overview_tab3:
-                # 避免嵌套 tabs 引发 Streamlit 报错，使用 selectbox 切换查看不同的 condition 数据
-                col_sel, col_empty = st.columns([1, 2])
-                with col_sel:
-                    selected_cond = st.selectbox(
-                        t("funclu.select_condition"), 
-                        options=cond_names,
-                        key="overview_preview_select"
-                    )
-                
-                st.markdown("**" + t("funclu.preview_caption", cond=selected_cond) + "**")
+                st.markdown("#### " + t("funclu.preview.title"))
+                selected_cond = st.selectbox(
+                    t("funclu.select_condition"),
+                    options=cond_names,
+                    key="overview_preview_select",
+                )
+                st.caption(t("funclu.preview_caption", cond=selected_cond))
                 st.dataframe(
                     curve_sample_dict[selected_cond].iloc[:5, :5],
                     width="stretch",

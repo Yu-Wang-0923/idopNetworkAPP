@@ -192,3 +192,16 @@ button:focus-visible, .stPageLink a:focus-visible {
     text-decoration: underline;
     text-underline-offset: 3px;
 }
+
+/* FunClu: 数据载入后的紧凑摘要行 */
+.funclu-strip {
+    margin: .1rem 0 .2rem;
+    font-size: .92rem;
+    color: var(--workspace-ink-soft);
+}
+.funclu-strip b {
+    font-family: Georgia, "Songti SC", serif;
+    font-size: 1.2rem;
+    color: var(--workspace-ink);
+    font-weight: 600;
+}
