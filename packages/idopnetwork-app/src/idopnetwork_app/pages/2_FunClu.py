@@ -24,9 +24,6 @@ from idopnetwork.clustering.funclu import FunClu, compute_bic_scores
 from idopnetwork.curve_fitting import get_power_function_params
 from idopnetwork.clustering.plot import (
     plot_bic_elbow,
-    plot_cluster_profiles,
-    plot_cluster_profiles_per_cluster,
-    stitch_cluster_figures,
 )
 from idopnetwork_app.utils import load_css, setup_sidebar, upload_guidance
 from idopnetwork_app.i18n import t
@@ -500,142 +497,26 @@ with tab2:
                         st.dataframe(pd.DataFrame(em_cov_rows), width="stretch")
 
                     st.markdown(t("funclu.cluster_profiles"))
-                    with st.expander(t("funclu.plot_settings"), expanded=False):
-                        with st.form(key="funclu_cluster_profiles_form"):
-                            layout_col, member_col, scale_col = st.columns(3)
-                            with layout_col:
-                                em_profile_layout = st.selectbox(
-                                    t("funclu.profile_layout"),
-                                    options=["per_cluster", "combined", "k_by_l", "l_by_k"],
-                                    format_func={
-                                        "per_cluster": "Per cluster: one 4x3 figure each (funclu_v4 style)",
-                                        "combined": "Combined: conditions in one panel",
-                                        "k_by_l": "K x L: cluster rows",
-                                        "l_by_k": "L x K: condition rows",
-                                    }.get,
-                                    key="funclu_em_profile_layout",
-                                )
-                                em_n_cols = st.number_input(
-                                    t("funclu.subplot_cols"),
-                                    min_value=1,
-                                    max_value=max(em_model.n_components, 1),
-                                    value=min(3, em_model.n_components),
-                                    step=1,
-                                    key="funclu_em_ncols",
-                                    help=(
-                                        t("funclu.subplot_cols_help")
-                                    ),
-                                )
-                            with member_col:
-                                em_member_source = st.selectbox(
-                                    t("funclu.member_source"),
-                                    ["curve", "qd_df"],
-                                    index=0,
-                                    key="funclu_em_member_src",
-                                    help=(
-                                        t("funclu.member_source_help")
-                                    ),
-                                )
-                                em_show_members = st.checkbox(
-                                    t("funclu.show_members"),
-                                    value=True,
-                                    key="funclu_em_show_members",
-                                )
-                                em_show_mean = st.checkbox(
-                                    t("funclu.show_mean"),
-                                    value=True,
-                                    key="funclu_em_show_mean",
-                                )
-                                em_show_ci = st.checkbox(
-                                    t("funclu.show_ci"),
-                                    value=False,
-                                    key="funclu_em_show_ci",
-                                )
-                            with scale_col:
-                                em_use_log_y = st.checkbox(
-                                    t("funclu.log_y"),
-                                    value=False,
-                                    key="funclu_em_log_y",
-                                )
-                                em_use_log_x = st.checkbox(
-                                    t("funclu.log_x"),
-                                    value=False,
-                                    key="funclu_em_log_x",
-                                )
-                                em_show_legend = st.checkbox(
-                                    t("funclu.show_legend"),
-                                    value=True,
-                                    key="funclu_em_show_legend",
-                                )
-                            st.form_submit_button(t("funclu.apply_plot"))
+                    from idopnetwork_app.charts import funclu_html
 
-                    _profile_kwargs = dict(
-                        data_scatter=[curve_sample_dict[n] for n in em_cond_names],
-                        labels=em_labels_np,
-                        common_cols=em_model.common_cols,
-                        n_components=em_model.n_components,
-                        condition_labels=em_cond_names,
-                        member_source=em_member_source,
-                        show_members=bool(em_show_members),
-                        show_mean=bool(em_show_mean),
-                        show_mean_ci=bool(em_show_ci),
-                        use_semilogy=bool(em_use_log_y),
-                        use_log_x=bool(em_use_log_x),
-                        show_legend=bool(em_show_legend),
+                    _frames = {
+                        name: curve_sample_dict[name].loc[
+                            :, [c for c in em_model.common_cols if c in curve_sample_dict[name].columns]
+                        ]
+                        for name in em_cond_names
+                    }
+                    _panels = funclu_html.build_cluster_panels(
+                        _frames,
+                        em_labels_np,
+                        list(em_model.common_cols),
+                        em_model.n_components,
+                        show_members=True,
+                        show_ci=True,
                     )
-                    _use_html_chart = (
-                        str(em_profile_layout) == "per_cluster" and em_member_source == "curve"
-                    )
-                    if _use_html_chart:
-                        from idopnetwork_app.charts import funclu_html
-
-                        _frames = {
-                            name: curve_sample_dict[name].loc[
-                                :, [c for c in em_model.common_cols if c in curve_sample_dict[name].columns]
-                            ]
-                            for name in em_cond_names
-                        }
-                        _panels = funclu_html.build_cluster_panels(
-                            _frames,
-                            em_labels_np,
-                            list(em_model.common_cols),
-                            em_model.n_components,
-                            show_members=bool(em_show_members),
-                            show_ci=bool(em_show_ci),
-                        )
-                        _chart = funclu_html.render(
-                            _panels, conditions=list(em_cond_names)
-                        )
-                        _chart_url = "data:text/html;base64," + base64.b64encode(
-                            _chart.encode("utf-8")).decode("ascii")
-                        _cols = max(1, int(em_n_cols))
-                        _rows = max(1, -(-len(_panels) // _cols))
-                        _funclu_chart = (_chart_url, max(620, 200 + _rows * 190))
-                    elif str(em_profile_layout) == "per_cluster":
-                        # funclu_v4 风格：每簇一张 4:3 图，再按 n_cols 拼成完整网格图。
-                        # 先离屏渲染每簇、再光栅化拼接，这样每个格子都保持 4:3，
-                        # 不会被 subplots 的共享轴/图例留白重新挤压。
-                        # pyplot 局部导入而非模块级：避免在页面入口新增 matplotlib
-                        # 的模块级导入边（并发加载时易与 idopnetwork.* 形成导入竞争）。
-                        import matplotlib.pyplot as plt
-
-                        _cluster_figs = plot_cluster_profiles_per_cluster(
-                            **_profile_kwargs,
-                        )
-                        _stitched = stitch_cluster_figures(
-                            _cluster_figs, n_cols=int(em_n_cols),
-                        )
-                        for _fig in _cluster_figs:
-                            plt.close(_fig)
-                        st.pyplot(_stitched, width="stretch")
-                        plt.close(_stitched)
-                    else:
-                        plot_cluster_profiles(
-                            **_profile_kwargs,
-                            layout=str(em_profile_layout),
-                            n_cols=int(em_n_cols),
-                            show_in_streamlit=True,
-                        )
+                    _chart = funclu_html.render(_panels, conditions=list(em_cond_names))
+                    _chart_url = "data:text/html;base64," + base64.b64encode(
+                        _chart.encode("utf-8")).decode("ascii")
+                    _funclu_chart = (_chart_url, 620)
 
         # ---------- Export ----------
         with st.expander(t("funclu.tab.export"), expanded=False):
