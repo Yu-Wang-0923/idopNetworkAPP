@@ -3,6 +3,7 @@
 import io
 import zipfile
 
+import base64
 import streamlit as st
 from importlib.resources import files
 
@@ -390,6 +391,7 @@ with tab1:
 # TAB 2: FunClu-K (EM Fitting & Export)
 # =====================================================================
 with tab2:
+    _funclu_chart: tuple[str, int] | None = None
     workbench_main, workbench_side = st.columns([2.4, 1], gap="large")
     with workbench_main:
 
@@ -581,7 +583,35 @@ with tab2:
                         use_log_x=bool(em_use_log_x),
                         show_legend=bool(em_show_legend),
                     )
-                    if str(em_profile_layout) == "per_cluster":
+                    _use_html_chart = (
+                        str(em_profile_layout) == "per_cluster" and em_member_source == "curve"
+                    )
+                    if _use_html_chart:
+                        from idopnetwork_app.charts import funclu_html
+
+                        _frames = {
+                            name: curve_sample_dict[name].loc[
+                                :, [c for c in em_model.common_cols if c in curve_sample_dict[name].columns]
+                            ]
+                            for name in em_cond_names
+                        }
+                        _panels = funclu_html.build_cluster_panels(
+                            _frames,
+                            em_labels_np,
+                            list(em_model.common_cols),
+                            em_model.n_components,
+                            show_members=bool(em_show_members),
+                            show_ci=bool(em_show_ci),
+                        )
+                        _chart = funclu_html.render(
+                            _panels, conditions=list(em_cond_names)
+                        )
+                        _chart_url = "data:text/html;base64," + base64.b64encode(
+                            _chart.encode("utf-8")).decode("ascii")
+                        _cols = max(1, int(em_n_cols))
+                        _rows = max(1, -(-len(_panels) // _cols))
+                        _funclu_chart = (_chart_url, max(620, 200 + _rows * 190))
+                    elif str(em_profile_layout) == "per_cluster":
                         # funclu_v4 风格：每簇一张 4:3 图，再按 n_cols 拼成完整网格图。
                         # 先离屏渲染每簇、再光栅化拼接，这样每个格子都保持 4:3，
                         # 不会被 subplots 的共享轴/图例留白重新挤压。
@@ -647,6 +677,9 @@ with tab2:
 
     with workbench_side:
         _render_status_panel()
+
+    if _funclu_chart is not None:
+        st.iframe(_funclu_chart[0], height=_funclu_chart[1])
 # =====================================================================
 # TAB 3: FunClu-BIC
 # =====================================================================
