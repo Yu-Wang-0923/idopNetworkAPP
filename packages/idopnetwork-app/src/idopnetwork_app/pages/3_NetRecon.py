@@ -1230,6 +1230,21 @@ with tab2:
             condition_names = list(centers.keys())
             ml_algorithm = st.session_state.get("netrecon_idop_algorithm", IDOP_ALGORITHM_ASGL)
 
+            def _cluster_order(name: str) -> tuple[int, str]:
+                digits = "".join(ch for ch in str(name) if ch.isdigit())
+                return (int(digits) if digits else 10**6, str(name))
+
+            cluster_names_ml = sorted(
+                {name for cmap in members.values() for name in cmap},
+                key=_cluster_order,
+            )
+            cluster_sizes_ml: dict[str, int] = {}
+            for _cmap in members.values():
+                for _name, _frame in _cmap.items():
+                    cluster_sizes_ml[_name] = max(
+                        cluster_sizes_ml.get(_name, 0), int(_frame.shape[1])
+                    )
+
             with st.expander("Multi-Layer IdopNetwork parameter settings", expanded=True):
                 with st.form(key="netrecon_form_multilayer"):
                     mc1, mc2, mc3, mc4, mc5 = st.columns(5)
@@ -1270,6 +1285,43 @@ with tab2:
                         )
                     with mc5:
                         submit_multilayer = st.form_submit_button("Run Multi-Layer IdopNetwork")
+                    scope_col, pick_col, cap_col = st.columns([2, 3, 1])
+                    with scope_col:
+                        ml_scope = st.selectbox(
+                            "Network scope",
+                            options=["all", "inter", "intra"],
+                            format_func={
+                                "all": "All (inter + intra)",
+                                "inter": "Inter-cluster only",
+                                "intra": "Intra-cluster only",
+                            }.get,
+                            index=0,
+                            key="netrecon_ml_scope",
+                            help="Inter-cluster only is fastest; intra-cluster layers can be picked per cluster.",
+                        )
+                    with pick_col:
+                        ml_clusters = st.multiselect(
+                            "Intra-cluster networks (pick clusters)",
+                            options=cluster_names_ml,
+                            default=cluster_names_ml,
+                            format_func=lambda c: (
+                                f"{c}（{cluster_sizes_ml.get(c, 0)} 个成员）"
+                            ),
+                            key="netrecon_ml_clusters",
+                            disabled=ml_scope == "inter",
+                            help="Used when the scope includes intra-cluster layers.",
+                        )
+                    with cap_col:
+                        ml_member_cap = st.number_input(
+                            "Member cap per cluster (0 = no limit)",
+                            min_value=0,
+                            max_value=50000,
+                            value=0,
+                            step=100,
+                            key="netrecon_ml_member_cap",
+                            disabled=ml_scope == "inter",
+                            help="Clusters with more members than this are skipped to avoid huge fits.",
+                        )
 
             if submit_multilayer:
                 params = {
@@ -1315,9 +1367,39 @@ with tab2:
                 inter_cluster: dict[str, dict] = {}
                 intra_cluster: dict[str, dict[str, dict]] = {}
                 skipped: list[dict[str, str | int]] = []
-                total_jobs = len(condition_names) + sum(
-                    len(cluster_map) for cluster_map in members.values()
-                )
+                selected_clusters = set(ml_clusters)
+                build_inter = ml_scope in {"all", "inter"}
+                build_intra = ml_scope in {"all", "intra"}
+                member_cap = int(ml_member_cap)
+
+                def _selected_members(cond_name: str) -> dict:
+                    return {
+                        name: frame
+                        for name, frame in members.get(cond_name, {}).items()
+                        if name in selected_clusters
+                        and frame.shape[1] >= 2
+                        and (member_cap <= 0 or frame.shape[1] <= member_cap)
+                    }
+
+                if build_intra and member_cap > 0:
+                    for _cond in condition_names:
+                        for _name, _frame in members.get(_cond, {}).items():
+                            if _name in selected_clusters and _frame.shape[1] > member_cap:
+                                skipped.append(
+                                    {
+                                        "layer": "intra_cluster",
+                                        "condition": _cond,
+                                        "cluster": _name,
+                                        "n_nodes": int(_frame.shape[1]),
+                                        "reason": f"n_nodes exceeds member cap ({member_cap})",
+                                    }
+                                )
+
+                total_jobs = 0
+                if build_inter:
+                    total_jobs += len(condition_names)
+                if build_intra:
+                    total_jobs += sum(len(_selected_members(c)) for c in condition_names)
                 total_jobs = max(total_jobs, 1)
                 completed_jobs = 0
 
@@ -1337,73 +1419,61 @@ with tab2:
                         for cond_name in condition_names:
                             center_df = centers[cond_name]
                             if cond_name not in center_responses:
-                                skipped.append(
-                                    {
-                                        "layer": "condition",
-                                        "condition": cond_name,
-                                        "cluster": "",
-                                        "n_nodes": int(center_df.shape[1]),
-                                        "reason": (
-                                            "missing cluster_center_quasi_dynamic "
-                                            "in FunClu-K export"
-                                        ),
-                                    }
-                                )
-                                completed_jobs += 1 + len(members.get(cond_name, {}))
-                                _update_multilayer_progress(
-                                    f"Skipped condition `{cond_name}`: missing center response."
-                                )
-                                continue
-                            center_response_df = center_responses[cond_name]
-                            _update_multilayer_progress(
-                                f"Building inter-cluster network: `{cond_name}`..."
-                            )
-                            try:
-                                inter_cluster[cond_name] = _fit_idop_network_from_curve_sample(
-                                    center_df,
-                                    center_response_df,
-                                    **params,
-                                    power_function_params=get_power_function_params(
-                                        center_response_df
-                                    ),
-                                )
-                            except Exception as e:
-                                skipped.append(
-                                    {
-                                        "layer": "inter_cluster",
-                                        "condition": cond_name,
-                                        "cluster": "",
-                                        "n_nodes": int(center_df.shape[1]),
-                                        "reason": str(e),
-                                    }
-                                )
-                            completed_jobs += 1
-                            _update_multilayer_progress(
-                                f"Finished inter-cluster network: `{cond_name}`."
-                            )
-
-                            intra_cluster[cond_name] = {}
-                            for cluster_name, member_df in members.get(cond_name, {}).items():
-                                _update_multilayer_progress(
-                                    "Building intra-cluster network: "
-                                    f"`{cond_name}` / `{cluster_name}`..."
-                                )
-                                if member_df.shape[1] < 2:
+                                if build_inter:
                                     skipped.append(
                                         {
-                                            "layer": "intra_cluster",
+                                            "layer": "condition",
                                             "condition": cond_name,
-                                            "cluster": cluster_name,
-                                            "n_nodes": int(member_df.shape[1]),
-                                            "reason": "less than 2 member curves",
+                                            "cluster": "",
+                                            "n_nodes": int(center_df.shape[1]),
+                                            "reason": (
+                                                "missing cluster_center_quasi_dynamic "
+                                                "in FunClu-K export"
+                                            ),
                                         }
                                     )
                                     completed_jobs += 1
                                     _update_multilayer_progress(
-                                        "Skipped intra-cluster network: "
-                                        f"`{cond_name}` / `{cluster_name}`."
+                                        f"Skipped condition `{cond_name}`: missing center response."
                                     )
-                                    continue
+                                continue
+                            center_response_df = center_responses[cond_name]
+                            if build_inter:
+                                _update_multilayer_progress(
+                                    f"Building inter-cluster network: `{cond_name}`..."
+                                )
+                                try:
+                                    inter_cluster[cond_name] = _fit_idop_network_from_curve_sample(
+                                        center_df,
+                                        center_response_df,
+                                        **params,
+                                        power_function_params=get_power_function_params(
+                                            center_response_df
+                                        ),
+                                    )
+                                except Exception as e:
+                                    skipped.append(
+                                        {
+                                            "layer": "inter_cluster",
+                                            "condition": cond_name,
+                                            "cluster": "",
+                                            "n_nodes": int(center_df.shape[1]),
+                                            "reason": str(e),
+                                        }
+                                    )
+                                completed_jobs += 1
+                                _update_multilayer_progress(
+                                    f"Finished inter-cluster network: `{cond_name}`."
+                                )
+
+                            if not build_intra:
+                                continue
+                            intra_cluster[cond_name] = {}
+                            for cluster_name, member_df in _selected_members(cond_name).items():
+                                _update_multilayer_progress(
+                                    "Building intra-cluster network: "
+                                    f"`{cond_name}` / `{cluster_name}`..."
+                                )
                                 try:
                                     member_response_df = member_responses.get(
                                         cond_name, {}
@@ -1443,6 +1513,11 @@ with tab2:
                 else:
                     st.session_state.netrecon_multilayer_result = {
                         "params": params,
+                        "scope": {
+                            "layers": ml_scope,
+                            "clusters": sorted(selected_clusters, key=_cluster_order),
+                            "member_cap": member_cap,
+                        },
                         "inter_cluster": inter_cluster,
                         "intra_cluster": intra_cluster,
                         "skipped": skipped,
