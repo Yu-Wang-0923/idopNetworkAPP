@@ -1228,7 +1228,14 @@ with tab2:
             st.info("Waiting for data upload...")
         else:
             condition_names = list(centers.keys())
-            ml_algorithm = st.session_state.get("netrecon_idop_algorithm", IDOP_ALGORITHM_ASGL)
+            _ml_algorithms = [
+                IDOP_ALGORITHM_ASGL,
+                IDOP_ALGORITHM_STATIC,
+                IDOP_ALGORITHM_DYNAMIC,
+            ]
+            _ml_default = st.session_state.get(
+                "netrecon_idop_algorithm", IDOP_ALGORITHM_ASGL
+            )
 
             def _cluster_order(name: str) -> tuple[int, str]:
                 digits = "".join(ch for ch in str(name) if ch.isdigit())
@@ -1246,6 +1253,14 @@ with tab2:
                     )
 
             with st.expander("Multi-Layer IdopNetwork parameter settings", expanded=True):
+                ml_algorithm = st.radio(
+                    "建网算法 / Construction algorithm（多层）",
+                    options=_ml_algorithms,
+                    index=_ml_algorithms.index(_ml_default),
+                    format_func=lambda key: IDOP_ALGORITHM_LABELS.get(key, key),
+                    horizontal=True,
+                    key="netrecon_ml_algorithm",
+                )
                 with st.form(key="netrecon_form_multilayer"):
                     mc1, mc2, mc3, mc4, mc5 = st.columns(5)
                     with mc1:
@@ -1322,6 +1337,45 @@ with tab2:
                             disabled=ml_scope == "inter",
                             help="Clusters with more members than this are skipped to avoid huge fits.",
                         )
+                    if ml_algorithm == IDOP_ALGORITHM_STATIC:
+                        st.markdown("**LASSO + ODE 参数（多层）**")
+                        lc1, lc2, lc3 = st.columns(3)
+                        with lc1:
+                            ml_lasso_alpha = st.number_input(
+                                "LASSO alpha",
+                                min_value=1e-6,
+                                max_value=10.0,
+                                value=float(st.session_state.get("netrecon_lasso_alpha", 0.1)),
+                                step=0.01,
+                                format="%.4f",
+                                key="netrecon_ml_lasso_alpha",
+                                help="LASSO 正则强度；越大选出的边越少。",
+                            )
+                        with lc2:
+                            ml_lasso_windows = st.number_input(
+                                "LASSO windows (k)",
+                                min_value=1,
+                                max_value=50,
+                                value=int(st.session_state.get("netrecon_lasso_k", 1)),
+                                step=1,
+                                key="netrecon_ml_lasso_windows",
+                                help="把样本切成多少个窗口分别做 LASSO；k=1 即全样本一次。",
+                            )
+                        with lc3:
+                            ml_lasso_threshold = st.number_input(
+                                "Support threshold",
+                                min_value=0.0,
+                                max_value=1.0,
+                                value=float(st.session_state.get("netrecon_lasso_threshold", 0.5)),
+                                step=0.05,
+                                format="%.2f",
+                                key="netrecon_ml_lasso_threshold",
+                                help="source 需在超过该比例的窗口中非零，才进入该 target 的支撑集。",
+                            )
+                    elif ml_algorithm == IDOP_ALGORITHM_DYNAMIC:
+                        st.caption(
+                            "idopECG(4)：动态路线沿用单层设置里的 Fourier 阶数 / 滑窗点数 / 采样率与 LASSO 参数。"
+                        )
 
             if submit_multilayer:
                 params = {
@@ -1329,21 +1383,22 @@ with tab2:
                     "nonneg_self": bool(ml_nonneg_self),
                     "max_interactions": int(ml_top_k),
                     "adjacency_aggregation": str(ml_adjacency_aggregation),
-                    # 多层建网沿用单层表单里选的算法与 LASSO 参数
-                    # （两个 tab 每轮都会渲染，故这些 widget key 一定存在）
-                    "algorithm": str(
-                        st.session_state.get(
-                            "netrecon_idop_algorithm", IDOP_ALGORITHM_ASGL
-                        )
-                    ),
+                    # 多层建网使用本面板自己的算法；非静态路线再沿用单层 LASSO 参数
+                    "algorithm": str(ml_algorithm),
                     "lasso_alpha": float(
-                        st.session_state.get("netrecon_lasso_alpha", 0.1)
+                        ml_lasso_alpha
+                        if ml_algorithm == IDOP_ALGORITHM_STATIC
+                        else st.session_state.get("netrecon_lasso_alpha", 0.1)
                     ),
                     "lasso_windows": int(
-                        st.session_state.get("netrecon_lasso_k", 1)
+                        ml_lasso_windows
+                        if ml_algorithm == IDOP_ALGORITHM_STATIC
+                        else st.session_state.get("netrecon_lasso_k", 1)
                     ),
                     "lasso_threshold": float(
-                        st.session_state.get("netrecon_lasso_threshold", 0.5)
+                        ml_lasso_threshold
+                        if ml_algorithm == IDOP_ALGORITHM_STATIC
+                        else st.session_state.get("netrecon_lasso_threshold", 0.5)
                     ),
                     # 动态求解器参数（同为单层表单里的 widget）
                     "n_fourier": int(
