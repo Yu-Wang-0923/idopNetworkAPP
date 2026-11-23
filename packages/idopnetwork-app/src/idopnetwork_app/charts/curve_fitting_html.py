@@ -55,6 +55,10 @@ TEMPLATE = r"""<!DOCTYPE html>
   .figure svg{width:100%;height:auto;max-width:100%}
   #feature-list{max-height:150px;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px}
   .feat{display:flex;align-items:center;gap:5px;font-size:.72rem;color:#374e69}
+  .mini{border:1px solid #bacde3;border-radius:4px;background:#fff;color:#1c304b;
+        padding:0 6px;font-size:.8rem;line-height:1.5;cursor:pointer}
+  .mini:disabled{opacity:.4;cursor:default}
+  #featinfo{font-variant-numeric:tabular-nums;min-width:44px;text-align:center}
   #stage{position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none}
   .meta{margin-top:8px;color:#4a5f7d;font-size:.71rem}
   .note{margin-top:9px;padding:7px 9px;border-left:2px solid #245db4;background:#f1f6fd;
@@ -70,6 +74,11 @@ TEMPLATE = r"""<!DOCTYPE html>
     <details open>
       <summary>特征</summary>
       <div class="body" id="feature-list"></div>
+      <div class="row"><span>绘图分页</span><span class="pair">
+        <button type="button" id="featprev" class="mini">‹</button>
+        <span id="featinfo">1 / 1</span>
+        <button type="button" id="featnext" class="mini">›</button>
+      </span></div>
     </details>
 
     <details open>
@@ -230,7 +239,11 @@ function buildSvg() {
   const W = pad.l + pad.r + s.cols * cellW + (s.cols - 1) * gapX;
   const H = pad.t + pad.b + s.rows * cellH + (s.rows - 1) * gapY + titleRoom;
 
-  const cells = DATA.panels.filter(p => active.has(p.name)).slice(0, s.rows * s.cols);
+  const checked = DATA.panels.filter(p => active.has(p.name));
+  const perPage = Math.max(1, s.rows * s.cols);
+  const maxPage = Math.max(1, Math.ceil(checked.length / perPage));
+  if (featPage > maxPage - 1) featPage = maxPage - 1;
+  const cells = checked.slice(featPage * perPage, (featPage + 1) * perPage);
 
   const seriesOf = p => p.series && p.series.length ? p.series : [{
     label: null, xs: p.xs, ys: p.ys, curveX: p.curveX, curveY: p.curveY,
@@ -420,6 +433,7 @@ function render() {
     `子图 ${(built.cellW / PT_PER_MM).toFixed(0)} × ${(built.cellH / PT_PER_MM).toFixed(0)} mm · ` +
     `显示 ${built.shown} / ${DATA.panels.length} 个特征 · ${W.toFixed(0)} × ${H.toFixed(0)} pt · ` +
     (s.autocrop ? "自适应留白" : "固定留白");
+  updatePager();
 }
 
 ["cellw", "cellh", "gapx", "gapy", "rows", "cols", "xnt", "ynt", "sharey",
@@ -487,6 +501,7 @@ if (DATA.series && DATA.series.length) {
 }
 
 const active = new Set(DATA.panels.map(p => p.name));
+let featPage = 0;
 const featureList = document.getElementById("feature-list");
 DATA.panels.forEach(p => {
   const row = document.createElement("label");
@@ -496,6 +511,7 @@ DATA.panels.forEach(p => {
   box.checked = true;
   box.addEventListener("change", () => {
     if (box.checked) active.add(p.name); else active.delete(p.name);
+    featPage = 0;
     render();
   });
   const span = document.createElement("span");
@@ -503,6 +519,18 @@ DATA.panels.forEach(p => {
   row.append(box, span);
   featureList.appendChild(row);
 });
+
+function updatePager() {
+  const s = settings();
+  const per = Math.max(1, s.rows * s.cols);
+  const checked = DATA.panels.filter(p => active.has(p.name));
+  const maxPage = Math.max(1, Math.ceil(checked.length / per));
+  $("featinfo").textContent = `${Math.min(featPage + 1, maxPage)} / ${maxPage}`;
+  $("featprev").disabled = featPage <= 0;
+  $("featnext").disabled = featPage >= maxPage - 1;
+}
+$("featprev").onclick = () => { if (featPage > 0) { featPage -= 1; render(); } };
+$("featnext").onclick = () => { featPage += 1; render(); };
 
 render();
 </script>

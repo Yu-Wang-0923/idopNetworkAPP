@@ -234,7 +234,26 @@ with plot_tab:
         # is configured there; the page only decides which features are drawn.
         nrow, ncol = 3, 4
         per_page = 12
-    features = list(quasi.columns)
+    all_features = list(quasi.columns)
+    window = 48
+    if len(all_features) > window:
+        search_col, page_col = st.columns([2.2, 1], vertical_alignment="bottom")
+        query = search_col.text_input(
+            "搜索特征（名称包含，留空为全部）", key="fit_feature_search"
+        ).strip().lower()
+        matched = [c for c in all_features if query in c.lower()] if query else all_features
+        pages = max(1, -(-len(matched) // window))
+        page_no = page_col.selectbox(
+            f"特征分页（每页 {window} 个）", range(1, pages + 1),
+            key=f"fit_feature_page_{pages}_{len(matched)}",
+        )
+        features = matched[(page_no - 1) * window:page_no * window]
+        st.caption(
+            f"匹配 {len(matched)} / {len(all_features)} 个特征；本次只加载当前页的 "
+            f"{len(features)} 个，绘图组件内还可按网格分页浏览。"
+        )
+    else:
+        features = all_features
     if is_dynamic:
         from idopnetwork_app.ecg_visualization import render_ecg_fitting
         render_ecg_fitting(quasi, samples, features=features[:per_page], key=f"swt_{selected}",
@@ -256,7 +275,16 @@ for tab, table, suffix in (
     (quasi_tab, quasi, "quasidynamic"),
 ):
     with tab:
-        st.dataframe(table, width="stretch")
+        max_rows, max_cols = 200, 60
+        if table.shape[0] > max_rows or table.shape[1] > max_cols:
+            st.dataframe(table.iloc[:max_rows, :max_cols], width="stretch")
+            st.caption(
+                f"表格预览仅显示前 {min(max_rows, table.shape[0])} 行 × "
+                f"{min(max_cols, table.shape[1])} 列（共 {table.shape[0]} 行 × {table.shape[1]} 列）；"
+                "完整数据请用下方下载。"
+            )
+        else:
+            st.dataframe(table, width="stretch")
         st.download_button(f"Download {suffix}.csv", table.to_csv(index=True),
                            file_name=f"{selected.rsplit('.', 1)[0]}_{suffix}.csv",
                            mime="text/csv", key=f"download_{suffix}")
