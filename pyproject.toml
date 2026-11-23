@@ -16,3 +16,6 @@ name = "idopnetwork-monorepo"
 version = "0.1.0"
 description = "idopNetwork monorepo — packages/idopnetwork + packages/idopnetwork-app"
 requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

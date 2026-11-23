@@ -7,6 +7,8 @@ condition contributes member curves and a mean curve.
 """
 from __future__ import annotations
 
+import base64
+import gzip
 import json
 import math
 from typing import Any, Iterable
@@ -130,6 +132,10 @@ TEMPLATE = r"""<!DOCTYPE html>
   .figure svg{width:100%;height:auto;max-width:100%}
   #feature-list{max-height:150px;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px}
   .feat{display:flex;align-items:center;gap:5px;font-size:.72rem;color:#374e69}
+  .mini{border:1px solid #bacde3;border-radius:4px;background:#fff;color:#1c304b;
+        padding:0 6px;font-size:.8rem;line-height:1.5;cursor:pointer}
+  .mini:disabled{opacity:.4;cursor:default}
+  #clinfo{font-variant-numeric:tabular-nums;min-width:44px;text-align:center}
   #stage{position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none}
   .meta{margin-top:8px;color:#4a5f7d;font-size:.71rem}
   .note{margin-top:9px;padding:7px 9px;border-left:2px solid #245db4;background:#f1f6fd;
@@ -158,6 +164,11 @@ TEMPLATE = r"""<!DOCTYPE html>
     <details open>
       <summary>簇</summary>
       <div class="body" id="cluster-list"></div>
+      <div class="row" id="clpager"><span>绘图分页</span><span class="pair">
+        <button type="button" id="clprev" class="mini">‹</button>
+        <span id="clinfo">1 / 1</span>
+        <button type="button" id="clnext" class="mini">›</button>
+      </span></div>
     </details>
 
     <details open>
@@ -246,7 +257,24 @@ TEMPLATE = r"""<!DOCTYPE html>
   </main>
 </div>
 <script>
-const DATA = __DATA__;
+let DATA = null;
+let active = null;
+let clusterPage = 0;
+async function loadData() {
+  const packed = "__DATA_B64__";
+  const raw = Uint8Array.from(atob(packed), c => c.charCodeAt(0));
+  let text;
+  if (typeof DecompressionStream === "function") {
+    const stream = new Blob([raw]).stream().pipeThrough(new DecompressionStream("gzip"));
+    text = await new Response(stream).text();
+  } else {
+    document.body.innerHTML =
+      '<p style="font:14px/1.5 sans-serif;color:#8a3b3b;padding:16px">' +
+      'This browser cannot decompress the chart payload (need Chrome/Edge 80+ or Firefox 113+).</p>';
+    return null;
+  }
+  return JSON.parse(text);
+}
 const NS = "http://www.w3.org/2000/svg";
 const PT_PER_MM = 72 / 25.4;
 const el = (n, a = {}) => { const e = document.createElementNS(NS, n);
@@ -330,11 +358,15 @@ function buildSvg() {
   const H = pad.t + pad.b + effRows * cellH + (effRows - 1) * gapY + titleRoom;
 
   const pick = (p, cond) => (p.series || []).find(ser => ser.label === cond) || null;
-  const cells = s.layout === "col"
+  const perPage = Math.max(1, effRows * effCols);
+const maxPage = Math.max(1, Math.ceil(visible.length / perPage));
+if (clusterPage > maxPage - 1) clusterPage = maxPage - 1;
+const pageCells = visible.slice(clusterPage * perPage, (clusterPage + 1) * perPage);
+const cells = s.layout === "col"
     ? conditions.flatMap(cond => visible.map(p => ({p, cond, series: [pick(p, cond)].filter(Boolean)})))
     : s.layout === "row"
       ? visible.flatMap(p => conditions.map(cond => ({p, cond, series: [pick(p, cond)].filter(Boolean)})))
-      : visible.slice(0, effRows * effCols).map(p => ({p, cond: null, series: p.series || []}));
+      : pageCells.map(p => ({p, cond: null, series: p.series || []}));
   const lastRow = Math.max(0, Math.ceil(cells.length / effCols) - 1);
 
   let xlo = Infinity, xhi = -Infinity, shared = [Infinity, -Infinity];
@@ -528,6 +560,13 @@ function render() {
   const W = tight ? tight.W : built.W;
   const H = tight ? tight.H : built.H;
   $("figure").replaceChildren(built.svg);
+  const perNow = Math.max(1, settings().rows * settings().cols);
+  const checkedNow = DATA.panels.filter(p => active.has(p.name)).length;
+  const pagesNow = Math.max(1, Math.ceil(checkedNow / perNow));
+  $("clinfo").textContent = `${Math.min(clusterPage + 1, pagesNow)} / ${pagesNow}`;
+  $("clpager").style.display = settings().layout === "grid" ? "" : "none";
+  $("clprev").disabled = clusterPage <= 0;
+  $("clnext").disabled = clusterPage >= pagesNow - 1;
   $("meta").textContent =
     `画布 ${(W / PT_PER_MM).toFixed(0)} × ${(H / PT_PER_MM).toFixed(0)} mm · ` +
     `子图 ${(built.cellW / PT_PER_MM).toFixed(0)} × ${(built.cellH / PT_PER_MM).toFixed(0)} mm · ` +
@@ -580,6 +619,9 @@ $("png").onclick = () => {
   img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(text);
 };
 
+async function boot() {
+  DATA = await loadData();
+  if (!DATA) return;
 const legend = document.getElementById("legend");
 if (DATA.series && DATA.series.length) {
   DATA.series.forEach(entry => {
@@ -599,8 +641,7 @@ if (DATA.series && DATA.series.length) {
 } else {
   legend.remove();
 }
-
-const active = new Set(DATA.panels.map(p => p.name));
+active = new Set(DATA.panels.map(p => p.name));
 const featureList = document.getElementById("cluster-list");
 DATA.panels.forEach(p => {
   const row = document.createElement("label");
@@ -610,6 +651,7 @@ DATA.panels.forEach(p => {
   box.checked = true;
   box.addEventListener("change", () => {
     if (box.checked) active.add(p.name); else active.delete(p.name);
+    clusterPage = 0;
     render();
   });
   const span = document.createElement("span");
@@ -618,7 +660,11 @@ DATA.panels.forEach(p => {
   featureList.appendChild(row);
 });
 
-render();
+  $("clprev").onclick = () => { if (clusterPage > 0) { clusterPage -= 1; render(); } };
+  $("clnext").onclick = () => { clusterPage += 1; render(); };
+  render();
+}
+boot();
 </script>
 </body>
 </html>
@@ -639,11 +685,10 @@ def render(
         color = CONDITION_COLORS[i % len(CONDITION_COLORS)][0]
         legend.append({"label": str(cond), "dcolor": color, "ccolor": color})
     payload = {"panels": panels, "series": legend, "conditions": [str(c) for c in conditions]}
-    html = TEMPLATE.replace("__DATA__", json.dumps(payload, ensure_ascii=False))
+    raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    packed = base64.b64encode(gzip.compress(raw, compresslevel=6)).decode("ascii")
+    html = TEMPLATE.replace("__DATA_B64__", packed)
     cols = max(1, min(6, int(cols)))
-    rows = max(1, -(-len(panels) // cols))
     html = html.replace('id="cols" type="number" min="1" max="6" value="2"',
                         f'id="cols" type="number" min="1" max="6" value="{cols}"')
-    html = html.replace('id="rows" type="number" min="1" max="10" value="2"',
-                        f'id="rows" type="number" min="1" max="10" value="{rows}"')
     return html
