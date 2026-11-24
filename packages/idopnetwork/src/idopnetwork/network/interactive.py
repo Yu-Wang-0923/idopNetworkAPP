@@ -81,9 +81,6 @@ import matplotlib.pyplot as plt
 
 N_CENTER_HUBS = 3
 
-LAYOUT_METRIC = "weighted_out_abs"
-
-
 CENTER_HUB_RADIUS = 2.70
 
 FIRST_NONHUB_RING_RADIUS = 6.50
@@ -861,83 +858,17 @@ def _build_ring_layout(
     )
 
 
-    # -------------------------------------------------------------
-    # 与单细胞图一致：
-    # weighted out-degree 最大的节点优先进入中心/内圈
-    # -------------------------------------------------------------
-
-    nonzero_df = (
-
-        work.loc[
-            work[
-                "weighted_out_abs"
-            ]
-            >
-            0
-        ]
-
-        .copy()
-
-        .sort_values(
-
-            [
-                "weighted_out_abs",
-                "out_degree",
-                "total_degree",
-            ],
-
-            ascending=[
-                False,
-                False,
-                False,
-            ]
-        )
+    # 按出度分配中心和内圈。同出度时保持 modules 的顺序。
+    has_outgoing = work["out_degree"] > 0
+    ranked_nodes = (
+        work.loc[has_outgoing]
+        .sort_values("out_degree", ascending=False, kind="stable")
+        .index.tolist()
     )
-
-
-    hub_nodes = (
-
-        nonzero_df
-
-        .head(
-            N_CENTER_HUBS
-        )
-
-        .index
-        .astype(str)
-        .tolist()
-    )
-
-
-    remaining_nonzero = [
-
-        node
-
-        for node in (
-            nonzero_df
-            .index
-            .astype(str)
-            .tolist()
-        )
-
-        if node not in hub_nodes
-    ]
-
-
-    zero_nodes = (
-
-        work.loc[
-            work[
-                "weighted_out_abs"
-            ]
-            <=
-            0
-        ]
-
-        .index
-        .astype(str)
-        .tolist()
-    )
+    hub_nodes = ranked_nodes[:N_CENTER_HUBS]
+    hub_ranks = {node: rank for rank, node in enumerate(hub_nodes, start=1)}
+    remaining_nonzero = ranked_nodes[N_CENTER_HUBS:]
+    zero_nodes = work.index[~has_outgoing].tolist()
 
 
     rng = np.random.default_rng(
@@ -1331,11 +1262,10 @@ def _build_ring_layout(
                     ),
 
                 "is_hub":
-                    bool(
-                        module
-                        in
-                        hub_nodes
-                    ),
+                    module in hub_ranks,
+
+                "hub_rank":
+                    hub_ranks.get(module, pd.NA),
 
                 "weighted_out_abs":
                     float(
@@ -1356,9 +1286,9 @@ def _build_ring_layout(
         )
 
 
-    return pd.DataFrame(
-        rows
-    )
+    layout = pd.DataFrame(rows)
+    layout["hub_rank"] = layout["hub_rank"].astype("Int64")
+    return layout
 
 
 def _edge_width_levels(
