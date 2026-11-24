@@ -509,7 +509,7 @@ with tab2:
                         # 浏览器 data: URL 上限约 2 MB；超限时自动减少成员曲线条数再打包
                         _member_cap = 40
                         _chart_url = ""
-                        for _attempt in range(3):
+                        for _attempt in range(4):
                             _panels = funclu_html.build_cluster_panels(
                                 _frames,
                                 em_labels_np,
@@ -524,9 +524,9 @@ with tab2:
                             )
                             _chart_url = "data:text/html;base64," + base64.b64encode(
                                 _chart.encode("utf-8")).decode("ascii")
-                            if len(_chart_url) <= 1_500_000:
+                            if len(_chart_url) <= 1_700_000:
                                 break
-                            _member_cap = max(3, _member_cap // 4)
+                            _member_cap = max(5, _member_cap // 2)
                     except Exception as _chart_exc:  # noqa: BLE001 - surface to the UI
                         st.error(f"簇轮廓图生成失败 / chart build failed: {_chart_exc}")
                         _funclu_chart = None

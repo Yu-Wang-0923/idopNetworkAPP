@@ -7,8 +7,6 @@ condition contributes member curves and a mean curve.
 """
 from __future__ import annotations
 
-import base64
-import gzip
 import json
 import math
 from typing import Any, Iterable
@@ -260,21 +258,6 @@ TEMPLATE = r"""<!DOCTYPE html>
 let DATA = null;
 let active = null;
 let clusterPage = 0;
-async function loadData() {
-  const packed = "__DATA_B64__";
-  const raw = Uint8Array.from(atob(packed), c => c.charCodeAt(0));
-  let text;
-  if (typeof DecompressionStream === "function") {
-    const stream = new Blob([raw]).stream().pipeThrough(new DecompressionStream("gzip"));
-    text = await new Response(stream).text();
-  } else {
-    document.body.innerHTML =
-      '<p style="font:14px/1.5 sans-serif;color:#8a3b3b;padding:16px">' +
-      'This browser cannot decompress the chart payload (need Chrome/Edge 80+ or Firefox 113+).</p>';
-    return null;
-  }
-  return JSON.parse(text);
-}
 const NS = "http://www.w3.org/2000/svg";
 const PT_PER_MM = 72 / 25.4;
 const el = (n, a = {}) => { const e = document.createElementNS(NS, n);
@@ -620,14 +603,7 @@ $("png").onclick = () => {
 };
 
 async function boot() {
-  try {
-    DATA = await loadData();
-  } catch (err) {
-    document.body.innerHTML =
-      '<p style="font:14px/1.5 sans-serif;color:#8a3b3b;padding:16px">' +
-      'Chart payload could not be decoded: ' + String(err) + '</p>';
-    return;
-  }
+  DATA = __DATA__;
   if (!DATA) return;
 const legend = document.getElementById("legend");
 if (DATA.series && DATA.series.length) {
@@ -692,9 +668,9 @@ def render(
         color = CONDITION_COLORS[i % len(CONDITION_COLORS)][0]
         legend.append({"label": str(cond), "dcolor": color, "ccolor": color})
     payload = {"panels": panels, "series": legend, "conditions": [str(c) for c in conditions]}
-    raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    packed = base64.b64encode(gzip.compress(raw, compresslevel=6)).decode("ascii")
-    html = TEMPLATE.replace("__DATA_B64__", packed)
+    # Inline JSON keeps the iframe sandbox-friendly (no Blob/stream APIs needed).
+    data_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace("<", "\\u003c")
+    html = TEMPLATE.replace("__DATA__", data_json)
     cols = max(1, min(6, int(cols)))
     html = html.replace('id="cols" type="number" min="1" max="6" value="2"',
                         f'id="cols" type="number" min="1" max="6" value="{cols}"')
