@@ -1,4 +1,4 @@
-"""按论文 Figure 7 绘制 IDOP 两层网络的对照矩阵。
+"""绘制 IDOP 多层网总图。
 
 输入是 NetRecon 的 Multi-Layer 导出 ZIP 或同结构的解压目录。每列一个
 条件，第一行是模块间网络，后续每行是同一模块的内部网络。每个面板的
@@ -200,18 +200,17 @@ def _draw_node_labels(ax, layout, diameters):
         occupied.append(box)
 
 
-def plot_multilayer(
+def build_multilayer_figure(
     inter_cluster: Mapping[str, pd.DataFrame],
     intra_cluster: Mapping[str, Mapping[str, pd.DataFrame]],
-    output_path: str | Path,
     *,
     conditions: Sequence[str] | None = None,
     modules: Sequence[str] | None = None,
     title: str = "Two-layer IDOP network",
     max_edges_per_panel: int | None = None,
     curvature_scale: float = DEFAULT_EDGE_CURVATURE_SCALE,
-) -> Path:
-    """绘制模块间网络与模块内子网的条件对照图，导出 PNG、SVG 或 PDF。"""
+) -> Figure:
+    """生成模块间网络与模块内子网的条件对照图。"""
     available = list(dict.fromkeys([*inter_cluster, *intra_cluster]))
     columns = list(conditions) if conditions is not None else available
     if not columns or len(columns) != len(set(columns)) or set(columns) - set(available):
@@ -238,17 +237,13 @@ def plot_multilayer(
     if len(rows) != len(set(rows)) or set(rows) - module_names:
         raise ValueError(f"模块须互不重复且来自输入。可用模块：{', '.join(idop.sort_modules(module_names))}")
 
-    path = Path(output_path)
-    if path.suffix.lower() not in {".png", ".svg", ".pdf"}:
-        raise ValueError("输出文件扩展名须为 .png、.svg 或 .pdf。")
-
     panel_size = 1.8
     row_keys = [None, *rows]
     width = 0.96 + panel_size * len(columns)
     height = 1.15 + panel_size * len(row_keys)
     fonts = {font.name for font in fontManager.ttflist}
     cjk = next((name for name in ("Microsoft YaHei", "Noto Sans CJK SC", "SimHei") if name in fonts), None)
-    with mpl.rc_context({"font.family": ["DejaVu Sans"] + ([cjk] if cjk else []), "pdf.fonttype": 42}):
+    with mpl.rc_context({"font.family": ["DejaVu Sans"] + ([cjk] if cjk else [])}):
         figure = Figure(figsize=(width, height), facecolor="white")
         FigureCanvasAgg(figure)
         grid = figure.add_gridspec(
@@ -303,7 +298,30 @@ def plot_multilayer(
         ]
         figure.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 0.04 / height),
                       ncol=2, fontsize=8, frameon=False)
-        path.parent.mkdir(parents=True, exist_ok=True)
+    return figure
+
+
+def plot_multilayer(
+    inter_cluster: Mapping[str, pd.DataFrame],
+    intra_cluster: Mapping[str, Mapping[str, pd.DataFrame]],
+    output_path: str | Path,
+    *,
+    conditions: Sequence[str] | None = None,
+    modules: Sequence[str] | None = None,
+    title: str = "Two-layer IDOP network",
+    max_edges_per_panel: int | None = None,
+    curvature_scale: float = DEFAULT_EDGE_CURVATURE_SCALE,
+) -> Path:
+    """绘制并导出模块间网络与模块内子网的条件对照图。"""
+    path = Path(output_path)
+    if path.suffix.lower() not in {".png", ".svg", ".pdf"}:
+        raise ValueError("输出文件扩展名须为 .png、.svg 或 .pdf。")
+    figure = build_multilayer_figure(
+        inter_cluster, intra_cluster, conditions=conditions, modules=modules,
+        title=title, max_edges_per_panel=max_edges_per_panel, curvature_scale=curvature_scale,
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with mpl.rc_context({"pdf.fonttype": 42}):
         figure.savefig(path, dpi=240, facecolor="white")
     return path
 
@@ -403,7 +421,7 @@ def main():
         create_selector_window().mainloop()
         return
 
-    parser = argparse.ArgumentParser(description="绘制 Figure 7 式的两层 IDOP 网络矩阵。")
+    parser = argparse.ArgumentParser(description="绘制 IDOP 多层网总图。")
     parser.add_argument("input", type=Path, help="NetRecon 多层导出 ZIP 或解压目录。不传时打开选模块窗口")
     parser.add_argument("--out", type=Path, default=Path("idop_multilayer.png"))
     parser.add_argument("--conditions", nargs="+", help="选择并排序条件列")

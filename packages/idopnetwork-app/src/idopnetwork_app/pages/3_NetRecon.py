@@ -105,6 +105,7 @@ from idopnetwork.network.plot import (
 )
 from idopnetwork_app.utils import font_prop, load_css, setup_sidebar, upload_guidance
 from idopnetwork_app.i18n import t
+from idopnetwork_app.multilayer_workflow import render_multilayer_overview
 
 import streamlit.components.v1 as components
 
@@ -1126,6 +1127,7 @@ with tab2:
         and st.session_state.netrecon_funclu_uploaded_zip_name
         != uploaded_funclu_zip.name
     ):
+        st.session_state.pop("ml_overview_render", None)
         try:
             (
                 labels_df,
@@ -1378,6 +1380,7 @@ with tab2:
                         )
 
             if submit_multilayer:
+                st.session_state.pop("ml_overview_render", None)
                 params = {
                     "max_order": int(ml_max_order),
                     "nonneg_self": bool(ml_nonneg_self),
@@ -1596,7 +1599,12 @@ with tab2:
                     if cluster_map
                 }
                 # 嵌套 Tab 展示结果
-                tab2_2_1, tab2_2_2, tab2_2_3 = st.tabs(["Network", "Effect Decomposition", "Adjacency Matrix"])
+                tab2_2_1, multilayer_overview_tab, tab2_2_2, tab2_2_3 = st.tabs(
+                    ["Network", t("netrecon.multilayer_overview.tab"), "Effect Decomposition", "Adjacency Matrix"]
+                )
+
+                with multilayer_overview_tab:
+                    render_multilayer_overview(multilayer_result)
 
                 # ========== Tab 2_2_1 Network ==========
                 with tab2_2_1:
