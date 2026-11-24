@@ -505,18 +505,38 @@ with tab2:
                         ]
                         for name in em_cond_names
                     }
-                    _panels = funclu_html.build_cluster_panels(
-                        _frames,
-                        em_labels_np,
-                        list(em_model.common_cols),
-                        em_model.n_components,
-                        show_members=True,
-                        show_ci=True,
-                    )
-                    _chart = funclu_html.render(_panels, conditions=list(em_cond_names))
-                    _chart_url = "data:text/html;base64," + base64.b64encode(
-                        _chart.encode("utf-8")).decode("ascii")
-                    _funclu_chart = (_chart_url, 620)
+                    try:
+                        # 浏览器 data: URL 上限约 2 MB；超限时自动减少成员曲线条数再打包
+                        _member_cap = 40
+                        _chart_url = ""
+                        for _attempt in range(3):
+                            _panels = funclu_html.build_cluster_panels(
+                                _frames,
+                                em_labels_np,
+                                list(em_model.common_cols),
+                                em_model.n_components,
+                                show_members=True,
+                                show_ci=True,
+                                max_members=_member_cap,
+                            )
+                            _chart = funclu_html.render(
+                                _panels, conditions=list(em_cond_names)
+                            )
+                            _chart_url = "data:text/html;base64," + base64.b64encode(
+                                _chart.encode("utf-8")).decode("ascii")
+                            if len(_chart_url) <= 1_500_000:
+                                break
+                            _member_cap = max(3, _member_cap // 4)
+                    except Exception as _chart_exc:  # noqa: BLE001 - surface to the UI
+                        st.error(f"簇轮廓图生成失败 / chart build failed: {_chart_exc}")
+                        _funclu_chart = None
+                    else:
+                        _chart_mb = len(_chart_url) / 1e6
+                        _caption = f"图表数据 {_chart_mb:.2f} MB"
+                        if _member_cap < 40:
+                            _caption += f"（已把每簇成员曲线降至 {_member_cap} 条以控制在浏览器上限内）"
+                        st.caption(_caption)
+                        _funclu_chart = (_chart_url, 620)
 
         # ---------- Export ----------
         with st.expander(t("funclu.tab.export"), expanded=False):
@@ -560,7 +580,10 @@ with tab2:
         _render_status_panel()
 
     if _funclu_chart is not None:
-        st.iframe(_funclu_chart[0], height=_funclu_chart[1])
+        try:
+            st.iframe(_funclu_chart[0], height=_funclu_chart[1])
+        except Exception as _render_exc:  # noqa: BLE001 - surface to the UI
+            st.error(f"图表渲染失败 / iframe failed: {_render_exc}")
 # =====================================================================
 # TAB 3: FunClu-BIC
 # =====================================================================

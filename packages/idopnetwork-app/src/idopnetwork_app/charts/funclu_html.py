@@ -620,7 +620,14 @@ $("png").onclick = () => {
 };
 
 async function boot() {
-  DATA = await loadData();
+  try {
+    DATA = await loadData();
+  } catch (err) {
+    document.body.innerHTML =
+      '<p style="font:14px/1.5 sans-serif;color:#8a3b3b;padding:16px">' +
+      'Chart payload could not be decoded: ' + String(err) + '</p>';
+    return;
+  }
   if (!DATA) return;
 const legend = document.getElementById("legend");
 if (DATA.series && DATA.series.length) {
