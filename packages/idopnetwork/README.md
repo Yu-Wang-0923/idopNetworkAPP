@@ -28,6 +28,28 @@ from idopnetwork.network import IDOPRegressor
 from idopnetwork.analysis import run_glmy
 ```
 
+## Multilayer network plots
+
+Render a NetRecon Multi-Layer export as a grid with an inter-module network on
+the first row and module subnetworks below it. Each panel uses the IDOP ring
+layout and ranks its hubs by out-degree.
+
+From a repository checkout, install the package locally and open the desktop
+module selector (requires Tkinter):
+
+```bash
+python -m pip install -e ./packages/idopnetwork
+python -m idopnetwork.network.multilayer_plot
+```
+
+To render selected modules from the command line:
+
+```bash
+python -m idopnetwork.network.multilayer_plot multilayer_export.zip --modules M1 M3 --out multilayer.svg
+```
+
+The output extension selects SVG, PNG, or PDF.
+
 ## Citation
 
 If you use idopNetwork in your research, please cite:
