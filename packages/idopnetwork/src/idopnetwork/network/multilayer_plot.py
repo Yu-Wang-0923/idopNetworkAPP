@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from textwrap import fill
 from zipfile import BadZipFile, ZipFile
@@ -43,6 +44,16 @@ PANEL_BORDER = "#D5DCE4"
 HEADER_COLOR = "#F2F5F8"
 LABEL_COLOR = "#192936"
 DEFAULT_EDGE_CURVATURE_SCALE = 1.5
+
+
+@dataclass(frozen=True)
+class _MatrixRow:
+    """Panel data and shared layout scales for one row of the overview."""
+
+    module: str | None
+    panels: list[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame] | None]
+    radius: float
+    width_levels: tuple[float, float]
 
 
 def _read_adjacency(stream):
@@ -100,6 +111,15 @@ def _prepare_panel(matrix, layout_key, max_edges):
     return layout, display, edges
 
 
+def _panel_node_diameters(layout: pd.DataFrame) -> dict[str, float]:
+    """Return node diameters in points for a panel's shared ring layout."""
+    node_scale = min(0.30, 1.15 / np.sqrt(len(layout)))
+    return {
+        row.module: node_scale * idop._node_diameter(row.ring_number)
+        for row in layout.itertuples(index=False)
+    }
+
+
 def _draw_panel(ax, panel, radius, width_levels, curvature_scale):
     ax.set_xticks([])
     ax.set_yticks([])
@@ -118,11 +138,7 @@ def _draw_panel(ax, panel, radius, width_levels, curvature_scale):
 
     layout, display, edges = panel
     positions = {row.module: (row.x, row.y) for row in layout.itertuples(index=False)}
-    node_scale = min(0.30, 1.15 / np.sqrt(len(layout)))
-    diameters = {
-        row.module: node_scale * idop._node_diameter(row.ring_number)
-        for row in layout.itertuples(index=False)
-    }
+    diameters = _panel_node_diameters(layout)
     pairs = set(zip(display["source"], display["target"]))
     for edge in display.iloc[::-1].itertuples(index=False):
         color = idop.POSITIVE_EDGE_COLOR if edge.weight > 0 else idop.NEGATIVE_EDGE_COLOR
@@ -200,25 +216,20 @@ def _draw_node_labels(ax, layout, diameters):
         occupied.append(box)
 
 
-def build_multilayer_figure(
+def _prepare_matrix(
     inter_cluster: Mapping[str, pd.DataFrame],
     intra_cluster: Mapping[str, Mapping[str, pd.DataFrame]],
-    *,
-    conditions: Sequence[str] | None = None,
-    modules: Sequence[str] | None = None,
-    title: str = "Two-layer IDOP network",
-    max_edges_per_panel: int | None = None,
-    curvature_scale: float = DEFAULT_EDGE_CURVATURE_SCALE,
-) -> Figure:
-    """生成模块间网络与模块内子网的条件对照图。"""
+    conditions: Sequence[str] | None,
+    modules: Sequence[str] | None,
+    max_edges_per_panel: int | None,
+) -> tuple[list[str], list[_MatrixRow]]:
+    """Prepare the same panels and per-row scales for the SVG and static renderers."""
     available = list(dict.fromkeys([*inter_cluster, *intra_cluster]))
     columns = list(conditions) if conditions is not None else available
     if not columns or len(columns) != len(set(columns)) or set(columns) - set(available):
         raise ValueError(f"条件须互不重复且来自输入。可用条件：{', '.join(available)}")
     if max_edges_per_panel is not None and max_edges_per_panel < 1:
         raise ValueError("每格最多边数须为正整数。")
-    if not np.isfinite(curvature_scale) or curvature_scale < 0:
-        raise ValueError("边曲率倍率须为非负有限数。")
 
     module_names = set()
     built_modules = set()
@@ -237,19 +248,52 @@ def build_multilayer_figure(
     if len(rows) != len(set(rows)) or set(rows) - module_names:
         raise ValueError(f"模块须互不重复且来自输入。可用模块：{', '.join(idop.sort_modules(module_names))}")
 
+    matrix = []
+    for module in [None, *rows]:
+        # 每行使用同一布局种子，降低跨条件比较时的无关旋转和抖动。
+        key = "inter-module" if module is None else module
+        panels = [
+            _prepare_panel(panel_matrix[(module, condition)], key, max_edges_per_panel)
+            if (module, condition) in panel_matrix else None
+            for condition in columns
+        ]
+        present = [panel for panel in panels if panel is not None]
+        bound = max(
+            (panel[0][["x", "y"]].abs().to_numpy().max() for panel in present),
+            default=0.0,
+        )
+        radius = max(4.0, 1.42 * bound)
+        pooled = pd.concat([panel[2] for panel in present], ignore_index=True) if present else pd.DataFrame()
+        matrix.append(_MatrixRow(module, panels, radius, idop._edge_width_levels(pooled)))
+    return columns, matrix
+
+
+def build_multilayer_figure(
+    inter_cluster: Mapping[str, pd.DataFrame],
+    intra_cluster: Mapping[str, Mapping[str, pd.DataFrame]],
+    *,
+    conditions: Sequence[str] | None = None,
+    modules: Sequence[str] | None = None,
+    title: str = "Two-layer IDOP network",
+    max_edges_per_panel: int | None = None,
+    curvature_scale: float = DEFAULT_EDGE_CURVATURE_SCALE,
+) -> Figure:
+    """生成模块间网络与模块内子网的条件对照图。"""
+    if not np.isfinite(curvature_scale) or curvature_scale < 0:
+        raise ValueError("边曲率倍率须为非负有限数。")
+    columns, rows = _prepare_matrix(inter_cluster, intra_cluster, conditions, modules, max_edges_per_panel)
     panel_size = 1.8
-    row_keys = [None, *rows]
     width = 0.96 + panel_size * len(columns)
-    height = 1.15 + panel_size * len(row_keys)
+    height = 1.15 + panel_size * len(rows)
     fonts = {font.name for font in fontManager.ttflist}
     cjk = next((name for name in ("Microsoft YaHei", "Noto Sans CJK SC", "SimHei") if name in fonts), None)
     with mpl.rc_context({"font.family": ["DejaVu Sans"] + ([cjk] if cjk else [])}):
         figure = Figure(figsize=(width, height), facecolor="white")
         FigureCanvasAgg(figure)
         grid = figure.add_gridspec(
-            len(row_keys) + 1, len(columns) + 1,
+            len(rows) + 1, len(columns) + 1,
             width_ratios=[0.78, *([panel_size] * len(columns))],
-            height_ratios=[0.37, *([panel_size] * len(row_keys))],
+            height_ratios=[0.37, *([panel_size] * len(rows))],
             left=0.12 / width, right=1 - 0.08 / width,
             bottom=0.37 / height, top=1 - 0.40 / height,
             wspace=0, hspace=0,
@@ -268,29 +312,15 @@ def build_multilayer_figure(
             heading.text(0.5, 0.5, condition, ha="center", va="center",
                          fontsize=9, weight="bold", color=LABEL_COLOR, wrap=True)
 
-        for row_number, module in enumerate(row_keys, start=1):
+        for row_number, row in enumerate(rows, start=1):
             heading = figure.add_subplot(grid[row_number, 0])
             heading.set_axis_off()
-            label = module if module is not None else "Inter-\nmodule"
+            label = row.module if row.module is not None else "Inter-\nmodule"
             heading.text(0.94, 0.5, label, ha="right", va="center",
                          fontsize=9, weight="bold", color=LABEL_COLOR)
-            panels = []
-            for condition in columns:
-                frame = panel_matrix.get((module, condition))
-                # 每行使用同一布局种子，降低跨条件比较时的无关旋转和抖动。
-                key = "inter-module" if module is None else module
-                panels.append(_prepare_panel(frame, key, max_edges_per_panel) if frame is not None else None)
-            present = [panel for panel in panels if panel is not None]
-            bound = max(
-                (panel[0][["x", "y"]].abs().to_numpy().max() for panel in present),
-                default=0.0,
-            )
-            radius = max(4.0, 1.42 * bound)
-            pooled = pd.concat([panel[2] for panel in present], ignore_index=True) if present else pd.DataFrame()
-            width_levels = idop._edge_width_levels(pooled)
-            for col_number, panel in enumerate(panels, start=1):
+            for col_number, panel in enumerate(row.panels, start=1):
                 axis = figure.add_subplot(grid[row_number, col_number])
-                _draw_panel(axis, panel, radius, width_levels, curvature_scale)
+                _draw_panel(axis, panel, row.radius, row.width_levels, curvature_scale)
 
         handles = [
             Line2D([], [], color=idop.POSITIVE_EDGE_COLOR, lw=1.8, label="Positive weight"),

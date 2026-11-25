@@ -33,3 +33,6 @@ Repository = "https://github.com/Yu-Wang-0923/idopNetworkAPP"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"idopnetwork.network" = ["multilayer_matrix.html"]

@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two-layer IDOP network</title>
+<style>
+  * { box-sizing: border-box; }
+  body { display: flex; flex-direction: column; height: 100dvh; margin: 0;
+    background: white; color: #192936; font: 14px system-ui, sans-serif; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 8px 2px; }
+  button { font: inherit; color: inherit; background: white; border: 1px solid #bcc9d5;
+    border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+  button:hover { background: #f2f5f8; }
+  button[aria-pressed="true"] { background: #e7f2fa; border-color: #3274a5; }
+  label { display: inline-flex; align-items: center; gap: 6px; }
+  input[type="range"] { width: 90px; }
+  output { min-width: 4ch; font-variant-numeric: tabular-nums; }
+  #matrix-hint { min-height: 20px; padding: 0 2px 5px; color: #4d5d6b; font-size: 12px; }
+  #viewport { flex: 1; min-height: 0; overflow: auto; }
+  #matrix { display: block; height: auto; }
+  .node { cursor: default; }
+  .node text { pointer-events: none; }
+  .node:focus-visible circle { stroke: #175d94; stroke-width: 2; }
+  .editing .node { cursor: grab; user-select: none; }
+  .editing .node circle { touch-action: none; }
+  .editing .node:active { cursor: grabbing; }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button id="lock-layout" type="button" aria-pressed="false"></button>
+  <button id="reset" type="button"></button>
+  <label><span id="node-size-label"></span><input id="node-size" type="range" min="50" max="200" step="5" value="100"><output id="node-size-value" for="node-size"></output></label>
+  <label><span id="curvature-label"></span><input id="curvature" type="range" min="0" max="250" step="5" value="100"><output id="curvature-value" for="curvature"></output></label>
+  <label><span id="label-size-label"></span><input id="label-size" type="range" min="50" max="200" step="5" value="100"><output id="label-size-value" for="label-size"></output></label>
+  <label><span id="zoom-label"></span><input id="zoom" type="range" min="75" max="200" value="100"><output id="zoom-value" for="zoom"></output></label>
+  <label><span id="threshold-label"></span><input id="threshold" type="range" min="0" max="100" value="0"><output id="threshold-value" for="threshold"></output></label>
+  <button id="save-svg" type="button"></button>
+  <button id="save-html" type="button"></button>
+</div>
+<div id="matrix-hint" role="status"></div>
+<div id="viewport"></div>
+<script id="matrix-data" type="application/json">__MATRIX_DATA__</script>
+<script>
+(() => {
+  "use strict";
+
+  const byId = id => document.getElementById(id);
+  const data = JSON.parse(byId("matrix-data").textContent);
+  const { colors, columns, rows } = data;
+  const labels = {
+    title: "Two-layer IDOP network", inter: "Inter-module", empty: "No data", noEdges: "No edges",
+    positive: "Positive weight", negative: "Negative weight", lock: "Lock layout",
+    nodeSize: "Node size", curvature: "Edge curvature", labelSize: "Label size",
+    reset: "Reset layout", zoom: "Zoom", threshold: "Minimum |weight| (% of row max)",
+    svg: "Download SVG", html: "Download interactive HTML",
+    lockedHint: "Layout locked. Toggle Lock layout to move nodes again.",
+    editingHint: "Drag nodes within their panels, or focus a node and use the arrow keys.",
+    ...data.labels,
+  };
+  document.title = labels.title;
+  document.documentElement.lang = labels.lang || "en";
+  for (const [id, label] of Object.entries({
+    "lock-layout": labels.lock, reset: labels.reset, "zoom-label": labels.zoom, "threshold-label": labels.threshold,
+    "node-size-label": labels.nodeSize, "curvature-label": labels.curvature, "label-size-label": labels.labelSize,
+    "save-svg": labels.svg, "save-html": labels.html,
+  })) byId(id).textContent = label;
+
+  const svgNamespace = "http://www.w3.org/2000/svg";
+  const cell = 170;
+  const left = 94;
+  const top = 40;
+  const header = 30;
+  const width = left + cell * columns.length + 8;
+  const height = top + header + cell * rows.length + 34;
+  const viewport = byId("viewport");
+  const maxNodeScale = Number(byId("node-size").max) / 100;
+  const nodes = new Map();
+  const edges = [];
+  let curvatureScale = 1;
+  let editing = true;
+  let drag = null;
+
+  function svg(tag, attributes, parent, value) {
+    const element = document.createElementNS(svgNamespace, tag);
+    for (const [name, attribute] of Object.entries(attributes)) element.setAttribute(name, attribute);
+    if (value !== undefined) element.textContent = value;
+    parent.append(element);
+    return element;
+  }
+
+  function text(parent, x, y, value, attributes = {}) {
+    return svg("text", { x, y, fill: colors.heading, "dominant-baseline": "central", ...attributes }, parent, value);
+  }
+
+  function heading(parent, x, y, value, maxWidth, anchor) {
+    const label = text(parent, x, y, value, { "font-weight": 700, "text-anchor": anchor });
+    if (label.getComputedTextLength() > maxWidth) {
+      svg("title", {}, label, value);
+      const content = label.firstChild;
+      const characters = Array.from(value);
+      let limit = Math.floor(characters.length * maxWidth / label.getComputedTextLength());
+      do {
+        content.data = characters.slice(0, Math.max(0, limit--)).join("") + "…";
+      } while (limit > 0 && label.getComputedTextLength() > maxWidth);
+    }
+  }
+
+  const graph = svg("svg", {
+    id: "matrix", width, height, viewBox: `0 0 ${width} ${height}`,
+    role: "group", "aria-label": labels.title, "font-family": "system-ui, sans-serif", "font-size": 12,
+  }, viewport);
+  svg("rect", { width, height, fill: "white" }, graph);
+  text(graph, 8, 19, labels.title, { "font-size": 18, "font-weight": 700 });
+  const defs = svg("defs", {}, graph);
+  for (const sign of ["positive", "negative"]) {
+    const marker = svg("marker", {
+      id: `arrow-${sign}`, viewBox: "0 0 6 6", refX: 6, refY: 3, markerWidth: 5, markerHeight: 5,
+      markerUnits: "userSpaceOnUse", orient: "auto",
+    }, defs);
+    svg("path", { d: "M0 0 L6 3 L0 6 Z", fill: colors[sign] }, marker);
+  }
+
+  function drawEdge(edge) {
+    const { source, target, curve, element } = edge;
+    const dx = target.x - source.x;
+    const dy = target.y - source.y;
+    const distance = Math.hypot(dx, dy);
+    if (!distance) {
+      element.setAttribute("d", "");
+      return;
+    }
+    const bend = curve * curvatureScale;
+    const cx = (source.x + target.x) / 2 - dy * bend;
+    const cy = (source.y + target.y) / 2 + dx * bend;
+    const start = inset(source, cx, cy, distance / 3);
+    const end = inset(target, cx, cy, distance / 3);
+    element.setAttribute("d", `M${start.x} ${start.y} Q${cx} ${cy} ${end.x} ${end.y}`);
+  }
+
+  function inset(node, x, y, maxInset) {
+    const dx = x - node.x;
+    const dy = y - node.y;
+    const ratio = Math.min(node.radius, maxInset) / Math.hypot(dx, dy);
+    return { x: node.x + dx * ratio, y: node.y + dy * ratio };
+  }
+
+  function placeNode(node, x, y) {
+    // Reserve room for the largest node so resizing doesn't shift its center.
+    const pad = node.data.radius * maxNodeScale + 2;
+    node.x = Math.max(pad, Math.min(cell - pad, x));
+    node.y = Math.max(pad, Math.min(cell - pad, y));
+    node.element.setAttribute("transform", `translate(${node.x} ${node.y})`);
+    positionLabel(node);
+    node.data.x = (node.x - cell / 2) / node.scale;
+    node.data.y = (cell / 2 - node.y) / node.scale;
+    node.edges.forEach(drawEdge);
+  }
+
+  function positionLabel(node) {
+    const pad = node.radius + 2;
+    const right = cell - node.x - pad;
+    const left = node.x - pad;
+    const nearSide = Math.abs(node.x - cell / 2) > 20;
+    const useSide = nearSide && Math.max(left, right) >= node.labelWidth;
+    const labelRight = node.x > cell / 2 ? right >= node.labelWidth : left < node.labelWidth;
+    const centerShift = Math.max(node.labelWidth / 2 + 1 - node.x,
+      Math.min(cell - node.labelWidth / 2 - 1 - node.x, 0));
+    node.label.setAttribute("x", useSide ? (labelRight ? pad : -pad) : centerShift);
+    const labelOffset = pad + node.fontSize / 2;
+    node.label.setAttribute("y", useSide ? 0 : (node.y > labelOffset + node.fontSize / 2 ? -labelOffset : labelOffset));
+    node.label.setAttribute("text-anchor", useSide ? (labelRight ? "start" : "end") : "middle");
+  }
+
+  function drawPanel(panel, radius, maxWeight, x, y, panelLabel) {
+    const group = svg("svg", { x, y, width: cell, height: cell, overflow: "hidden", "aria-label": panelLabel }, graph);
+    svg("rect", { x: .25, y: .25, width: cell - .5, height: cell - .5,
+      fill: panel ? "white" : "#f8fafc", stroke: colors.border, "stroke-width": .55 }, group);
+    if (!panel) {
+      text(group, cell / 2, cell / 2, labels.empty, { "text-anchor": "middle", fill: "#607586" });
+      return;
+    }
+
+    const edgeLayer = svg("g", {}, group);
+    const scale = cell / (2 * radius);
+    const panelNodes = new Map();
+    const fontSize = Math.min(9.3, 36 / Math.sqrt(panel.nodes.length));
+    for (const entry of panel.nodes) {
+      const element = svg("g", { class: "node", "aria-label": `${panelLabel} · ${entry.name}` }, group);
+      svg("title", {}, element, entry.name);
+      const circle = svg("circle", { r: entry.radius, fill: entry.color,
+        stroke: colors.nodeOutline, "stroke-width": .6 }, element);
+      const characters = Array.from(entry.name);
+      const caption = characters.length > 22 ? characters.slice(0, 21).join("") + "…" : entry.name;
+      const label = text(element, 0, 0, caption, { fill: colors.label, "font-size": fontSize,
+        stroke: "white", "stroke-width": 2, "paint-order": "stroke" });
+      const initial = { x: cell / 2 + entry.x * scale, y: cell / 2 - entry.y * scale };
+      const node = { data: entry, element, circle, radius: entry.radius, label, fontSize, baseFontSize: fontSize,
+        labelWidth: label.getComputedTextLength(), initial, group, scale, edges: [] };
+      placeNode(node, initial.x, initial.y);
+      panelNodes.set(entry.name, node);
+      nodes.set(element, node);
+    }
+
+    for (const entry of panel.edges) {
+      const sign = entry.weight > 0 ? "positive" : "negative";
+      const element = svg("path", { fill: "none", stroke: colors[sign], "stroke-width": entry.width,
+        opacity: .82, "marker-end": `url(#arrow-${sign})` }, edgeLayer);
+      svg("title", {}, element, `${entry.source} → ${entry.target}: ${Number(entry.weight.toPrecision(5))}`);
+      const source = panelNodes.get(entry.source);
+      const target = panelNodes.get(entry.target);
+      const edge = { source, target, element, curve: entry.curve, relativeWeight: Math.abs(entry.weight) / maxWeight };
+      source.edges.push(edge);
+      target.edges.push(edge);
+      edges.push(edge);
+      drawEdge(edge);
+    }
+    if (!panel.edges.length) {
+      text(group, cell - 6, cell - 10, labels.noEdges, { "text-anchor": "end", fill: "#607586", "font-size": 9 });
+    }
+  }
+
+  columns.forEach((condition, index) => {
+    const x = left + index * cell;
+    svg("rect", { x, y: top, width: cell, height: header, fill: colors.header,
+      stroke: colors.border, "stroke-width": .55 }, graph);
+    heading(graph, x + cell / 2, top + header / 2, condition, cell - 12, "middle");
+  });
+  rows.forEach((row, index) => {
+    const y = top + header + index * cell;
+    const label = row.module ?? labels.inter;
+    heading(graph, left - 6, y + cell / 2, label, left - 12, "end");
+    row.panels.forEach((panel, column) => drawPanel(
+      panel, row.radius, row.maxWeight, left + column * cell, y, `${columns[column]} · ${label}`,
+    ));
+  });
+
+  const legend = svg("g", { "font-size": 11 }, graph);
+  let legendWidth = 0;
+  for (const sign of ["positive", "negative"]) {
+    svg("line", { x1: legendWidth, x2: legendWidth + 22, y1: 0, y2: 0,
+      stroke: colors[sign], "stroke-width": 2 }, legend);
+    const label = text(legend, legendWidth + 28, 0, labels[sign]);
+    legendWidth += label.getComputedTextLength() + 44;
+  }
+  legend.setAttribute("transform", `translate(${(width - legendWidth + 16) / 2} ${height - 17})`);
+
+  function panelPoint(event, node) {
+    const transform = node.group.getScreenCTM();
+    return new DOMPoint(event.clientX, event.clientY).matrixTransform(transform.inverse());
+  }
+
+  const lockLayout = byId("lock-layout");
+  function setEditing(enabled) {
+    editing = enabled;
+    lockLayout.setAttribute("aria-pressed", !editing);
+    byId("matrix-hint").textContent = editing ? labels.editingHint : labels.lockedHint;
+    graph.classList.toggle("editing", editing);
+    for (const element of nodes.keys()) {
+      if (editing) element.setAttribute("tabindex", "0");
+      else element.removeAttribute("tabindex");
+    }
+  }
+  setEditing(true);
+  lockLayout.addEventListener("click", () => setEditing(!editing));
+  // Keep the scrollable viewport from taking over a touch that starts on a node.
+  graph.addEventListener("touchstart", event => {
+    if (editing && event.target.closest(".node")) event.preventDefault();
+  }, { passive: false });
+  graph.addEventListener("pointerdown", event => {
+    const node = nodes.get(event.target.closest(".node"));
+    if (!editing || drag || !node || event.button !== 0) return;
+    const point = panelPoint(event, node);
+    drag = { node, id: event.pointerId, offsetX: node.x - point.x, offsetY: node.y - point.y };
+    graph.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  });
+  graph.addEventListener("pointermove", event => {
+    if (!editing || event.pointerId !== drag?.id) return;
+    const point = panelPoint(event, drag.node);
+    placeNode(drag.node, point.x + drag.offsetX, point.y + drag.offsetY);
+  });
+  graph.addEventListener("lostpointercapture", event => {
+    if (event.pointerId === drag?.id) drag = null;
+  });
+  const directions = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  graph.addEventListener("keydown", event => {
+    const node = nodes.get(event.target);
+    const direction = directions[event.key];
+    if (!editing || !node || !Object.hasOwn(directions, event.key)) return;
+    event.preventDefault();
+    placeNode(node, node.x + 3 * direction[0], node.y + 3 * direction[1]);
+  });
+  byId("reset").addEventListener("click", () => {
+    for (const node of nodes.values()) placeNode(node, node.initial.x, node.initial.y);
+  });
+
+  const sliderIds = ["node-size", "curvature", "label-size", "zoom", "threshold"];
+
+  function bindSlider(id, render) {
+    const input = byId(id);
+    const output = byId(`${id}-value`);
+    function update() {
+      output.value = `${input.value}%`;
+      render(Number(input.value) / 100);
+    }
+    input.addEventListener("input", update);
+    update();
+    return update;
+  }
+
+  bindSlider("node-size", size => {
+    for (const node of nodes.values()) {
+      node.radius = node.data.radius * size;
+      node.circle.setAttribute("r", node.radius);
+      positionLabel(node);
+    }
+    edges.forEach(drawEdge);
+  });
+  bindSlider("curvature", scale => {
+    curvatureScale = scale;
+    edges.forEach(drawEdge);
+  });
+  bindSlider("label-size", size => {
+    for (const node of nodes.values()) {
+      node.fontSize = node.baseFontSize * size;
+      node.label.setAttribute("font-size", node.fontSize);
+      node.label.removeAttribute("textLength");
+    }
+    for (const node of nodes.values()) {
+      node.labelWidth = node.label.getComputedTextLength();
+    }
+    for (const node of nodes.values()) {
+      if (node.labelWidth > cell - 4) {
+        node.labelWidth = cell - 4;
+        node.label.setAttribute("textLength", node.labelWidth);
+        node.label.setAttribute("lengthAdjust", "spacingAndGlyphs");
+      }
+      positionLabel(node);
+    }
+  });
+  const updateZoom = bindSlider("zoom", zoom => {
+    const fit = Math.min(1, Math.max(.68, viewport.clientWidth / width));
+    graph.style.width = `${width * fit * zoom}px`;
+  });
+  new ResizeObserver(updateZoom).observe(viewport);
+  bindSlider("threshold", threshold => {
+    for (const edge of edges) {
+      edge.element.setAttribute("visibility", edge.relativeWeight >= threshold ? "visible" : "hidden");
+    }
+  });
+
+  function download(filename, type, content) {
+    const url = URL.createObjectURL(new Blob([content], { type }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  byId("save-svg").addEventListener("click", () => {
+    const copy = graph.cloneNode(true);
+    copy.removeAttribute("style");
+    copy.removeAttribute("class");
+    copy.querySelectorAll("[tabindex]").forEach(node => node.removeAttribute("tabindex"));
+    download("idop_multilayer_overview.svg", "image/svg+xml", new XMLSerializer().serializeToString(copy));
+  });
+  byId("save-html").addEventListener("click", () => {
+    const copy = document.documentElement.cloneNode(true);
+    copy.querySelector("#viewport").replaceChildren();
+    copy.querySelector("#lock-layout").setAttribute("aria-pressed", "false");
+    copy.querySelector("#matrix-data").textContent = JSON.stringify(data).replaceAll("<", "\\u003c");
+    for (const id of sliderIds) copy.querySelector(`#${id}`).setAttribute("value", byId(id).value);
+    download("idop_multilayer_overview.html", "text/html;charset=utf-8", "<!doctype html>\n" + copy.outerHTML);
+  });
+})();
+</script>
+</body>
+</html>
